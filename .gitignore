@@ -1,0 +1,10 @@
+.DS_Store
+.bundle
+.idea
+.ruby-version
+*.swp
+Gemfile.lock
+*.pem
+server_data.json
+tmp/*
+
