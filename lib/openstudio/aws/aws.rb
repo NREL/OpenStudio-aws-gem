@@ -5,11 +5,13 @@ module OpenStudio
   module Aws
     class Aws
       attr_reader :server_data
+      attr_reader :worker_data
 
       def initialize()
         # read in the config.yml file to get the secret/private key
         @config = OpenStudio::Aws::Config.new()
         @server_data = nil
+        @worker_data = nil
       end
 
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
@@ -21,14 +23,11 @@ module OpenStudio
         # Since this is a command line call then make sure to escape the quotes in the JSON
         instance_string = instance_data.to_json.gsub("\"", "\\\\\"")
 
-        # Get the location of the os-aws.rb file.  Use the relative path from where this file exists
-        os_aws_file = File.expand_path(File.join(File.dirname(__FILE__), "..", "lib", "os-aws.rb"))
-        raise "os_aws_file does not exist where it is expected: #{os_aws_file}" unless File.exists?(os_aws_file)
 
         # Call the openstudio script to start the ec2 instance 
-        start_string = "ruby #{os_aws_file} #{@config.access_key} #{@config.secret_key} us-east-1 EC2 launch_server \"#{instance_string}\""
-        puts "#{start_string}"
-        server_data_str = `#{start_string}`          #{:no_data => true}.to_json #
+        start_string = "ruby #{os_aws_file_location} #{@config.access_key} #{@config.secret_key} us-east-1 EC2 launch_server \"#{instance_string}\""
+        puts "Server Command: #{start_string}"
+        server_data_str = `#{start_string}`
         @server_data = JSON.parse(server_data_str, :symbolize_names => true)
 
         # Save pieces of the data for passing to the worker node
@@ -55,7 +54,42 @@ module OpenStudio
       end
 
       def create_workers(number_of_instances, instance_data = {})
+        defaults = {instance_type: "m2.4xlarge"}
+        instance_data = defaults.merge(instance_data)
+
         raise "Can't create workers without a server instance running" if @server_data.nil?
+
+        # append the information to the server_data hash that already exists
+        @server_data[:instance_type] = instance_data[:instance_type]
+        @server_data[:num] = number_of_instances
+        server_string = @server_data.to_json.gsub("\"", "\\\\\"")
+
+        start_string = "ruby #{os_aws_file_location} #{@config.access_key} #{@config.secret_key} us-east-1 EC2 launch_workers \"#{server_string}\""
+        puts "Worker Command: #{start_string}"
+        worker_data_string = `#{start_string}`
+        @worker_data = JSON.parse(worker_data_string, :symbolize_names => true)
+        File.open("worker_data.json", "w") { |f| f << JSON.pretty_generate(worker_data) }
+
+        # Print out some debugging commands (probably work on mac/linux only)
+        @worker_data[:workers].each do |worker|
+          puts ""
+          puts "Worker SSH Command:"
+          puts "ssh -i #{@server_data[:private_key]} ubuntu@#{worker[:dns]}"
+        end
+      end
+      
+      def kill_instances()
+        # Add this method to kill all the running instances
+      end
+
+      private
+
+      def os_aws_file_location
+        # Get the location of the os-aws.rb file.  Use the relative path from where this file exists
+        os_aws_file = File.expand_path(File.join(File.dirname(__FILE__), "..", "lib", "os-aws.rb"))
+        raise "os_aws_file does not exist where it is expected: #{os_aws_file}" unless File.exists?(os_aws_file)
+
+        os_aws_file
       end
 
     end

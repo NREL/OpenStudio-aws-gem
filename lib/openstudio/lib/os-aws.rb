@@ -1,3 +1,4 @@
+# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files
 ######################################################################
 #  Copyright (c) 2008-2013, Alliance for Sustainable Energy.  
 #  All rights reserved.
@@ -44,7 +45,7 @@ require 'net/ssh'
 require 'tempfile'
 require 'time'
 
-OPENSTUDIO_VERSION='${CMAKE_VERSION_MAJOR}.${CMAKE_VERSION_MINOR}.${CMAKE_VERSION_PATCH}'
+OPENSTUDIO_VERSION='1.1.2'
 
 def error(code, msg)
   puts ({:error => {:code => code, :message => msg},

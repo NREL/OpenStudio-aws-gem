@@ -43,7 +43,7 @@ task :import_files do
   system "curl -S -s -L -o #{os_file} https://raw.github.com/NREL/OpenStudio/develop/openstudiocore/ruby/cloud/aws.rb.in"
   if File.exists?(os_file)
     system "ruby -i -pe 'puts \"# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files\" if $.==1' #{os_file}"
-    system "sed -i 's/\$\{CMAKE_VERSION_MAJOR\}.\$\{CMAKE_VERSION_MINOR\}.\$\{CMAKE_VERSION_PATCH\}/#{OpenStudio::Aws::OPENSTUDIO_VERSION}/g' #{os_file}"
+    system "sed -i '' 's/\${CMAKE_VERSION_MAJOR}.\${CMAKE_VERSION_MINOR}.\${CMAKE_VERSION_PATCH}/#{OpenStudio::Aws::OPENSTUDIO_VERSION}/g' #{os_file}"
   end      
   
   os_file = "./lib/openstudio/lib/mongoid.yml.template"
