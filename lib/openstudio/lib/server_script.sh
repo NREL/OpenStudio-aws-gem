@@ -1,4 +1,5 @@
 #!/bin/sh
+# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files
 
 # Change Host File Entries
 ENTRY="localhost localhost master"

@@ -52,9 +52,15 @@ task :import_files do
 
   os_file = "./lib/openstudio/lib/server_script.sh"
   system "curl -S -s -L -o #{os_file} https://raw.github.com/NREL/OpenStudio/develop/openstudiocore/ruby/cloud/server_script.sh"
-  
+  if File.exists?(os_file)
+    system "ruby -i -pe 'puts \"# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files\" if $.==2' #{os_file}"
+  end
+
   os_file = "./lib/openstudio/lib/worker_script.sh.template"
   system "curl -S -s -L -o #{os_file} https://raw.github.com/NREL/OpenStudio/develop/openstudiocore/ruby/cloud/worker_script.sh.template"
+  if File.exists?(os_file)
+    system "ruby -i -pe 'puts \"# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files\" if $.==2' #{os_file}"
+  end
 end
 
 desc "uninstall all openstudio-aws gems"
