@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe OpenStudio::Aws do
+describe OpenStudio::Aws::Aws do
   context "create a new instance" do
     before(:all) do
       @aws = OpenStudio::Aws::Aws.new
