@@ -63,5 +63,6 @@ task :uninstall do
   system "gem uninstall openstudio-aws -a"
 end
 
+desc "reinstall the gem (uninstall, build, and reinstall"
 task :reinstall => [:uninstall, :install]
 

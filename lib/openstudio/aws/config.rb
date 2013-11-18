@@ -1,6 +1,3 @@
-require 'rubygems'
-require 'yaml'
-
 module OpenStudio
   module Aws
     class Config

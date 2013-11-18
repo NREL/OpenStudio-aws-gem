@@ -5,6 +5,7 @@
 *.swp
 Gemfile.lock
 *.pem
+*.gem
 server_data.json
 worker_data.json
 tmp/*
