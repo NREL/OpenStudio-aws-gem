@@ -1,4 +1,3 @@
-# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files
 require 'rubygems'
 require 'yaml'
 

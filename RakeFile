@@ -12,6 +12,7 @@ task :build do
   system "gem build openstudio-aws.gemspec"
 end
 
+desc "build and install gem locally"
 task :install => :build do
   system "gem install openstudio-aws-#{OpenStudio::Aws::VERSION}.gem --no-ri --no-rdoc"
 end
@@ -54,22 +55,6 @@ task :import_files do
   
   os_file = "./lib/openstudio/lib/worker_script.sh.template"
   system "curl -S -s -L -o #{os_file} https://raw.github.com/NREL/OpenStudio/develop/openstudiocore/ruby/cloud/worker_script.sh.template"
-  
-  aws_config_file = "../openstudio-server/launch-instance/AwsConfig.rb"
-  if File.exists?(aws_config_file)
-    FileUtils.copy(aws_config_file, "./lib/openstudio/aws/config.rb")
-    system "ruby -i -pe 'puts \"# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files\" if $.==1' ./lib/openstudio/aws/config.rb"
-  else
-    raise "Could not file AwsConfig file... aborting. File: #{aws_config_file}"
-  end
-
-  aws_config_file = "../openstudio-server/launch-instance/AwsConfig.rb"
-  if File.exists?(aws_config_file)
-    FileUtils.copy(aws_config_file, "./lib/openstudio/aws/config.rb")
-    system "ruby -i -pe 'puts \"# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files\" if $.==1' ./lib/openstudio/aws/config.rb"
-  else
-    raise "Could not file AwsConfig file... aborting. File: #{aws_config_file}"
-  end
 end
 
 desc "uninstall all openstudio-aws gems"
