@@ -45,7 +45,7 @@ require 'net/ssh'
 require 'tempfile'
 require 'time'
 
-OPENSTUDIO_VERSION='1.1.2'
+OPENSTUDIO_VERSION='1.1.4'
 
 def error(code, msg)
   puts ({:error => {:code => code, :message => msg},
