@@ -65,7 +65,6 @@ end
 
 desc "uninstall all openstudio-aws gems"
 task :uninstall do
-  
   system "gem uninstall openstudio-aws -a"
 end
 
