@@ -1,6 +1,11 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.4
+-------------
+
+* Package custom AWS gem locally
+
 Version 0.1.3
 -------------
 
