@@ -19,7 +19,7 @@ Gem::Specification.new do |s|
   
   s.add_runtime_dependency("json_pure")
   s.add_runtime_dependency("net-scp")
-  s.add_dependency("aws-sdk", ["~> 1.26.0"])
+  #s.add_dependency("aws-sdk", ["~> 1.26.0"])
 
   s.files = Dir.glob("lib/**/*") + %w(README.md Rakefile)
   s.test_files = Dir.glob("spec/**/*")
