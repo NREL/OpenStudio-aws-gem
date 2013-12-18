@@ -1,3 +1,0 @@
-[submodule "vendor/git/aws-sdk-ruby"]
-	path = vendor/git/aws-sdk-ruby
-	url = git@github.com:nllong/aws-sdk-ruby.git
