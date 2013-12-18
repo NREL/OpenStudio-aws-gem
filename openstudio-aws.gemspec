@@ -17,7 +17,7 @@ Gem::Specification.new do |s|
   s.required_ruby_version = ">= 2.0"
   s.required_rubygems_version = ">= 1.3.6"
   
-  s.add_runtime_dependency("json")
+  s.add_runtime_dependency("json_pure")
   s.add_runtime_dependency("net-scp")
   s.add_dependency("aws-sdk", ["~> 1.26.0"])
 
