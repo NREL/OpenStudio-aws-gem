@@ -29,11 +29,6 @@ RSpec::Core::RakeTask.new("spec") do |spec|
   spec.pattern = "spec/**/config_spec.rb"
 end
 
-#RSpec::Core::RakeTask.new("spec::aws") do |spec|
-#  spec.rspec_opts = %w(--format progress)
-#  spec.pattern = "spec/**/aws_spec.rb"
-#end
-
 task :default => :spec
 
 desc "import files from other repos"
