@@ -45,8 +45,6 @@ require 'net/ssh'
 require 'tempfile'
 require 'time'
 
-OPENSTUDIO_VERSION='1.1.4'
-
 def error(code, msg)
   puts ({:error => {:code => code, :message => msg},
          :arguments => ARGV[2..-1]}.to_json)
@@ -90,21 +88,28 @@ end
 
 if ARGV.length == 6
   @params = JSON.parse(ARGV[5])
+  OPENSTUDIO_VERSION = @params['openstudio_version'] if @params.include?('openstudio_version')
+  @server_image_id = @params['server_ami'] if @params.include?('server_ami')
+  @worker_image_id = @params['worker_ami'] if @params.include?('worker_ami')
 end
 
-resp = Net::HTTP.get_response('developer.nrel.gov','/downloads/buildings/openstudio/rsrc/amis.json')
-if resp.code == '200'
-  result = JSON.parse(resp.body)
-  version = result.has_key?(OPENSTUDIO_VERSION) ? OPENSTUDIO_VERSION : 'default'
+OPENSTUDIO_VERSION = '1.1.4' unless defined?(OPENSTUDIO_VERSION)
 
-  @server_image_id = result[version]['server']
-  if ARGV.length >= 6 && @params['instance_type'] == 'cc2.8xlarge'
-    @worker_image_id = result[version]['cc2worker']
+if (!defined?(@server_image_id) || !defined?(@worker_image_id))
+  resp = Net::HTTP.get_response('developer.nrel.gov','/downloads/buildings/openstudio/rsrc/amis.json')
+  if resp.code == '200'
+    result = JSON.parse(resp.body)
+    version = result.has_key?(OPENSTUDIO_VERSION) ? OPENSTUDIO_VERSION : 'default'
+
+    @server_image_id = result[version]['server']
+    if ARGV.length >= 6 && @params['instance_type'] == 'cc2.8xlarge'
+      @worker_image_id = result[version]['cc2worker']
+    else
+      @worker_image_id = result[version]['worker']
+    end
   else
-    @worker_image_id = result[version]['worker']
+    error(resp.code, 'Unable to download AMI IDs')
   end
-else
-  error(resp.code, 'Unable to download AMI IDs')
 end
 
 def create_struct(instance, procs)
@@ -345,7 +350,7 @@ def download_file(host, remote_path, local_path)
 end
 
 begin
-  @logger = Logger.new("aws.log")
+  @logger = Logger.new(File.expand_path("~/.aws.log"))
   @logger.info("initialized")
   case ARGV[4]
     when 'describe_availability_zones'

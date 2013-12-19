@@ -1,6 +1,11 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.6
+-------------
+
+* Update os-aws.rb script to the most recent version in OpenStudio repo
+
 Version 0.1.4
 -------------
 
