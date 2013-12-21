@@ -1,5 +1,6 @@
 require "bundler" 
 Bundler.setup
+#Bundler.require
 
 require "rake"
 require "rspec/core/rake_task"
@@ -27,6 +28,11 @@ end
 RSpec::Core::RakeTask.new("spec") do |spec|
   spec.rspec_opts = %w(--format progress)
   spec.pattern = "spec/**/config_spec.rb"
+end
+
+RSpec::Core::RakeTask.new("spec:all") do |spec|
+  spec.rspec_opts = %w(--format progress)
+  spec.pattern = "spec/**/*_spec.rb"
 end
 
 task :default => :spec
