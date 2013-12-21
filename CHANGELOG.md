@@ -1,6 +1,11 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.7
+-------------
+
+* Bump version of aws-sdk. Package a custom gem that doesn't require JSON as a gemspec dependency
+
 Version 0.1.6
 -------------
 
