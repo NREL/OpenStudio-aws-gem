@@ -49,7 +49,7 @@ class OpenStudioAwsWrapper
 
   def initialize(credentials = nil, group_uuid = nil)
     @group_uuid = group_uuid || SecureRandom.uuid
-    
+
     @security_group_name = nil
     @key_pair_name = nil
     @private_key = nil
@@ -101,24 +101,25 @@ class OpenStudioAwsWrapper
     resp.data.availability_zones.each do |zn|
       map << zn.to_hash
     end
-    
+
     {:availability_zone_info => map}
   end
-  
+
   def describe_availability_zones_json
     describe_availability_zones.to_json
   end
-  
+
   def describe_total_instances
     resp = @aws.describe_instance_status
 
+    region = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : "no_instances"
     {:total_instances => resp.instance_statuses.length, :region => region}
   end
-  
+
   def describe_total_instances_json
     describe_total_instances.to_json
   end
-  
+
   def create_or_retrieve_key_pair
     tmp_name = "os-key-pair-#{@timestamp}"
     # create a new key pair everytime
@@ -142,5 +143,24 @@ class OpenStudioAwsWrapper
     @server.launch_instance(image_id, instance_type, user_data)
   end
 
-  
+  def launch_workers(image_id, instance_type, num, server_ip)
+    user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/worker_script.sh.template')
+    user_data.gsub!(/SERVER_IP/, @server.ip)
+    user_data.gsub!(/SERVER_HOSTNAME/, 'master')
+    user_data.gsub!(/SERVER_ALIAS/, '')
+    logger.info("worker user_data #{user_data.inspect}")
+
+    threads = []
+    num.times do
+      @workers << OpenStudioAwsInstance.new(@aws, @key_pair_name, @security_group_name, @group_uuid, @timestamp)
+      threads << Thread.new do
+        @workers.last.launch_instance(image_id, instance_type, user_data)
+      end
+    end
+    threads.each { |t| t.join }
+    
+    # todo: do we need to have a flag if the worker node is successful?
+  end
+
+
 end

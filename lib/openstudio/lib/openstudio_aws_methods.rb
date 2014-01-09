@@ -68,33 +68,7 @@ module OpenStudioAwsMethods
     return processors
   end
 
-  def launch_workers(num, server_ip)
-    user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/worker_script.sh.template')
-    user_data.gsub!(/SERVER_IP/, server_ip)
-    user_data.gsub!(/SERVER_HOSTNAME/, 'master')
-    user_data.gsub!(/SERVER_ALIAS/, '')
-    @logger.info("worker user_data #{user_data.inspect}")
-    instances = []
-    num.times do
-      worker = @aws.instances.create(:image_id => @worker_image_id,
-                                     :key_pair => @key_pair,
-                                     :security_groups => @group,
-                                     :user_data => user_data,
-                                     :instance_type => @worker_instance_type)
-      worker.add_tag('Name', :value => "OpenStudio-Worker V#{OPENSTUDIO_VERSION}")
-      instances.push(worker)
-    end
-    sleep 5 while instances.any? { |instance| instance.status == :pending }
-    if instances.any? { |instance| instance.status != :running }
-      error(-1, "Worker status: Not running")
-    end
-
-    # todo: fix this - sometimes returns nil
-    processors = find_processors(@worker_instance_type)
-    #processors = send_command(instances[0].ip_address, 'nproc | tr -d "\n"')
-    #processors = 0 if processors.nil?  # sometimes this returns nothing, so put in a default
-    instances.each { |instance| @workers.push(create_struct(instance, processors)) }
-  end
+  
 
   def upload_file(host, local_path, remote_path)
     retries = 0

@@ -146,7 +146,7 @@ begin
         error(-1, 'Invalid number of args')
       end
       os_aws = OpenStudioAwsWrapper.new
-      os_aws.create_or_retrieve_security_group
+      os_aws.create_or_retrieve_security_group("openstudio-worker-sg-v1")
       os_aws.create_or_retrieve_key_pair
 
       @server_instance_type = @params['instance_type']
@@ -159,16 +159,32 @@ begin
       puts os_aws.server.to_os_json
 
     when 'launch_workers'
+      @timestamp = @params['timestamp']
+      
+      os_aws = OpenStudioAwsWrapper.new(nil, @timestamp) # todo: pass in the groupuuid not the timestamp
+      
+      os_aws.find_server() 
+      os_aws.create_or_retrieve_security_group("openstudio-worker-sg-v1")
+      os_aws.create_or_retrieve_key_pair
+
       if ARGV.length < 6
         error(-1, 'Invalid number of args')
       end
       if @params['num'] < 1
         error(-1, 'Invalid number of worker nodes, must be greater than 0')
       end
+      
+      @worker_instance_type = @params['instance_type']
+      begin
+        os_aws.launch_workers(@worker_image_id, @worker_instance_type, @params['num'])
+      rescue Exception => e
+        error(-1, "Server status: #{e.message}")
+      end
 
       @workers = []
-      @timestamp = @params['timestamp']
 
+      exit
+      
       # find if an existing openstudio-server-vX security group exists and use that
       @group = @aws.security_groups.filter('group-name', 'openstudio-worker-sg-v1').first
       if @group.nil?

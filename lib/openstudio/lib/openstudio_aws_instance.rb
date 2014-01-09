@@ -95,8 +95,8 @@ class OpenStudioAwsInstance
     @aws.create_tags(
         {
             :resources => [aws_instance.instance_id],
-            :tags => [
-                {:key => 'Name', :value => "OpenStudio-Server V#{OPENSTUDIO_VERSION}"},
+            :tags => [                                                                   
+                {:key => 'Name', :value => "OpenStudio-Server V#{OPENSTUDIO_VERSION}"}, # todo: abstract out the server and version
                 {:key => 'GroupUUID', :value => @group_uuid}
             ]
         }
