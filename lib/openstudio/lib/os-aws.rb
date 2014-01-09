@@ -44,10 +44,17 @@ require 'net/scp'
 require 'net/ssh'
 require 'tempfile'
 require 'time'
+require 'base64'
 
 def error(code, msg)
-  puts ({:error => {:code => code, :message => msg},
-         :arguments => ARGV[2..-1]}.to_json)
+  puts (
+           {
+               :error => {
+                   :code => code, :message => msg
+               },
+               :arguments => ARGV[2..-1]
+           }.to_json
+       )
   exit(1)
 end
 
@@ -109,7 +116,7 @@ end
 
 def create_struct(instance, procs)
   instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs)
-  return instance_struct.new(instance, instance.instance_id, instance.ip_address, instance.dns_name, procs)
+  return instance_struct.new(instance, instance.instance_id, instance.public_ip_address, instance.public_dns_name, procs)
 end
 
 def find_processors(instance)
@@ -136,30 +143,6 @@ def find_processors(instance)
   end
 
   return processors
-end
-
-def launch_server
-  user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/server_script.sh')
-  @logger.info("server user_data #{user_data.inspect}")
-  @server = @aws.run_instances({
-                                  :image_id => @server_image_id,
-                                  :key_name => @key_pair,
-                                  :security_groups => @group,
-                                  :user_data => user_data,
-                                  :instance_type => @server_instance_type,
-                                  :min_count => 1,
-                                  :max_count => 1
-                              })
-  @server.add_tag('Name', :value => "OpenStudio-Server V#{OPENSTUDIO_VERSION}")
-  sleep 5 while @server.status == :pending
-  if @server.status != :running
-    error(-1, "Server status: #{@server.status}")
-  end
-
-  processors = find_processors(@server_instance_type)
-  #processors = send_command(@server.ip_address, 'nproc | tr -d "\n"')
-  #processors = 0 if processors.nil?  # sometimes this returns nothing, so put in a default
-  @server = create_struct(@server, processors)
 end
 
 def launch_workers(num, server_ip)
@@ -348,6 +331,121 @@ def download_file(host, remote_path, local_path)
   end
 end
 
+# module for logging
+module Logging
+  def logger
+    @logger ||= Logging.logger_for(self.class.name)
+  end
+
+  # Use a hash class-ivar to cache a unique Logger per class:
+  @loggers = {}
+
+  class << self
+    def logger_for(classname)
+      @loggers[classname] ||= configure_logger_for(classname)
+    end
+
+    def configure_logger_for(classname)
+      logger = Logger.new(File.expand_path("~/.aws.log"))
+      logger.progname = classname
+      logger
+    end
+  end
+end
+
+class OpenStudioAws
+  include Logging
+
+  attr_reader :security_group_name
+  attr_reader :key_pair_name
+  attr_reader :server
+
+  def initialize
+    @aws = Aws::EC2.new
+    @security_group_name = nil
+    @key_pair_name = nil
+    @private_key = nil
+    @timestamp = Time.now.to_i
+    @server = nil
+  end
+
+  def create_or_retrieve_security_group
+    tmp_name = 'openstudio-server-sg-v1'
+    group = @aws.describe_security_groups({:filters => [{:name => 'group-name', :values => [tmp_name]}]})
+    logger.info "Length of the security group is: #{group.data.security_groups.length}"
+    if group.data.security_groups.length == 0
+      logger.info "server group not found --- will create a new one"
+      @aws.create_security_group({:group_name => tmp_name, :description => "default group created by #{__FILE__}"})
+      @aws.authorize_security_group_ingress({:group_name => tmp_name, :ip_permissions => [{:ip_protocol => 'tcp', :from_port => 1, :to_port => 65535, :ip_ranges => [:cidr_ip => "0.0.0.0/0"]}]})
+      @aws.authorize_security_group_ingress({:group_name => tmp_name, :ip_permissions => [{:ip_protocol => 'icmp', :from_port => -1, :to_port => -1, :ip_ranges => [:cidr_ip => "0.0.0.0/0"]}]})
+
+      # reload group information
+      group = @aws.describe_security_groups({:filters => [{:name => 'group-name', :values => [tmp_name]}]})
+    end
+    @security_group_name = group.data.security_groups.first.group_name
+    logger.info("server_group #{group.data.security_groups.first.group_name}")
+  end
+
+  def create_or_retrieve_key_pair
+    tmp_name = "os-key-pair-#{@timestamp}"
+    # create a new key pair everytime
+    keypair = @aws.create_key_pair({:key_name => tmp_name})
+
+    # save the private key to memory
+    @private_key = keypair.data.key_material
+    @key_pair_name = keypair.data.key_name
+    logger.info("create key pair: #{@key_pair_name}")
+  end
+
+  def save_private_key(filename)
+    if @private_key
+      File.open(filename, 'w') { |f| f << @private_key }
+    end
+  end
+
+  def launch_server(image_id, instance_type)
+    user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/server_script.sh')
+    logger.info("server user_data #{user_data.inspect}")
+    result = @aws.run_instances({
+                                    :image_id => image_id,
+                                    :key_name => @key_pair_name,
+                                    :security_groups => [@security_group_name],
+                                    :user_data => Base64.encode64(user_data),
+                                    :instance_type => instance_type,
+                                    :min_count => 1,
+                                    :max_count => 1
+                                })
+
+    #only asked for 1 server, so therefore it should be the first 
+    server = result.data.instances.first
+    @aws.create_tags({:resources => [server.instance_id], :tags => [{:key => 'Name', :value => "OpenStudio-Server V#{OPENSTUDIO_VERSION}"}]})
+
+    puts server.instance_id
+    # get the instance information 
+    test_result = @aws.describe_instance_status({:instance_ids => [server.instance_id]}).data.instance_statuses.first
+    puts test_result.inspect
+
+    # add a timeout and crash with nice error
+    while test_result.nil? || test_result.instance_state.name != "running"
+      # refresh the server instance information
+
+      sleep 5
+      test_result = @aws.describe_instance_status({:instance_ids => [server.instance_id]}).data.instance_statuses.first
+      puts "."
+      #puts test_result.inspect
+    end
+    #if @server.status != :running
+    #  error(-1, "Server status: #{@server.status}")
+    #end
+
+    # now grab information about the instance
+    system_description = @aws.describe_instances({:instance_ids => [server.instance_id]}).data.reservations.first.instances.first
+
+    processors = find_processors(instance_type)
+    @server = create_struct(system_description, processors)
+  end
+end
+
 begin
   @logger = Logger.new(File.expand_path("~/.aws.log"))
   @logger.info("initialized")
@@ -382,42 +480,32 @@ begin
       # find if an existing openstudio-server-vX security group exists and use that
       #puts @aws.methods
 
-      SECURITY_GROUP_NAME = 'openstudio-server-sg-v12345'
-      @group = @aws.describe_security_groups({:filters => [{:name => 'group-name', :values => [SECURITY_GROUP_NAME]}]})
-      puts @group.data.security_groups.length
-      if @group.data.security_groups.length == 0
-        @logger.info "server group not found --- will create a new one"
-        @group = @aws.create_security_group({:group_name => SECURITY_GROUP_NAME, :description => "default group created by #{__FILE__}"})
-        res = @aws.authorize_security_group_ingress({:group_name => SECURITY_GROUP_NAME, :ip_permissions => [{:ip_protocol => 'tcp', :from_port => 1, :to_port => 65535, :ip_ranges => [:cidr_ip => "0.0.0.0/0"]}]})
-        res = @aws.authorize_security_group_ingress({:group_name => SECURITY_GROUP_NAME, :ip_permissions => [{:ip_protocol => 'icmp', :from_port => -1, :to_port => -1, :ip_ranges => [:cidr_ip => "0.0.0.0/0"]}]})
+      os_aws = OpenStudioAws.new
+      os_aws.create_or_retrieve_security_group
+      puts os_aws.security_group_name
 
-        # reload group information
-        @group = @aws.describe_security_groups({:filters => [{:name => 'group-name', :values => [SECURITY_GROUP_NAME]}]})
-        @group_name = @group.data.security_groups.first.group_name 
-      end
-      @logger.info("server_group #{@group.data.security_groups.first.group_name}")
-      
+      os_aws.create_or_retrieve_key_pair
+      puts os_aws.key_pair_name
+
       @server_instance_type = @params['instance_type']
+      os_aws.launch_server(@server_image_id, @server_instance_type)
 
-      # create a new key pair everytime
-      KEY_PAIR_NAME = "os-key-pair-#{@timestamp}"
-      @key_pair = @aws.create_key_pair({:key_name => KEY_PAIR_NAME})
-      @private_key = @key_pair.data.key_material
-      puts @key_pair.data.inspect
-      @key_pair_name = @key_pair.data.key_name
-
-      exit
-      launch_server()
+      puts os_aws.server
 
       puts ({:timestamp => @timestamp,
-             :private_key => @private_key,
+             #:private_key => @private_key, # need to stop printing this out
              :server => {
-                 :id => @server.id,
-                 :ip => 'http://' + @server.ip,
-                 :dns => @server.dns,
-                 :procs => @server.procs
+                 :id => os_aws.server.id,
+                 :ip => 'http://' + os_aws.server.ip,
+                 :dns => os_aws.server.dns,
+                 :procs => os_aws.server.procs
              }}.to_json)
-      @logger.info("server info #{({:timestamp => @timestamp, :private_key => @private_key, :server => {:id => @server.id, :ip => @server.ip, :dns => @server.dns, :procs => @server.procs}}.to_json)}")
+      @logger.info("server info #{({:timestamp => @timestamp,
+                                    #:private_key => @private_key,
+                                    :server => {:id => os_aws.server.id,
+                                                :ip => os_aws.server.ip,
+                                                :dns => os_aws.server.dns,
+                                                :procs => os_aws.server.procs}}.to_json)}")
     when 'launch_workers'
       if ARGV.length < 6
         error(-1, 'Invalid number of args')
