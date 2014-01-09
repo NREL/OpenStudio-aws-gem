@@ -57,7 +57,7 @@ class OpenStudioAwsWrapper
     @server = nil
     @workers = []
 
-    # If you already set the creditials in another script in memory, then you won't have to do it here, but
+    # If you already set the credentials in another script in memory, then you won't have to do it here, but
     # it won't hurt if you do
     Aws.config = credentials if credentials
     @aws = Aws::EC2.new

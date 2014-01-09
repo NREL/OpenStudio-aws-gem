@@ -57,7 +57,6 @@ class OpenStudioAwsInstance
   end
 
   
-
   def launch_instance(image_id, instance_type, user_data)
     logger.info("user_data #{user_data.inspect}")
     result = @aws.run_instances(
@@ -81,7 +80,7 @@ class OpenStudioAwsInstance
         {
             :resources => [aws_instance.instance_id],
             :tags => [                                                                   
-                {:key => 'Name', :value => "OpenStudio-Server V#{OPENSTUDIO_VERSION}"}, # todo: abstract out the server and version
+                {:key => 'Name', :value => "OpenStudio-#{@openstudio_instance_type.capitalize}"}, # todo: abstract out the server and version
                 {:key => 'GroupUUID', :value => @group_uuid},
                 {:key => 'NumberOfProcessors', :value => "#{processors}"}
             ]
