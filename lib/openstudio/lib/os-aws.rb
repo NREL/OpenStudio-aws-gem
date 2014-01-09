@@ -36,6 +36,8 @@
 #
 ######################################################################
 
+require_relative 'openstudio_aws_wrapper'
+require_relative 'openstudio_aws_instance'
 require 'aws-sdk-core'
 require 'json'
 require 'logger'
@@ -114,348 +116,16 @@ if (!defined?(@server_image_id) || !defined?(@worker_image_id))
   end
 end
 
-def create_struct(instance, procs)
-  instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs)
-  return instance_struct.new(instance, instance.instance_id, instance.public_ip_address, instance.public_dns_name, procs)
-end
-
-def find_processors(instance)
-  processors = 1
-  case instance
-    when 'cc2.8xlarge'
-      processors = 16
-    when 'c1.xlarge'
-      processors = 8
-    when 'm2.4xlarge'
-      processors = 8
-    when 'm2.2xlarge'
-      processors = 4
-    when 'm2.xlarge'
-      processors = 2
-    when 'm1.xlarge'
-      processors = 4
-    when 'm1.large'
-      processors = 2
-    when 'm3.xlarge'
-      processors = 2
-    when 'm3.2xlarge'
-      processors = 4
-  end
-
-  return processors
-end
-
-def launch_workers(num, server_ip)
-  user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/worker_script.sh.template')
-  user_data.gsub!(/SERVER_IP/, server_ip)
-  user_data.gsub!(/SERVER_HOSTNAME/, 'master')
-  user_data.gsub!(/SERVER_ALIAS/, '')
-  @logger.info("worker user_data #{user_data.inspect}")
-  instances = []
-  num.times do
-    worker = @aws.instances.create(:image_id => @worker_image_id,
-                                   :key_pair => @key_pair,
-                                   :security_groups => @group,
-                                   :user_data => user_data,
-                                   :instance_type => @worker_instance_type)
-    worker.add_tag('Name', :value => "OpenStudio-Worker V#{OPENSTUDIO_VERSION}")
-    instances.push(worker)
-  end
-  sleep 5 while instances.any? { |instance| instance.status == :pending }
-  if instances.any? { |instance| instance.status != :running }
-    error(-1, "Worker status: Not running")
-  end
-
-  # todo: fix this - sometimes returns nil
-  processors = find_processors(@worker_instance_type)
-  #processors = send_command(instances[0].ip_address, 'nproc | tr -d "\n"')
-  #processors = 0 if processors.nil?  # sometimes this returns nothing, so put in a default
-  instances.each { |instance| @workers.push(create_struct(instance, processors)) }
-end
-
-def upload_file(host, local_path, remote_path)
-  retries = 0
-  begin
-    Net::SCP.start(host, 'ubuntu', :key_data => [@private_key]) do |scp|
-      scp.upload! local_path, remote_path
-    end
-  rescue SystemCallError, Timeout::Error => e
-    # port 22 might not be available immediately after the instance finishes launching
-    return if retries == 5
-    retries += 1
-    sleep 1
-    retry
-  rescue
-    # Unknown upload error, retry
-    return if retries == 5
-    retries += 1
-    sleep 1
-    retry
-  end
-end
-
-
-def send_command(host, command)
-  #retries = 0
-  begin
-    output = ''
-    Net::SSH.start(host, 'ubuntu', :key_data => [@private_key]) do |ssh|
-      response = ssh.exec!(command)
-      output += response if !response.nil?
-    end
-    return output
-  rescue Net::SSH::HostKeyMismatch => e
-    e.remember_host!
-    # key mismatch, retry
-    #return if retries == 5
-    #retries += 1
-    sleep 1
-    retry
-  rescue Net::SSH::AuthenticationFailed
-    error(-1, "Incorrect private key")
-  rescue SystemCallError, Timeout::Error => e
-    # port 22 might not be available immediately after the instance finishes launching
-    #return if retries == 5
-    #retries += 1
-    sleep 1
-    retry
-  rescue Exception => e
-    puts e.message
-    puts e.backtrace.inspect
-  end
-end
-
-#======================= send command ======================#
-# Send a command through SSH Shell to an instance.
-# Need to pass instance object and the command as a string.
-def shell_command(host, command)
-  begin
-    @logger.info("ssh_command #{command}")
-    Net::SSH.start(host, 'ubuntu', :key_data => [@private_key]) do |ssh|
-      channel = ssh.open_channel do |ch|
-        ch.exec "#{command}" do |ch, success|
-          raise "could not execute #{command}" unless success
-
-          # "on_data" is called when the process writes something to stdout
-          ch.on_data do |c, data|
-            #$stdout.print data
-            @logger.info("#{data.inspect}")
-          end
-
-          # "on_extended_data" is called when the process writes something to stderr
-          ch.on_extended_data do |c, type, data|
-            #$stderr.print data
-            @logger.info("#{data.inspect}")
-          end
-        end
-      end
-    end
-  rescue Net::SSH::HostKeyMismatch => e
-    e.remember_host!
-    @logger.info("key mismatch, retry")
-    sleep 1
-    retry
-  rescue SystemCallError, Timeout::Error => e
-    # port 22 might not be available immediately after the instance finishes launching
-    sleep 1
-    @logger.info("Not Yet")
-    retry
-  end
-end
-
-def wait_command(host, command)
-  begin
-    flag = 0
-    while flag == 0 do
-      @logger.info("wait_command #{command}")
-      Net::SSH.start(host, 'ubuntu', :key_data => [@private_key]) do |ssh|
-        channel = ssh.open_channel do |ch|
-          ch.exec "#{command}" do |ch, success|
-            raise "could not execute #{command}" unless success
-
-            # "on_data" is called when the process writes something to stdout
-            ch.on_data do |c, data|
-              @logger.info("#{data.inspect}")
-              if data.chomp == "true"
-                @logger.info("wait_command #{command} is true")
-                flag = 1
-              else
-                sleep 5
-              end
-            end
-
-            # "on_extended_data" is called when the process writes something to stderr
-            ch.on_extended_data do |c, type, data|
-              @logger.info("#{data.inspect}")
-              if data == "true"
-                @logger.info("wait_command #{command} is true")
-                flag = 1
-              else
-                sleep 5
-              end
-            end
-          end
-        end
-      end
-    end
-  rescue Net::SSH::HostKeyMismatch => e
-    e.remember_host!
-    @logger.info("key mismatch, retry")
-    sleep 1
-    retry
-  rescue SystemCallError, Timeout::Error => e
-    # port 22 might not be available immediately after the instance finishes launching
-    sleep 1
-    @logger.info("Not Yet")
-    retry
-  end
-end
-
-def download_file(host, remote_path, local_path)
-  retries = 0
-  begin
-    Net::SCP.start(host, 'ubuntu', :key_data => [@private_key]) do |scp|
-      scp.download! remote_path, local_path
-    end
-  rescue SystemCallError, Timeout::Error => e
-    # port 22 might not be available immediately after the instance finishes launching
-    return if retries == 5
-    retries += 1
-    sleep 1
-    retry
-  rescue
-    return if retries == 5
-    retries += 1
-    sleep 1
-    retry
-  end
-end
-
-# module for logging
-module Logging
-  def logger
-    @logger ||= Logging.logger_for(self.class.name)
-  end
-
-  # Use a hash class-ivar to cache a unique Logger per class:
-  @loggers = {}
-
-  class << self
-    def logger_for(classname)
-      @loggers[classname] ||= configure_logger_for(classname)
-    end
-
-    def configure_logger_for(classname)
-      logger = Logger.new(File.expand_path("~/.aws.log"))
-      logger.progname = classname
-      logger
-    end
-  end
-end
-
-class OpenStudioAws
-  include Logging
-
-  attr_reader :security_group_name
-  attr_reader :key_pair_name
-  attr_reader :server
-
-  def initialize
-    @aws = Aws::EC2.new
-    @security_group_name = nil
-    @key_pair_name = nil
-    @private_key = nil
-    @timestamp = Time.now.to_i
-    @server = nil
-  end
-
-  def create_or_retrieve_security_group
-    tmp_name = 'openstudio-server-sg-v1'
-    group = @aws.describe_security_groups({:filters => [{:name => 'group-name', :values => [tmp_name]}]})
-    logger.info "Length of the security group is: #{group.data.security_groups.length}"
-    if group.data.security_groups.length == 0
-      logger.info "server group not found --- will create a new one"
-      @aws.create_security_group({:group_name => tmp_name, :description => "default group created by #{__FILE__}"})
-      @aws.authorize_security_group_ingress({:group_name => tmp_name, :ip_permissions => [{:ip_protocol => 'tcp', :from_port => 1, :to_port => 65535, :ip_ranges => [:cidr_ip => "0.0.0.0/0"]}]})
-      @aws.authorize_security_group_ingress({:group_name => tmp_name, :ip_permissions => [{:ip_protocol => 'icmp', :from_port => -1, :to_port => -1, :ip_ranges => [:cidr_ip => "0.0.0.0/0"]}]})
-
-      # reload group information
-      group = @aws.describe_security_groups({:filters => [{:name => 'group-name', :values => [tmp_name]}]})
-    end
-    @security_group_name = group.data.security_groups.first.group_name
-    logger.info("server_group #{group.data.security_groups.first.group_name}")
-  end
-
-  def create_or_retrieve_key_pair
-    tmp_name = "os-key-pair-#{@timestamp}"
-    # create a new key pair everytime
-    keypair = @aws.create_key_pair({:key_name => tmp_name})
-
-    # save the private key to memory
-    @private_key = keypair.data.key_material
-    @key_pair_name = keypair.data.key_name
-    logger.info("create key pair: #{@key_pair_name}")
-  end
-
-  def save_private_key(filename)
-    if @private_key
-      File.open(filename, 'w') { |f| f << @private_key }
-    end
-  end
-
-  def launch_server(image_id, instance_type)
-    user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/server_script.sh')
-    logger.info("server user_data #{user_data.inspect}")
-    result = @aws.run_instances({
-                                    :image_id => image_id,
-                                    :key_name => @key_pair_name,
-                                    :security_groups => [@security_group_name],
-                                    :user_data => Base64.encode64(user_data),
-                                    :instance_type => instance_type,
-                                    :min_count => 1,
-                                    :max_count => 1
-                                })
-
-    #only asked for 1 server, so therefore it should be the first 
-    server = result.data.instances.first
-    @aws.create_tags({:resources => [server.instance_id], :tags => [{:key => 'Name', :value => "OpenStudio-Server V#{OPENSTUDIO_VERSION}"}]})
-
-    puts server.instance_id
-    # get the instance information 
-    test_result = @aws.describe_instance_status({:instance_ids => [server.instance_id]}).data.instance_statuses.first
-    puts test_result.inspect
-
-    # add a timeout and crash with nice error
-    while test_result.nil? || test_result.instance_state.name != "running"
-      # refresh the server instance information
-
-      sleep 5
-      test_result = @aws.describe_instance_status({:instance_ids => [server.instance_id]}).data.instance_statuses.first
-      puts "."
-      #puts test_result.inspect
-    end
-    #if @server.status != :running
-    #  error(-1, "Server status: #{@server.status}")
-    #end
-
-    # now grab information about the instance
-    system_description = @aws.describe_instances({:instance_ids => [server.instance_id]}).data.reservations.first.instances.first
-
-    processors = find_processors(instance_type)
-    @server = create_struct(system_description, processors)
-  end
-end
-
 begin
   @logger = Logger.new(File.expand_path("~/.aws.log"))
   @logger.info("initialized")
   case ARGV[4]
     when 'describe_availability_zones'
-      resp = @aws.client.describe_availability_zones
+      resp = @aws.describe_availability_zones
       puts resp.data.to_json
       @logger.info("availability_zones #{resp.data.to_json}")
     when 'total_instances'
-      resp = @aws.client.describe_instance_status
+      resp = @aws.describe_instance_status
       puts ({:total_instances => resp.data[:instance_status_set].length,
              :region => ARGV[2]}.to_json)
     when 'instance_status'
@@ -474,38 +144,19 @@ begin
       if ARGV.length < 6
         error(-1, 'Invalid number of args')
       end
-
-      @timestamp = Time.now.to_i
-
-      # find if an existing openstudio-server-vX security group exists and use that
-      #puts @aws.methods
-
-      os_aws = OpenStudioAws.new
+      os_aws = OpenStudioAwsWrapper.new
       os_aws.create_or_retrieve_security_group
-      puts os_aws.security_group_name
-
       os_aws.create_or_retrieve_key_pair
-      puts os_aws.key_pair_name
 
       @server_instance_type = @params['instance_type']
-      os_aws.launch_server(@server_image_id, @server_instance_type)
+      begin
+        os_aws.launch_server(@server_image_id, @server_instance_type)
+      rescue Exception => e
+        error(-1, "Server status: #{e.message}")
+      end
 
-      puts os_aws.server
+      puts os_aws.server.to_os_json
 
-      puts ({:timestamp => @timestamp,
-             #:private_key => @private_key, # need to stop printing this out
-             :server => {
-                 :id => os_aws.server.id,
-                 :ip => 'http://' + os_aws.server.ip,
-                 :dns => os_aws.server.dns,
-                 :procs => os_aws.server.procs
-             }}.to_json)
-      @logger.info("server info #{({:timestamp => @timestamp,
-                                    #:private_key => @private_key,
-                                    :server => {:id => os_aws.server.id,
-                                                :ip => os_aws.server.ip,
-                                                :dns => os_aws.server.dns,
-                                                :procs => os_aws.server.procs}}.to_json)}")
     when 'launch_workers'
       if ARGV.length < 6
         error(-1, 'Invalid number of args')

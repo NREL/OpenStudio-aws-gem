@@ -1,6 +1,7 @@
 require 'json'
 require 'net/scp'
 require 'yaml'
+require 'logger'
 
 # AWS SDK CORE
 begin
@@ -15,5 +16,4 @@ end
 require 'openstudio/aws/version'
 require 'openstudio/aws/aws'
 require 'openstudio/aws/config'
-require 'openstudio/aws/send_data'
 
