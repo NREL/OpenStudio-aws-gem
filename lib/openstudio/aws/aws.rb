@@ -1,6 +1,4 @@
 # This class is a wrapper around the command line version that is in the OpenStudio repository.
-
-
 module OpenStudio
   module Aws
     class Aws
@@ -77,7 +75,7 @@ module OpenStudio
           puts "ssh -i #{@server_data[:private_key]} ubuntu@#{worker[:dns]}"
         end
       end
-      
+
       def kill_instances()
         # Add this method to kill all the running instances
       end

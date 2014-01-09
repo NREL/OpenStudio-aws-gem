@@ -1,6 +1,6 @@
 # NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files
 ######################################################################
-#  Copyright (c) 2008-2013, Alliance for Sustainable Energy.  
+#  Copyright (c) 2008-2014, Alliance for Sustainable Energy.  
 #  All rights reserved.
 #  
 #  This library is free software; you can redistribute it and/or
@@ -36,7 +36,7 @@
 #
 ######################################################################
 
-require 'aws-sdk'
+require 'aws-sdk-core'
 require 'json'
 require 'logger'
 require 'net/http'
@@ -71,15 +71,10 @@ if ARGV[4].empty?
   error(-1, 'Missing command argument')
 end
 
-AWS.config(
-    :access_key_id => ARGV[0],
-    :secret_access_key => ARGV[1],
-    :region => ARGV[2],
-    :ssl_verify_peer => false
-)
+Aws.config = {:access_key_id => ARGV[0], :secret_access_key => ARGV[1], :region => ARGV[2], :ssl_verify_peer => false}
 
 if ARGV[3] == 'EC2'
-  @aws = AWS::EC2.new
+  @aws = Aws::EC2.new
 elsif ARGV[3] == 'CloudWatch'
   @aws = AWS::CloudWatch.new
 else
@@ -96,7 +91,7 @@ end
 OPENSTUDIO_VERSION = '1.1.4' unless defined?(OPENSTUDIO_VERSION)
 
 if (!defined?(@server_image_id) || !defined?(@worker_image_id))
-  resp = Net::HTTP.get_response('developer.nrel.gov','/downloads/buildings/openstudio/rsrc/amis.json')
+  resp = Net::HTTP.get_response('developer.nrel.gov', '/downloads/buildings/openstudio/rsrc/amis.json')
   if resp.code == '200'
     result = JSON.parse(resp.body)
     version = result.has_key?(OPENSTUDIO_VERSION) ? OPENSTUDIO_VERSION : 'default'
@@ -146,11 +141,15 @@ end
 def launch_server
   user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/server_script.sh')
   @logger.info("server user_data #{user_data.inspect}")
-  @server = @aws.instances.create(:image_id => @server_image_id,
-                                  :key_pair => @key_pair,
+  @server = @aws.run_instances({
+                                  :image_id => @server_image_id,
+                                  :key_name => @key_pair,
                                   :security_groups => @group,
                                   :user_data => user_data,
-                                  :instance_type => @server_instance_type)
+                                  :instance_type => @server_instance_type,
+                                  :min_count => 1,
+                                  :max_count => 1
+                              })
   @server.add_tag('Name', :value => "OpenStudio-Server V#{OPENSTUDIO_VERSION}")
   sleep 5 while @server.status == :pending
   if @server.status != :running
@@ -381,18 +380,33 @@ begin
       @timestamp = Time.now.to_i
 
       # find if an existing openstudio-server-vX security group exists and use that
-      @group = @aws.security_groups.filter('group-name', 'openstudio-server-sg-v1').first
-      if @group.nil?
-        @group = @aws.security_groups.create('openstudio-server-sg-v1')
-        @group.allow_ping() # allow ping
-        @group.authorize_ingress(:tcp, 1..65535) # all traffic
+      #puts @aws.methods
+
+      SECURITY_GROUP_NAME = 'openstudio-server-sg-v12345'
+      @group = @aws.describe_security_groups({:filters => [{:name => 'group-name', :values => [SECURITY_GROUP_NAME]}]})
+      puts @group.data.security_groups.length
+      if @group.data.security_groups.length == 0
+        @logger.info "server group not found --- will create a new one"
+        @group = @aws.create_security_group({:group_name => SECURITY_GROUP_NAME, :description => "default group created by #{__FILE__}"})
+        res = @aws.authorize_security_group_ingress({:group_name => SECURITY_GROUP_NAME, :ip_permissions => [{:ip_protocol => 'tcp', :from_port => 1, :to_port => 65535, :ip_ranges => [:cidr_ip => "0.0.0.0/0"]}]})
+        res = @aws.authorize_security_group_ingress({:group_name => SECURITY_GROUP_NAME, :ip_permissions => [{:ip_protocol => 'icmp', :from_port => -1, :to_port => -1, :ip_ranges => [:cidr_ip => "0.0.0.0/0"]}]})
+
+        # reload group information
+        @group = @aws.describe_security_groups({:filters => [{:name => 'group-name', :values => [SECURITY_GROUP_NAME]}]})
+        @group_name = @group.data.security_groups.first.group_name 
       end
-      @logger.info("server_group #{@group}")
+      @logger.info("server_group #{@group.data.security_groups.first.group_name}")
+      
       @server_instance_type = @params['instance_type']
 
-      @key_pair = @aws.key_pairs.create("key-pair-#{@timestamp}")
-      @private_key = @key_pair.private_key
+      # create a new key pair everytime
+      KEY_PAIR_NAME = "os-key-pair-#{@timestamp}"
+      @key_pair = @aws.create_key_pair({:key_name => KEY_PAIR_NAME})
+      @private_key = @key_pair.data.key_material
+      puts @key_pair.data.inspect
+      @key_pair_name = @key_pair.data.key_name
 
+      exit
       launch_server()
 
       puts ({:timestamp => @timestamp,

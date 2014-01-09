@@ -2,14 +2,13 @@ require 'json'
 require 'net/scp'
 require 'yaml'
 
-# AWS SDK
+# AWS SDK CORE
 begin
   puts `gem list`
-  gem "aws-sdk", ">= 1.30.1"
-  require 'aws-sdk'
+  require 'aws-sdk-core'
 rescue LoadError
-  puts "Failed to AWS-SDK gem"
-  puts "  gem install aws-sdk"
+  puts "Failed to load AWS-SDK-CORE gem"
+  puts "  try running: gem install aws-sdk-core"
   exit
 end
 

@@ -1,8 +1,8 @@
 source "http://rubygems.org"
 gemspec
 
-gem "rake"
-gem "aws-sdk", :path => "./vendor/aws-sdk-ruby-1.31.3"
+gem "rake", "~> 10.1"
+gem "aws-sdk-core", "~> 2.0.0.rc3"
 
 group :test do
   gem "rspec", "~> 2.12"

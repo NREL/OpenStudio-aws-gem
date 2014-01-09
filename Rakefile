@@ -1,6 +1,5 @@
 require "bundler" 
 Bundler.setup
-#Bundler.require
 
 require "rake"
 require "rspec/core/rake_task"
