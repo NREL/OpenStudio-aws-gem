@@ -16,4 +16,6 @@ end
 require 'openstudio/aws/version'
 require 'openstudio/aws/aws'
 require 'openstudio/aws/config'
+require 'openstudio/lib/openstudio_aws_instance'
+require 'openstudio/lib/openstudio_aws_wrapper'
 

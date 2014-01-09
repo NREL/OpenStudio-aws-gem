@@ -15,15 +15,15 @@ describe OpenStudio::Aws::Aws do
 
     it "should create a server" do
       # use the default instance type
-      #options = {instance_type: "t1.micro" }
-      options = {instance_type: "m1.small" }
+      options = {instance_type: "t1.micro" }
+      #options = {instance_type: "m1.small" }
       @aws.create_server(options)
       @aws.server_data[:server_dns].should_not be_nil 
     end
     
     it "should create a 1 worker" do
-      #options = {instance_type: "t1.micro" }
-      options = {instance_type: "m1.small" }
+      options = {instance_type: "t1.micro" }
+      #options = {instance_type: "m1.small" }
       #server_json[:instance_type] = "m2.4xlarge"
       #server_json[:instance_type] = "m2.2xlarge"
       #server_json[:instance_type] = "t1.micro"

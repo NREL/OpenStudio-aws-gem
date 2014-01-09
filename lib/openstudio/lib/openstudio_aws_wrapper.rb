@@ -47,21 +47,20 @@ class OpenStudioAwsWrapper
   attr_reader :server
   attr_reader :workers
 
-  def initialize(group_uuid = nil)
+  def initialize(credentials = nil, group_uuid = nil)
     @group_uuid = group_uuid || SecureRandom.uuid
-    @aws = Aws::EC2.new
+    
     @security_group_name = nil
     @key_pair_name = nil
     @private_key = nil
     @timestamp = Time.now.to_i
     @server = nil
     @workers = []
-  end
 
-  # If you already set the creditials in another script in memory, then you won't have to do it here, but
-  # it won't hurt if you do
-  def credentials=(credentials)
-    Aws.config = credentials
+    # If you already set the creditials in another script in memory, then you won't have to do it here, but
+    # it won't hurt if you do
+    Aws.config = credentials if credentials
+    @aws = Aws::EC2.new
   end
 
   def create_or_retrieve_security_group(sg_name = nil)
@@ -96,6 +95,30 @@ class OpenStudioAwsWrapper
     logger.info("server_group #{group.data.security_groups.first.group_name}")
   end
 
+  def describe_availability_zones
+    resp = @aws.describe_availability_zones
+    map = []
+    resp.data.availability_zones.each do |zn|
+      map << zn.to_hash
+    end
+    
+    {:availability_zone_info => map}
+  end
+  
+  def describe_availability_zones_json
+    describe_availability_zones.to_json
+  end
+  
+  def describe_total_instances
+    resp = @aws.describe_instance_status
+
+    {:total_instances => resp.instance_statuses.length, :region => region}
+  end
+  
+  def describe_total_instances_json
+    describe_total_instances.to_json
+  end
+  
   def create_or_retrieve_key_pair
     tmp_name = "os-key-pair-#{@timestamp}"
     # create a new key pair everytime

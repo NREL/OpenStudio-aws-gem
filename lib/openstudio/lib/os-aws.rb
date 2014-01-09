@@ -121,13 +121,14 @@ begin
   @logger.info("initialized")
   case ARGV[4]
     when 'describe_availability_zones'
-      resp = @aws.describe_availability_zones
-      puts resp.data.to_json
-      @logger.info("availability_zones #{resp.data.to_json}")
+      os_aws = OpenStudioAwsWrapper.new
+      resp = os_aws.describe_availability_zones_json
+      puts resp
+      @logger.info("availability_zones #{resp}")
     when 'total_instances'
-      resp = @aws.describe_instance_status
-      puts ({:total_instances => resp.data[:instance_status_set].length,
-             :region => ARGV[2]}.to_json)
+      os_aws = OpenStudioAwsWrapper.new
+      resp = os_aws.describe_total_instances_json
+      puts resp
     when 'instance_status'
       resp = nil
       if ARGV.length < 6

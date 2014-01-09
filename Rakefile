@@ -26,12 +26,12 @@ end
 
 RSpec::Core::RakeTask.new("spec") do |spec|
   spec.rspec_opts = %w(--format progress)
-  spec.pattern = "spec/**/config_spec.rb"
+  spec.pattern = "spec/**/*_spec.rb"
 end
 
-RSpec::Core::RakeTask.new("spec:all") do |spec|
+RSpec::Core::RakeTask.new("spec:api") do |spec|
   spec.rspec_opts = %w(--format progress)
-  spec.pattern = "spec/**/*_spec.rb"
+  spec.pattern = "spec/**/*_spec_api.rb"
 end
 
 task :default => :spec
@@ -41,13 +41,14 @@ task :import_files do
   puts "Importing data from other repos until this repo is self contained"
   # Copy data from github openstudio source
   
-  os_file = "./lib/openstudio/lib/os-aws.rb"
-  system "curl -S -s -L -o #{os_file} https://raw.github.com/NREL/OpenStudio/develop/openstudiocore/ruby/cloud/aws.rb.in"
-  if File.exists?(os_file)
-    system "ruby -i -pe 'puts \"# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files\" if $.==1' #{os_file}"
-    system "sed -i '' 's/\${CMAKE_VERSION_MAJOR}.\${CMAKE_VERSION_MINOR}.\${CMAKE_VERSION_PATCH}/#{OpenStudio::Aws::OPENSTUDIO_VERSION}/g' #{os_file}"
-  end      
-  
+  # this has been forked at the moment until openstudio team supports the new aws-sdk gem
+  #os_file = "./lib/openstudio/lib/os-aws.rb"
+  #system "curl -S -s -L -o #{os_file} https://raw.github.com/NREL/OpenStudio/develop/openstudiocore/ruby/cloud/aws.rb.in"
+  #if File.exists?(os_file)
+  #  system "ruby -i -pe 'puts \"# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files\" if $.==1' #{os_file}"
+  #  system "sed -i '' 's/\${CMAKE_VERSION_MAJOR}.\${CMAKE_VERSION_MINOR}.\${CMAKE_VERSION_PATCH}/#{OpenStudio::Aws::OPENSTUDIO_VERSION}/g' #{os_file}"
+  #end      
+  #
   os_file = "./lib/openstudio/lib/mongoid.yml.template"
   system "curl -S -s -L -o #{os_file} https://raw.github.com/NREL/OpenStudio/develop/openstudiocore/ruby/cloud/mongoid.yml.template"
 
