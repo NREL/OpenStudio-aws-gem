@@ -43,32 +43,42 @@ module OpenStudioAwsMethods
   end
 
   def find_processors(instance)
+    lookup = {
+        "m3.xlarge" => 4,
+        "m3.2xlarge" => 8,
+        "m1.small" => 1,
+        "m1.medium" => 1,
+        "m1.large" => 2,
+        "m1.xlarge" => 4,
+        "c3.large" => 2,
+        "c3.xlarge" => 4,
+        "c3.2xlarge" => 8,
+        "c3.4xlarge" => 16,
+        "c3.8xlarge" => 16,
+        "c1.medium" => 2,
+        "c1.xlarge" => 8,
+        "cc2.8xlarge" => 16,
+        "g2.2xlarge" => 8,
+        "cg1.4xlarge" => 16,
+        "m2.xlarge" => 2,
+        "m2.2xlarge" => 4,
+        "m2.4xlarge" => 8,
+        "cr1.8xlarge" => 16,
+        "hi1.4xlarge" => 16,
+        "hs1.8xlarge" => 16,
+        "t1.micro" => 1,
+    }
+
     processors = 1
-    case instance
-      when 'cc2.8xlarge'
-        processors = 16
-      when 'c1.xlarge'
-        processors = 8
-      when 'm2.4xlarge'
-        processors = 8
-      when 'm2.2xlarge'
-        processors = 4
-      when 'm2.xlarge'
-        processors = 2
-      when 'm1.xlarge'
-        processors = 4
-      when 'm1.large'
-        processors = 2
-      when 'm3.xlarge'
-        processors = 2
-      when 'm3.2xlarge'
-        processors = 4
+    if lookup.has_key?(instance)
+      processors = lookup[instance]
+    else
+      #logger.warn "Could not find the number of processors for instance type of #{instance}" if logger
     end
 
-    return processors
+    processors
   end
 
-  
 
   def upload_file(host, local_path, remote_path)
     retries = 0

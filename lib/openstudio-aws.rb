@@ -5,7 +5,6 @@ require 'logger'
 
 # AWS SDK CORE
 begin
-  puts `gem list`
   require 'aws-sdk-core'
 rescue LoadError
   puts "Failed to load AWS-SDK-CORE gem"

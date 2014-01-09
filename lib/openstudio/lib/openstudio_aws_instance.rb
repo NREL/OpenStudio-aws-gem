@@ -56,25 +56,7 @@ class OpenStudioAwsInstance
     @timestamp = timestamp
   end
 
-  def to_os_json
-    json = ""
-    if @openstudio_instance_type == :server
-      json = {
-          :timestamp => @timestamp,
-          #:private_key => @private_key, # need to stop printing this out
-          :server => {
-              :id => @data.id,
-              :ip => 'http://' + @data.ip,
-              :dns => @data.dns,
-              :procs => @data.procs
-          }
-      }.to_json
-    end
-
-    logger.info("server info #{json}")
-
-    json
-  end
+  
 
   def launch_instance(image_id, instance_type, user_data)
     logger.info("user_data #{user_data.inspect}")
@@ -90,6 +72,9 @@ class OpenStudioAwsInstance
         }
     )
 
+    # determine how many processors are suppose to be in this image (lookup for now?)
+    processors = find_processors(instance_type)
+    
     # only asked for 1 instance, so therefore it should be the first 
     aws_instance = result.data.instances.first
     @aws.create_tags(
@@ -97,7 +82,8 @@ class OpenStudioAwsInstance
             :resources => [aws_instance.instance_id],
             :tags => [                                                                   
                 {:key => 'Name', :value => "OpenStudio-Server V#{OPENSTUDIO_VERSION}"}, # todo: abstract out the server and version
-                {:key => 'GroupUUID', :value => @group_uuid}
+                {:key => 'GroupUUID', :value => @group_uuid},
+                {:key => 'NumberOfProcessors', :value => "#{processors}"}
             ]
         }
     )
@@ -121,7 +107,28 @@ class OpenStudioAwsInstance
     # now grab information about the instance
     system_description = @aws.describe_instances({:instance_ids => [aws_instance.instance_id]}).data.reservations.first.instances.first
 
-    processors = find_processors(instance_type)
+    
     @data = create_struct(system_description, processors)
+  end
+
+  # Format of the OS JSON that is used for the command line based script
+  def to_os_json
+    json = ""
+    if @openstudio_instance_type == :server
+      json = {
+          :timestamp => @timestamp,
+          #:private_key => @private_key, # need to stop printing this out
+          :server => {
+              :id => @data.id,
+              :ip => 'http://' + @data.ip,
+              :dns => @data.dns,
+              :procs => @data.procs
+          }
+      }.to_json
+    end
+
+    logger.info("server info #{json}")
+
+    json
   end
 end
