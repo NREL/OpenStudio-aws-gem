@@ -18,11 +18,14 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ######################################################################
 
+# Class for managing the AMI ids based on the openstudio version and the openstudio-server version
+
 class OpenStudioAmis
 
-  def initialize(version = 1, openstudio_version = 'default')
+  def initialize(version = 1, openstudio_version = 'default', openstudio_server_version = 'default')
     @version = 1
     @openstudio_version = openstudio_version
+    @openstudio_server_version = openstudio_server_version
   end
 
   def get_amis()
@@ -67,14 +70,10 @@ class OpenStudioAmis
     resp = Net::HTTP.get_response('developer.nrel.gov', endpoint)
     if resp.code == '200'
       result = JSON.parse(resp.body)
-
     else
-      error(resp.code, 'Unable to download AMI IDs')
+      raise "#{resp.code} Unable to download AMI IDs"
     end
 
     result
   end
-
-  
-
 end

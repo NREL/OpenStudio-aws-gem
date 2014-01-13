@@ -21,7 +21,10 @@ describe OpenStudioAmis do
       expect(amis['worker']).to eq("ami-a9e4ccc0") 
       expect(amis['cc2worker']).to eq("ami-5be4cc32") 
     end
-
+  end
+  
+  context "version 2" do
+    
   end
 
 end

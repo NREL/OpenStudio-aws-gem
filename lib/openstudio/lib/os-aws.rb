@@ -38,6 +38,7 @@
 
 require_relative 'openstudio_aws_wrapper'
 require_relative 'openstudio_aws_instance'
+require_relative 'ami_list'
 require 'aws-sdk-core'
 require 'json'
 require 'logger'
@@ -102,19 +103,17 @@ OPENSTUDIO_VERSION = '1.1.4' unless defined?(OPENSTUDIO_VERSION)
 SERVER_PEM_FILENAME = File.expand_path("~/openstudio-server.pem")
 
 if (!defined?(@server_image_id) || !defined?(@worker_image_id))
-  resp = Net::HTTP.get_response('developer.nrel.gov', '/downloads/buildings/openstudio/rsrc/amis.json')
-  if resp.code == '200'
-    result = JSON.parse(resp.body)
-    version = result.has_key?(OPENSTUDIO_VERSION) ? OPENSTUDIO_VERSION : 'default'
-
-    @server_image_id = result[version]['server']
+  amis = OpenStudioAmis.new(1, OPENSTUDIO_VERSION)
+  
+  if amis
+    @server_image_id = amis['server']
     if ARGV.length >= 6 && @params['instance_type'] == 'cc2.8xlarge'
-      @worker_image_id = result[version]['cc2worker']
+      @worker_image_id = amis['cc2worker']
     else
-      @worker_image_id = result[version]['worker']
+      @worker_image_id = amis['worker']
     end
   else
-    error(resp.code, 'Unable to download AMI IDs')
+    error(-1, 'Unable to download AMI IDs')
   end
 end
 
