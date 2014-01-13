@@ -18,28 +18,12 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ######################################################################
 
-######################################################################
-# == Synopsis
-#
-#   Uses the aws-sdk gem to communicate with AWS
-#
-# == Usage
-#
-#  ruby aws.rb access_key secret_key us-east-1 EC2 launch_server "{\"instance_type\":\"t1.micro\"}"
-#
-#  ARGV[0] - Access Key
-#  ARGV[1] - Secret Key
-#  ARGV[2] - Region
-#  ARGV[3] - Service (e.g. "EC2" or "CloudWatch")
-#  ARGV[4] - Command (e.g. "launch_server")
-#  ARGV[5] - Optional json with parameters associated with command
-#
-######################################################################
-
 module OpenStudioAwsMethods
+  # store the data into a custom struct.  The instance is the full description.  The remaining fields are
+  # just easier accessors to the data in the raw request except for procs which is a custom request.
   def create_struct(instance, procs)
     instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs)
-    return instance_struct.new(instance, instance.instance_id, instance.public_ip_address, instance.public_dns_name, procs)
+    return instance_struct.new(instance, instance[:instance_id], instance[:public_ip_address], instance[:public_dns_name], procs)
   end
 
   def find_processors(instance)

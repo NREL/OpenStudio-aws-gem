@@ -46,17 +46,16 @@ class OpenStudioAwsInstance
 
   attr_reader :openstudio_instance_type
 
-  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, timestamp)
+  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid)
     @data = nil # stored information about the instance
     @aws = aws_session
     @openstudio_instance_type = openstudio_instance_type # :server, :worker
     @key_pair_name = key_pair_name
     @security_group_name = security_group_name
-    @group_uuid = group_uuid
-    @timestamp = timestamp
+    @group_uuid = group_uuid.to_s
   end
 
-  
+
   def launch_instance(image_id, instance_type, user_data)
     logger.info("user_data #{user_data.inspect}")
     result = @aws.run_instances(
@@ -73,16 +72,17 @@ class OpenStudioAwsInstance
 
     # determine how many processors are suppose to be in this image (lookup for now?)
     processors = find_processors(instance_type)
-    
+
     # only asked for 1 instance, so therefore it should be the first 
     aws_instance = result.data.instances.first
     @aws.create_tags(
         {
             :resources => [aws_instance.instance_id],
-            :tags => [                                                                   
+            :tags => [
                 {:key => 'Name', :value => "OpenStudio-#{@openstudio_instance_type.capitalize}"}, # todo: abstract out the server and version
                 {:key => 'GroupUUID', :value => @group_uuid},
-                {:key => 'NumberOfProcessors', :value => "#{processors}"}
+                {:key => 'NumberOfProcessors', :value => processors.to_s},
+                {:key => 'Purpose', :value => "OpenStudio#{@openstudio_instance_type.capitalize}"}
             ]
         }
     )
@@ -103,11 +103,19 @@ class OpenStudioAwsInstance
       raise "Intance was unable to launch due to timeout #{aws_instance.instance_id}"
     end
 
-    # now grab information about the instance
-    system_description = @aws.describe_instances({:instance_ids => [aws_instance.instance_id]}).data.reservations.first.instances.first
+    # now grab information about the instance 
+    # todo: check lengths on all of arrays
+    instance_data = @aws.describe_instances({:instance_ids => [aws_instance.instance_id]}).data.reservations.first.instances.first.to_hash
+    logger.info "instance description is: #{system_description}"
 
-    
-    @data = create_struct(system_description, processors)
+    @data = create_struct(instance_data, processors)
+  end
+  
+  # if the server already exists, then load the data about the server into the object
+  # instance_data is passed in and in the form of the instance data (as a hash) structured as the 
+  # result of the amazon describe instance
+  def load_instance_data(instance_data)
+    @data = create_struct(instance_data, find_processors(instance_data[:instance_type]))     
   end
 
   # Format of the OS JSON that is used for the command line based script
@@ -115,7 +123,7 @@ class OpenStudioAwsInstance
     json = ""
     if @openstudio_instance_type == :server
       json = {
-          :timestamp => @timestamp,
+          :timestamp => @group_uuid,
           #:private_key => @private_key, # need to stop printing this out
           :server => {
               :id => @data.id,

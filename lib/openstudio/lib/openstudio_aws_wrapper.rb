@@ -36,7 +36,6 @@
 #
 ######################################################################
 
-require 'securerandom'
 require_relative 'openstudio_aws_logger'
 
 class OpenStudioAwsWrapper
@@ -48,12 +47,11 @@ class OpenStudioAwsWrapper
   attr_reader :workers
 
   def initialize(credentials = nil, group_uuid = nil)
-    @group_uuid = group_uuid || SecureRandom.uuid
+    @group_uuid = group_uuid || Time.now.to_i.to_s
 
     @security_group_name = nil
     @key_pair_name = nil
     @private_key = nil
-    @timestamp = Time.now.to_i
     @server = nil
     @workers = []
 
@@ -120,14 +118,73 @@ class OpenStudioAwsWrapper
     describe_total_instances.to_json
   end
 
-  def create_or_retrieve_key_pair
-    tmp_name = "os-key-pair-#{@timestamp}"
-    # create a new key pair everytime
-    keypair = @aws.create_key_pair({:key_name => tmp_name})
+  # return all of the running instances, or filter by the group_uuid & instance type
+  def describe_running_instances(group_uuid = nil, openstudio_instance_type = nil)
 
-    # save the private key to memory
-    @private_key = keypair.data.key_material
-    @key_pair_name = keypair.data.key_name
+    resp = nil
+    if group_uuid
+      resp = @aws.describe_instances(
+          {
+              :filters => [
+                  {:name => "instance-state-code", :values => [0.to_s, 16.to_s]}, #running or pending
+                  {:name => "tag-key", :values => ["GroupUUID"]},
+                  {:name => "tag-value", :values => [group_uuid.to_s]} # todo: how to check for the server versions
+              #{:name => "tag-value", :values => [group_uuid.to_s, "OpenStudio#{@openstudio_instance_type.capitalize}"]} 
+              #{:name => "tag:key=value", :values => ["GroupUUID=#{group_uuid.to_s}"]}
+              ]
+          }
+      )
+    else
+      # todo: need to restrict this to only the current user
+      resp = @aws.describe_instances()
+    end
+
+    instance_data = nil
+    if resp
+      if resp.reservations.length > 0
+        resp = resp.reservations.first
+        if resp.instances
+          instance_data = []
+          resp.instances.each do |i|
+            instance_data << i.to_hash
+          end
+
+
+        end
+      else
+        logger.info "no running instances found"
+      end
+    end
+
+    instance_data
+  end
+
+  def create_or_retrieve_key_pair(key_pair_name = nil)
+    tmp_name = "test" #key_pair_name || "os-key-pair-#{@group_uuid}"
+
+    # the describe_key_pairs method will raise an expection if it can't find the keypair, so catch it
+    resp = nil
+    begin
+      resp = @aws.describe_key_pairs({:key_names => [tmp_name]}).data
+      raise "looks like there are 2 key pairs with the same name" if resp.key_pairs.size >= 2
+    rescue
+      logger.info "could not find key pair '#{tmp_name}'"
+    end  
+    
+    if resp.nil? || resp.key_pairs.size == 0
+      # create the new key_pair
+      # check if the key pair name exists
+      # create a new key pair everytime
+      keypair = @aws.create_key_pair({:key_name => tmp_name})
+      
+      # save the private key to memory (which can later be persisted via the save_private_key method)
+      @private_key = keypair.data.key_material
+      @key_pair_name = keypair.data.key_name
+    else
+      logger.info "found existing keypair #{resp.key_pairs.first}"
+      @key_pair_name = resp.key_pairs.first[:key_name]
+    end
+    
     logger.info("create key pair: #{@key_pair_name}")
   end
 
@@ -139,11 +196,11 @@ class OpenStudioAwsWrapper
 
   def launch_server(image_id, instance_type)
     user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/server_script.sh')
-    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @timestamp)
+    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid)
     @server.launch_instance(image_id, instance_type, user_data)
   end
 
-  def launch_workers(image_id, instance_type, num, server_ip)
+  def launch_workers(image_id, instance_type, num)
     user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/worker_script.sh.template')
     user_data.gsub!(/SERVER_IP/, @server.ip)
     user_data.gsub!(/SERVER_HOSTNAME/, 'master')
@@ -152,14 +209,36 @@ class OpenStudioAwsWrapper
 
     threads = []
     num.times do
-      @workers << OpenStudioAwsInstance.new(@aws, @key_pair_name, @security_group_name, @group_uuid, @timestamp)
+      @workers << OpenStudioAwsInstance.new(@aws, @key_pair_name, @security_group_name, @group_uuid)
       threads << Thread.new do
         @workers.last.launch_instance(image_id, instance_type, user_data)
       end
     end
     threads.each { |t| t.join }
-    
+
     # todo: do we need to have a flag if the worker node is successful?
+  end
+
+  # method to query the amazon api to find the server (if it exists), based on the group id
+  # if it is found, then it will set the @server member variable.
+  # Note that the information around keys and security groups is pulled from the instance information.
+  def find_server(group_uuid)
+    logger.info "finding the server for groupid of #{group_uuid}"
+
+    resp = describe_running_instances(group_uuid, :server)
+    if resp
+      raise "more than one server running with group uuid of #{group_uuid} found, expecting only one" if resp.size > 1
+      resp = resp.first
+      if !@server
+        logger.info "Server found and loading data into object [instance id is #{resp[:instance_id]}]"
+        @server = OpenStudioAwsInstance.new(@aws, :server, resp[:key_name], resp[:security_groups].first[:group_name], group_uuid)
+        @server.load_instance_data(resp)
+      else
+        logger.info "Server instance is already defined with instance #{resp[:instance_id]}"
+      end
+    else
+      raise "could not find a running server instance"
+    end
   end
 
 

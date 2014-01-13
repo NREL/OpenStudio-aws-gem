@@ -157,13 +157,11 @@ begin
       end
 
       puts os_aws.server.to_os_json
-
     when 'launch_workers'
-      @timestamp = @params['timestamp']
+      @timestamp = @params['timestamp'] #timestamp is renamed to groupuuid in the backend
       
-      os_aws = OpenStudioAwsWrapper.new(nil, @timestamp) # todo: pass in the groupuuid not the timestamp
-      
-      os_aws.find_server() 
+      os_aws = OpenStudioAwsWrapper.new(nil, @timestamp) 
+      os_aws.find_server(@timestamp) # really the group id
       os_aws.create_or_retrieve_security_group("openstudio-worker-sg-v1")
       os_aws.create_or_retrieve_key_pair
 
