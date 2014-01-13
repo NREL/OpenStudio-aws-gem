@@ -246,12 +246,12 @@ class OpenStudioAwsWrapper
     file = Tempfile.new('ip_addresses')
     file.write(ips)                               
     file.close
-    upload_file(@server.ip, file.path, 'ip_addresses')
+    upload_file(@server.data.ip, file.path, 'ip_addresses')
     file.unlink
     logger.info("ips #{ips}")
-    @server.shell_command(@server.ip, 'chmod 664 /home/ubuntu/ip_addresses')
-    @server.shell_command(@server.ip, '~/setup-ssh-keys.sh')
-    @server.shell_command(@server.ip, '~/setup-ssh-worker-nodes.sh ip_addresses')
+    @server.shell_command(@server.data.ip, 'chmod 664 /home/ubuntu/ip_addresses')
+    @server.shell_command(@server.data.ip, '~/setup-ssh-keys.sh')
+    @server.shell_command(@server.data.ip, '~/setup-ssh-worker-nodes.sh ip_addresses')
 
     mongoid = File.read(File.expand_path(File.dirname(__FILE__))+'/mongoid.yml.template')
     mongoid.gsub!(/SERVER_IP/, @server.data.ip)
@@ -284,7 +284,7 @@ class OpenStudioAwsWrapper
       resp = resp.first
       if !@server
         logger.info "Server found and loading data into object [instance id is #{resp[:instance_id]}]"
-        @server = OpenStudioAwsInstance.new(@aws, :server, resp[:key_name], resp[:security_groups].first[:group_name], group_uuid)
+        @server = OpenStudioAwsInstance.new(@aws, :server, resp[:key_name], resp[:security_groups].first[:group_name], group_uuid, @private_key)
         @server.load_instance_data(resp)
       else
         logger.info "Server instance is already defined with instance #{resp[:instance_id]}"

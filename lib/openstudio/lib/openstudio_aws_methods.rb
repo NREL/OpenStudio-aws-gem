@@ -200,11 +200,11 @@ module OpenStudioAwsMethods
     rescue Net::SSH::HostKeyMismatch => e
       e.remember_host!
       @logger.info("key mismatch, retry")
-      sleep 1
+      sleep 5
       retry
     rescue SystemCallError, Timeout::Error => e
       # port 22 might not be available immediately after the instance finishes launching
-      sleep 1
+      sleep 5
       @logger.info("Not Yet")
       retry
     end

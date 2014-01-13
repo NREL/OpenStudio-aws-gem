@@ -16,7 +16,7 @@ describe OpenStudio::Aws::Aws do
 
     it "should create a server" do
       # use the default instance type
-      options = {instance_type: "t1.micro", image_id: "ami-29e5cd40"}
+      options = {instance_type: "t1.micro", image_id: "ami-fb301292"}
 
       #options = {instance_type: "m1.small" }
       @aws.create_server(options)
@@ -24,7 +24,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it "should create a 1 worker" do
-      options = {instance_type: "t1.micro", image_id: "ami-a9e4ccc0"}
+      options = {instance_type: "t1.micro", image_id: "ami-21301248"}
       #options = {instance_type: "m1.small" }
       #server_json[:instance_type] = "m2.4xlarge"
       #server_json[:instance_type] = "m2.2xlarge"

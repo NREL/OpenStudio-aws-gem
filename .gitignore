@@ -10,3 +10,4 @@ server_data.json
 worker_data.json
 tmp/*
 aws.log
+spec/reports

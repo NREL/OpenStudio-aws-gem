@@ -13,7 +13,7 @@ describe OpenStudioAmis do
     end
 
     it "should return specific amis if passed a version" do
-      a = OpenStudioAmis.new(1, "1.2.0")
+      a = OpenStudioAmis.new(1, "1.2.0", nil)
 
       amis = a.get_amis
 
@@ -21,10 +21,16 @@ describe OpenStudioAmis do
       expect(amis['worker']).to eq("ami-a9e4ccc0") 
       expect(amis['cc2worker']).to eq("ami-5be4cc32") 
     end
+    
+    it "should raise if passed an invalid version" do
+      
+    end
   end
   
   context "version 2" do
-    
+    it "should default the server version" do
+      
+    end
   end
 
 end
