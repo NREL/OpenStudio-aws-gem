@@ -17,6 +17,7 @@ task :install => :build do
   system "gem install openstudio-aws-#{OpenStudio::Aws::VERSION}.gem --no-ri --no-rdoc"
 end
 
+desc "build and release the gem using rubygems and git tags"
 task :release => :build do
   system "git tag -a v#{OpenStudio::Aws::VERSION} -m 'Tagging #{OpenStudio::Aws::VERSION}'"
   system "git push --tags"
