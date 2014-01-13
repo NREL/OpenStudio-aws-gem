@@ -9,7 +9,6 @@ module OpenStudio
         @config = nil
         if @yml_config_file.nil?
           @yml_config_file = File.join(File.expand_path("~"), "aws_config.yml")
-          puts @yml_config_file
           if !File.exists?(@yml_config_file)
             write_config_file
             puts "No Config File in user home directory. A template has been added, please edit and save: #{@yml_config_file}"

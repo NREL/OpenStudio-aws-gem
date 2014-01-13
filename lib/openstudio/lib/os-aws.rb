@@ -1,6 +1,6 @@
 # NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files
 ######################################################################
-#  Copyright (c) 2008-2013, Alliance for Sustainable Energy.  
+#  Copyright (c) 2008-2014, Alliance for Sustainable Energy.  
 #  All rights reserved.
 #  
 #  This library is free software; you can redistribute it and/or
@@ -36,7 +36,10 @@
 #
 ######################################################################
 
-require 'aws-sdk'
+require_relative 'openstudio_aws_wrapper'
+require_relative 'openstudio_aws_instance'
+require_relative 'ami_list'
+require 'aws-sdk-core'
 require 'json'
 require 'logger'
 require 'net/http'
@@ -44,10 +47,17 @@ require 'net/scp'
 require 'net/ssh'
 require 'tempfile'
 require 'time'
+require 'base64'
 
 def error(code, msg)
-  puts ({:error => {:code => code, :message => msg},
-         :arguments => ARGV[2..-1]}.to_json)
+  puts (
+           {
+               :error => {
+                   :code => code, :message => msg
+               },
+               :arguments => ARGV[2..-1]
+           }.to_json
+       )
   exit(1)
 end
 
@@ -71,15 +81,10 @@ if ARGV[4].empty?
   error(-1, 'Missing command argument')
 end
 
-AWS.config(
-    :access_key_id => ARGV[0],
-    :secret_access_key => ARGV[1],
-    :region => ARGV[2],
-    :ssl_verify_peer => false
-)
+Aws.config = {:access_key_id => ARGV[0], :secret_access_key => ARGV[1], :region => ARGV[2], :ssl_verify_peer => false}
 
 if ARGV[3] == 'EC2'
-  @aws = AWS::EC2.new
+  @aws = Aws::EC2.new
 elsif ARGV[3] == 'CloudWatch'
   @aws = AWS::CloudWatch.new
 else
@@ -95,257 +100,20 @@ end
 
 OPENSTUDIO_VERSION = '1.1.4' unless defined?(OPENSTUDIO_VERSION)
 
-if (!defined?(@server_image_id) || !defined?(@worker_image_id))
-  resp = Net::HTTP.get_response('developer.nrel.gov','/downloads/buildings/openstudio/rsrc/amis.json')
-  if resp.code == '200'
-    result = JSON.parse(resp.body)
-    version = result.has_key?(OPENSTUDIO_VERSION) ? OPENSTUDIO_VERSION : 'default'
+SERVER_PEM_FILENAME = File.expand_path("~/openstudio-server.pem")
 
-    @server_image_id = result[version]['server']
+if (!defined?(@server_image_id) || !defined?(@worker_image_id))
+  amis = OpenStudioAmis.new(1, OPENSTUDIO_VERSION)
+  
+  if amis
+    @server_image_id = amis['server']
     if ARGV.length >= 6 && @params['instance_type'] == 'cc2.8xlarge'
-      @worker_image_id = result[version]['cc2worker']
+      @worker_image_id = amis['cc2worker']
     else
-      @worker_image_id = result[version]['worker']
+      @worker_image_id = amis['worker']
     end
   else
-    error(resp.code, 'Unable to download AMI IDs')
-  end
-end
-
-def create_struct(instance, procs)
-  instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs)
-  return instance_struct.new(instance, instance.instance_id, instance.ip_address, instance.dns_name, procs)
-end
-
-def find_processors(instance)
-  processors = 1
-  case instance
-    when 'cc2.8xlarge'
-      processors = 16
-    when 'c1.xlarge'
-      processors = 8
-    when 'm2.4xlarge'
-      processors = 8
-    when 'm2.2xlarge'
-      processors = 4
-    when 'm2.xlarge'
-      processors = 2
-    when 'm1.xlarge'
-      processors = 4
-    when 'm1.large'
-      processors = 2
-    when 'm3.xlarge'
-      processors = 2
-    when 'm3.2xlarge'
-      processors = 4
-  end
-
-  return processors
-end
-
-def launch_server
-  user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/server_script.sh')
-  @logger.info("server user_data #{user_data.inspect}")
-  @server = @aws.instances.create(:image_id => @server_image_id,
-                                  :key_pair => @key_pair,
-                                  :security_groups => @group,
-                                  :user_data => user_data,
-                                  :instance_type => @server_instance_type)
-  @server.add_tag('Name', :value => "OpenStudio-Server V#{OPENSTUDIO_VERSION}")
-  sleep 5 while @server.status == :pending
-  if @server.status != :running
-    error(-1, "Server status: #{@server.status}")
-  end
-
-  processors = find_processors(@server_instance_type)
-  #processors = send_command(@server.ip_address, 'nproc | tr -d "\n"')
-  #processors = 0 if processors.nil?  # sometimes this returns nothing, so put in a default
-  @server = create_struct(@server, processors)
-end
-
-def launch_workers(num, server_ip)
-  user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/worker_script.sh.template')
-  user_data.gsub!(/SERVER_IP/, server_ip)
-  user_data.gsub!(/SERVER_HOSTNAME/, 'master')
-  user_data.gsub!(/SERVER_ALIAS/, '')
-  @logger.info("worker user_data #{user_data.inspect}")
-  instances = []
-  num.times do
-    worker = @aws.instances.create(:image_id => @worker_image_id,
-                                   :key_pair => @key_pair,
-                                   :security_groups => @group,
-                                   :user_data => user_data,
-                                   :instance_type => @worker_instance_type)
-    worker.add_tag('Name', :value => "OpenStudio-Worker V#{OPENSTUDIO_VERSION}")
-    instances.push(worker)
-  end
-  sleep 5 while instances.any? { |instance| instance.status == :pending }
-  if instances.any? { |instance| instance.status != :running }
-    error(-1, "Worker status: Not running")
-  end
-
-  # todo: fix this - sometimes returns nil
-  processors = find_processors(@worker_instance_type)
-  #processors = send_command(instances[0].ip_address, 'nproc | tr -d "\n"')
-  #processors = 0 if processors.nil?  # sometimes this returns nothing, so put in a default
-  instances.each { |instance| @workers.push(create_struct(instance, processors)) }
-end
-
-def upload_file(host, local_path, remote_path)
-  retries = 0
-  begin
-    Net::SCP.start(host, 'ubuntu', :key_data => [@private_key]) do |scp|
-      scp.upload! local_path, remote_path
-    end
-  rescue SystemCallError, Timeout::Error => e
-    # port 22 might not be available immediately after the instance finishes launching
-    return if retries == 5
-    retries += 1
-    sleep 1
-    retry
-  rescue
-    # Unknown upload error, retry
-    return if retries == 5
-    retries += 1
-    sleep 1
-    retry
-  end
-end
-
-
-def send_command(host, command)
-  #retries = 0
-  begin
-    output = ''
-    Net::SSH.start(host, 'ubuntu', :key_data => [@private_key]) do |ssh|
-      response = ssh.exec!(command)
-      output += response if !response.nil?
-    end
-    return output
-  rescue Net::SSH::HostKeyMismatch => e
-    e.remember_host!
-    # key mismatch, retry
-    #return if retries == 5
-    #retries += 1
-    sleep 1
-    retry
-  rescue Net::SSH::AuthenticationFailed
-    error(-1, "Incorrect private key")
-  rescue SystemCallError, Timeout::Error => e
-    # port 22 might not be available immediately after the instance finishes launching
-    #return if retries == 5
-    #retries += 1
-    sleep 1
-    retry
-  rescue Exception => e
-    puts e.message
-    puts e.backtrace.inspect
-  end
-end
-
-#======================= send command ======================#
-# Send a command through SSH Shell to an instance.
-# Need to pass instance object and the command as a string.
-def shell_command(host, command)
-  begin
-    @logger.info("ssh_command #{command}")
-    Net::SSH.start(host, 'ubuntu', :key_data => [@private_key]) do |ssh|
-      channel = ssh.open_channel do |ch|
-        ch.exec "#{command}" do |ch, success|
-          raise "could not execute #{command}" unless success
-
-          # "on_data" is called when the process writes something to stdout
-          ch.on_data do |c, data|
-            #$stdout.print data
-            @logger.info("#{data.inspect}")
-          end
-
-          # "on_extended_data" is called when the process writes something to stderr
-          ch.on_extended_data do |c, type, data|
-            #$stderr.print data
-            @logger.info("#{data.inspect}")
-          end
-        end
-      end
-    end
-  rescue Net::SSH::HostKeyMismatch => e
-    e.remember_host!
-    @logger.info("key mismatch, retry")
-    sleep 1
-    retry
-  rescue SystemCallError, Timeout::Error => e
-    # port 22 might not be available immediately after the instance finishes launching
-    sleep 1
-    @logger.info("Not Yet")
-    retry
-  end
-end
-
-def wait_command(host, command)
-  begin
-    flag = 0
-    while flag == 0 do
-      @logger.info("wait_command #{command}")
-      Net::SSH.start(host, 'ubuntu', :key_data => [@private_key]) do |ssh|
-        channel = ssh.open_channel do |ch|
-          ch.exec "#{command}" do |ch, success|
-            raise "could not execute #{command}" unless success
-
-            # "on_data" is called when the process writes something to stdout
-            ch.on_data do |c, data|
-              @logger.info("#{data.inspect}")
-              if data.chomp == "true"
-                @logger.info("wait_command #{command} is true")
-                flag = 1
-              else
-                sleep 5
-              end
-            end
-
-            # "on_extended_data" is called when the process writes something to stderr
-            ch.on_extended_data do |c, type, data|
-              @logger.info("#{data.inspect}")
-              if data == "true"
-                @logger.info("wait_command #{command} is true")
-                flag = 1
-              else
-                sleep 5
-              end
-            end
-          end
-        end
-      end
-    end
-  rescue Net::SSH::HostKeyMismatch => e
-    e.remember_host!
-    @logger.info("key mismatch, retry")
-    sleep 1
-    retry
-  rescue SystemCallError, Timeout::Error => e
-    # port 22 might not be available immediately after the instance finishes launching
-    sleep 1
-    @logger.info("Not Yet")
-    retry
-  end
-end
-
-def download_file(host, remote_path, local_path)
-  retries = 0
-  begin
-    Net::SCP.start(host, 'ubuntu', :key_data => [@private_key]) do |scp|
-      scp.download! remote_path, local_path
-    end
-  rescue SystemCallError, Timeout::Error => e
-    # port 22 might not be available immediately after the instance finishes launching
-    return if retries == 5
-    retries += 1
-    sleep 1
-    retry
-  rescue
-    return if retries == 5
-    retries += 1
-    sleep 1
-    retry
+    error(-1, 'Unable to download AMI IDs')
   end
 end
 
@@ -354,20 +122,29 @@ begin
   @logger.info("initialized")
   case ARGV[4]
     when 'describe_availability_zones'
-      resp = @aws.client.describe_availability_zones
-      puts resp.data.to_json
-      @logger.info("availability_zones #{resp.data.to_json}")
+      os_aws = OpenStudioAwsWrapper.new
+      resp = os_aws.describe_availability_zones_json
+      puts resp
+      @logger.info("availability_zones #{resp}")
     when 'total_instances'
-      resp = @aws.client.describe_instance_status
-      puts ({:total_instances => resp.data[:instance_status_set].length,
-             :region => ARGV[2]}.to_json)
+      os_aws = OpenStudioAwsWrapper.new
+      resp = os_aws.describe_total_instances_json
+      puts resp
     when 'instance_status'
+      os_aws = OpenStudioAwsWrapper.new
+
       resp = nil
       if ARGV.length < 6
-        resp = @aws.client.describe_instance_status
+        resp = os_aws.describe_instance_status
       else
-        resp = @aws.client.describe_instance_status({:instance_ids => [@params['instance_id']]})
+        resp = os_aws.describe_instance_status({:instance_ids => [@params['instance_id']]})
       end
+      #resp = nil
+      #if ARGV.length < 6
+      #  resp = @aws.client.describe_instance_status
+      #else
+      #  resp = @aws.client.describe_instance_status({:instance_ids => [@params['instance_id']]})
+      #end
       output = Hash.new
       resp.data[:instance_status_set].each { |instance|
         output[instance[:instance_id]] = instance[:instance_state][:name]
@@ -377,34 +154,37 @@ begin
       if ARGV.length < 6
         error(-1, 'Invalid number of args')
       end
+      os_aws = OpenStudioAwsWrapper.new
+      os_aws.create_or_retrieve_security_group("openstudio-server-sg-v1")
+      os_aws.create_or_retrieve_key_pair
 
-      @timestamp = Time.now.to_i
+      # this step is really important because this is read from the worker nodes.  We
+      # should not be printing this to screen nor putting into the log in case the 
+      # user is starting to used shared keys.
+      os_aws.save_private_key(SERVER_PEM_FILENAME)
 
-      # find if an existing openstudio-server-vX security group exists and use that
-      @group = @aws.security_groups.filter('group-name', 'openstudio-server-sg-v1').first
-      if @group.nil?
-        @group = @aws.security_groups.create('openstudio-server-sg-v1')
-        @group.allow_ping() # allow ping
-        @group.authorize_ingress(:tcp, 1..65535) # all traffic
-      end
-      @logger.info("server_group #{@group}")
       @server_instance_type = @params['instance_type']
+      begin
+        os_aws.launch_server(@server_image_id, @server_instance_type)
+      rescue Exception => e
+        error(-1, "Server status: #{e.message}")
+      end
 
-      @key_pair = @aws.key_pairs.create("key-pair-#{@timestamp}")
-      @private_key = @key_pair.private_key
-
-      launch_server()
-
-      puts ({:timestamp => @timestamp,
-             :private_key => @private_key,
-             :server => {
-                 :id => @server.id,
-                 :ip => 'http://' + @server.ip,
-                 :dns => @server.dns,
-                 :procs => @server.procs
-             }}.to_json)
-      @logger.info("server info #{({:timestamp => @timestamp, :private_key => @private_key, :server => {:id => @server.id, :ip => @server.ip, :dns => @server.dns, :procs => @server.procs}}.to_json)}")
+      puts os_aws.server.to_os_hash.to_json
     when 'launch_workers'
+      @timestamp = @params['timestamp'] #timestamp is renamed to groupuuid in the backend
+
+      os_aws = OpenStudioAwsWrapper.new(nil, @timestamp)
+      os_aws.find_server(@timestamp) # really the group id
+      os_aws.create_or_retrieve_security_group("openstudio-worker-sg-v1")
+
+      # find the private key in the users home directory, or crash
+      if File.exists?(SERVER_PEM_FILENAME)
+        os_aws.create_or_retrieve_key_pair(nil, SERVER_PEM_FILENAME)
+      else
+        raise "Could not find previous private key which should be here: #{SERVER_PEM_FILENAME}"
+      end
+
       if ARGV.length < 6
         error(-1, 'Invalid number of args')
       end
@@ -412,73 +192,19 @@ begin
         error(-1, 'Invalid number of worker nodes, must be greater than 0')
       end
 
-      @workers = []
-      @timestamp = @params['timestamp']
-
-      # find if an existing openstudio-server-vX security group exists and use that
-      @group = @aws.security_groups.filter('group-name', 'openstudio-worker-sg-v1').first
-      if @group.nil?
-        @group = @aws.security_groups.create('openstudio-worker-sg-v1')
-        @group.allow_ping() # allow ping
-        @group.authorize_ingress(:tcp, 1..65535) # all traffic
-      end
-      @logger.info("worker_group #{@group}")
-      @key_pair = @aws.key_pairs.filter('key-name', "key-pair-#{@timestamp}").first
-      @private_key = File.read(@params['private_key'])
       @worker_instance_type = @params['instance_type']
-      @server = @aws.instances[@params['server_id']]
-      error(-1, 'Server node does not exist') unless @server.exists?
-      @server = create_struct(@server, @params['server_procs'])
-
-      launch_workers(@params['num'], @server.ip)
-      #@workers.push(create_struct(@aws.instances['i-xxxxxxxx'], 1))
-      #processors = send_command(@workers[0].ip, 'nproc | tr -d "\n"')
-      #@workers[0].procs = processors
+      begin
+        # this will launch and configure with threads inside os_aws  
+        os_aws.launch_workers(@worker_image_id, @worker_instance_type, @params['num'])
+      rescue Exception => e
+        error(-1, "Server status: #{e.message}")
+      end
 
       #wait for user_data to complete execution
-      @logger.info("server user_data")
-      wait_command(@server.ip, '[ -e /home/ubuntu/user_data_done ] && echo "true"')
-      @logger.info("worker user_data")
-      @workers.each { |worker| wait_command(worker.ip, '[ -e /home/ubuntu/user_data_done ] && echo "true"') }
-      #wait_command(@workers.first.ip, "[ -e /home/ubuntu/user_data_done ] && echo 'true'") 
+      os_aws.configure_server_and_workers
 
-
-      ips = "master|#{@server.ip}|#{@server.dns}|#{@server.procs}|ubuntu|ubuntu\n"
-      @workers.each { |worker| ips << "worker|#{worker.ip}|#{worker.dns}|#{worker.procs}|ubuntu|ubuntu|true\n" }
-      file = Tempfile.new('ip_addresses')
-      file.write(ips)
-      file.close
-      upload_file(@server.ip, file.path, 'ip_addresses')
-      file.unlink
-      @logger.info("ips #{ips}")
-      shell_command(@server.ip, 'chmod 664 /home/ubuntu/ip_addresses')
-      shell_command(@server.ip, '~/setup-ssh-keys.sh')
-      shell_command(@server.ip, '~/setup-ssh-worker-nodes.sh ip_addresses')
-
-      mongoid = File.read(File.expand_path(File.dirname(__FILE__))+'/mongoid.yml.template')
-      mongoid.gsub!(/SERVER_IP/, @server.ip)
-      file = Tempfile.new('mongoid.yml')
-      file.write(mongoid)
-      file.close
-      upload_file(@server.ip, file.path, '/mnt/openstudio/rails-models/mongoid.yml')
-      @workers.each { |worker| upload_file(worker.ip, file.path, '/mnt/openstudio/rails-models/mongoid.yml') }
-      file.unlink
-
-      # Does this command crash it?
-      shell_command(@server.ip, 'chmod 664 /mnt/openstudio/rails-models/mongoid.yml')
-      @workers.each { |worker| shell_command(worker.ip, 'chmod 664 /mnt/openstudio/rails-models/mongoid.yml') }
-
-      worker_json = []
-      @workers.each { |worker|
-        worker_json.push({
-                             :id => worker.id,
-                             :ip => 'http://' + worker.ip,
-                             :dns => worker.dns,
-                             :procs => worker.procs
-                         })
-      }
-      puts ({:workers => worker_json}.to_json)
-      @logger.info("workers #{({:workers => worker_json}.to_json)}")
+      # have to print to screen for c++ to grab the information
+      puts os_aws.to_os_worker_hash.to_json
     when 'terminate_session'
       if ARGV.length < 6
         error(-1, 'Invalid number of args')

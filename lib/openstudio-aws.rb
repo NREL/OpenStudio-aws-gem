@@ -1,20 +1,22 @@
 require 'json'
 require 'net/scp'
+require 'net/http'
 require 'yaml'
+require 'logger'
 
-# AWS SDK
+# AWS SDK CORE
 begin
-  puts `gem list`
-  gem "aws-sdk", ">= 1.30.1"
-  require 'aws-sdk'
+  require 'aws-sdk-core'
 rescue LoadError
-  puts "Failed to AWS-SDK gem"
-  puts "  gem install aws-sdk"
+  puts "Failed to load AWS-SDK-CORE gem"
+  puts "  try running: gem install aws-sdk-core"
   exit
 end
 
 require 'openstudio/aws/version'
 require 'openstudio/aws/aws'
 require 'openstudio/aws/config'
-require 'openstudio/aws/send_data'
+require 'openstudio/lib/openstudio_aws_instance'
+require 'openstudio/lib/openstudio_aws_wrapper'
+require 'openstudio/lib/ami_list'
 
