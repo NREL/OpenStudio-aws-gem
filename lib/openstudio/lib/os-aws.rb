@@ -99,6 +99,8 @@ end
 
 OPENSTUDIO_VERSION = '1.1.4' unless defined?(OPENSTUDIO_VERSION)
 
+SERVER_PEM_FILENAME = File.expand_path("~/openstudio-server.pem")
+
 if (!defined?(@server_image_id) || !defined?(@worker_image_id))
   resp = Net::HTTP.get_response('developer.nrel.gov', '/downloads/buildings/openstudio/rsrc/amis.json')
   if resp.code == '200'
@@ -130,12 +132,20 @@ begin
       resp = os_aws.describe_total_instances_json
       puts resp
     when 'instance_status'
+      os_aws = OpenStudioAwsWrapper.new
+
       resp = nil
       if ARGV.length < 6
-        resp = @aws.client.describe_instance_status
+        resp = os_aws.describe_instance_status
       else
-        resp = @aws.client.describe_instance_status({:instance_ids => [@params['instance_id']]})
+        resp = os_aws.describe_instance_status({:instance_ids => [@params['instance_id']]})
       end
+      #resp = nil
+      #if ARGV.length < 6
+      #  resp = @aws.client.describe_instance_status
+      #else
+      #  resp = @aws.client.describe_instance_status({:instance_ids => [@params['instance_id']]})
+      #end
       output = Hash.new
       resp.data[:instance_status_set].each { |instance|
         output[instance[:instance_id]] = instance[:instance_state][:name]
@@ -146,8 +156,13 @@ begin
         error(-1, 'Invalid number of args')
       end
       os_aws = OpenStudioAwsWrapper.new
-      os_aws.create_or_retrieve_security_group("openstudio-worker-sg-v1")
+      os_aws.create_or_retrieve_security_group("openstudio-server-sg-v1")
       os_aws.create_or_retrieve_key_pair
+
+      # this step is really important because this is read from the worker nodes.  We
+      # should not be printing this to screen nor putting into the log in case the 
+      # user is starting to used shared keys.
+      os_aws.save_private_key(SERVER_PEM_FILENAME)
 
       @server_instance_type = @params['instance_type']
       begin
@@ -156,14 +171,20 @@ begin
         error(-1, "Server status: #{e.message}")
       end
 
-      puts os_aws.server.to_os_json
+      puts os_aws.server.to_os_hash.to_json
     when 'launch_workers'
       @timestamp = @params['timestamp'] #timestamp is renamed to groupuuid in the backend
-      
-      os_aws = OpenStudioAwsWrapper.new(nil, @timestamp) 
+
+      os_aws = OpenStudioAwsWrapper.new(nil, @timestamp)
       os_aws.find_server(@timestamp) # really the group id
       os_aws.create_or_retrieve_security_group("openstudio-worker-sg-v1")
-      os_aws.create_or_retrieve_key_pair
+
+      # find the private key in the users home directory, or crash
+      if File.exists?(SERVER_PEM_FILENAME)
+        os_aws.create_or_retrieve_key_pair(nil, SERVER_PEM_FILENAME)
+      else
+        raise "Could not find previous private key which should be here: #{SERVER_PEM_FILENAME}"
+      end
 
       if ARGV.length < 6
         error(-1, 'Invalid number of args')
@@ -171,82 +192,20 @@ begin
       if @params['num'] < 1
         error(-1, 'Invalid number of worker nodes, must be greater than 0')
       end
-      
+
       @worker_instance_type = @params['instance_type']
       begin
+        # this will launch and configure with threads inside os_aws  
         os_aws.launch_workers(@worker_image_id, @worker_instance_type, @params['num'])
       rescue Exception => e
         error(-1, "Server status: #{e.message}")
       end
 
-      @workers = []
-
-      exit
-      
-      # find if an existing openstudio-server-vX security group exists and use that
-      @group = @aws.security_groups.filter('group-name', 'openstudio-worker-sg-v1').first
-      if @group.nil?
-        @group = @aws.security_groups.create('openstudio-worker-sg-v1')
-        @group.allow_ping() # allow ping
-        @group.authorize_ingress(:tcp, 1..65535) # all traffic
-      end
-      @logger.info("worker_group #{@group}")
-      @key_pair = @aws.key_pairs.filter('key-name', "key-pair-#{@timestamp}").first
-      @private_key = File.read(@params['private_key'])
-      @worker_instance_type = @params['instance_type']
-      @server = @aws.instances[@params['server_id']]
-      error(-1, 'Server node does not exist') unless @server.exists?
-      @server = create_struct(@server, @params['server_procs'])
-
-      launch_workers(@params['num'], @server.ip)
-      #@workers.push(create_struct(@aws.instances['i-xxxxxxxx'], 1))
-      #processors = send_command(@workers[0].ip, 'nproc | tr -d "\n"')
-      #@workers[0].procs = processors
-
       #wait for user_data to complete execution
-      @logger.info("server user_data")
-      wait_command(@server.ip, '[ -e /home/ubuntu/user_data_done ] && echo "true"')
-      @logger.info("worker user_data")
-      @workers.each { |worker| wait_command(worker.ip, '[ -e /home/ubuntu/user_data_done ] && echo "true"') }
-      #wait_command(@workers.first.ip, "[ -e /home/ubuntu/user_data_done ] && echo 'true'") 
+      os_aws.configure_server_and_workers
 
-
-      ips = "master|#{@server.ip}|#{@server.dns}|#{@server.procs}|ubuntu|ubuntu\n"
-      @workers.each { |worker| ips << "worker|#{worker.ip}|#{worker.dns}|#{worker.procs}|ubuntu|ubuntu|true\n" }
-      file = Tempfile.new('ip_addresses')
-      file.write(ips)
-      file.close
-      upload_file(@server.ip, file.path, 'ip_addresses')
-      file.unlink
-      @logger.info("ips #{ips}")
-      shell_command(@server.ip, 'chmod 664 /home/ubuntu/ip_addresses')
-      shell_command(@server.ip, '~/setup-ssh-keys.sh')
-      shell_command(@server.ip, '~/setup-ssh-worker-nodes.sh ip_addresses')
-
-      mongoid = File.read(File.expand_path(File.dirname(__FILE__))+'/mongoid.yml.template')
-      mongoid.gsub!(/SERVER_IP/, @server.ip)
-      file = Tempfile.new('mongoid.yml')
-      file.write(mongoid)
-      file.close
-      upload_file(@server.ip, file.path, '/mnt/openstudio/rails-models/mongoid.yml')
-      @workers.each { |worker| upload_file(worker.ip, file.path, '/mnt/openstudio/rails-models/mongoid.yml') }
-      file.unlink
-
-      # Does this command crash it?
-      shell_command(@server.ip, 'chmod 664 /mnt/openstudio/rails-models/mongoid.yml')
-      @workers.each { |worker| shell_command(worker.ip, 'chmod 664 /mnt/openstudio/rails-models/mongoid.yml') }
-
-      worker_json = []
-      @workers.each { |worker|
-        worker_json.push({
-                             :id => worker.id,
-                             :ip => 'http://' + worker.ip,
-                             :dns => worker.dns,
-                             :procs => worker.procs
-                         })
-      }
-      puts ({:workers => worker_json}.to_json)
-      @logger.info("workers #{({:workers => worker_json}.to_json)}")
+      # have to print to screen for c++ to grab the information
+      puts os_aws.to_os_worker_hash.to_json
     when 'terminate_session'
       if ARGV.length < 6
         error(-1, 'Invalid number of args')

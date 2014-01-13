@@ -18,14 +18,22 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ######################################################################
 
-module OpenStudioAwsMethods
-  # store the data into a custom struct.  The instance is the full description.  The remaining fields are
-  # just easier accessors to the data in the raw request except for procs which is a custom request.
-  def create_struct(instance, procs)
-    instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs)
-    return instance_struct.new(instance, instance[:instance_id], instance[:public_ip_address], instance[:public_dns_name], procs)
-  end
+######################################################################
+# == Synopsis
+#
+#   Methods module for openstudio aws
+#
+# == Usage
+#
+#  Inside the class in which this file is included make sure to implement the following
+#  
+#  Member Variables:
+#    private_key : the in memory private key
+#    logger : logger class in which to write log messages
+# 
+######################################################################
 
+module OpenStudioAwsMethods
   def find_processors(instance)
     lookup = {
         "m3.xlarge" => 4,

@@ -2,78 +2,93 @@
 module OpenStudio
   module Aws
     class Aws
-      attr_reader :server_data
-      attr_reader :worker_data
+      attr_reader :os_aws
 
       def initialize()
         # read in the config.yml file to get the secret/private key
         @config = OpenStudio::Aws::Config.new()
-        @server_data = nil
-        @worker_data = nil
+
+        config = {:access_key_id => @config.access_key, :secret_access_key => @config.secret_key, :region => "us-east-1", :ssl_verify_peer => false}
+        @os_aws = OpenStudioAwsWrapper.new(config)
+        @local_key_file_name = nil
       end
 
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
       def create_server(instance_data = {})
-        # TODO: find a way to override the instance ids here in case we want to prototype
         defaults = {instance_type: "m2.xlarge"}
         instance_data = defaults.merge(instance_data)
 
-        # Since this is a command line call then make sure to escape the quotes in the JSON
-        instance_string = instance_data.to_json.gsub("\"", "\\\\\"")
+        # todo: grab the image id the instance_data if not set
+        
+        @os_aws.create_or_retrieve_security_group("openstudio-worker-sg-v1")
+        @os_aws.create_or_retrieve_key_pair
 
+        @local_key_file_name = "ec2_server_key.pem"
+        @os_aws.save_private_key(@local_key_file_name)
+        @os_aws.launch_server(instance_data[:image_id], instance_data[:instance_type])
+
+        puts @os_aws.server.to_os_hash.to_json
 
         # Call the openstudio script to start the ec2 instance 
-        start_string = "ruby #{os_aws_file_location} #{@config.access_key} #{@config.secret_key} us-east-1 EC2 launch_server \"#{instance_string}\""
-        puts "Server Command: #{start_string}"
-        server_data_str = `#{start_string}`
-        @server_data = JSON.parse(server_data_str, :symbolize_names => true)
+        #start_string = "ruby #{os_aws_file_location} #{@config.access_key} #{@config.secret_key} us-east-1 EC2 launch_server \"#{instance_string}\""
+        #puts "Server Command: #{start_string}"
+        #server_data_str = `#{start_string}`
+        #@server_data = JSON.parse(server_data_str, :symbolize_names => true)
 
         # Save pieces of the data for passing to the worker node
-        server_key_file = "ec2_server_key.pem"
-        File.open(server_key_file, "w") { |f| f << @server_data[:private_key] }
-        File.chmod(0600, server_key_file)
+
+        #File.open(server_key_file, "w") { |f| f << @server_data[:private_key] }
+        #File.chmod(0600, server_key_file)
 
         # Save off the server data to be loaded into the worker nodes.  The Private key needs to e read from a
         # file in the worker node, so save that name instead in the HASH along with a couple other changes
-        @server_data[:private_key] = server_key_file
-        if @server_data[:server]
-          @server_data[:server_id] = @server_data[:server][:id]
-          @server_data[:server_ip] = @server_data[:server][:ip]
-          @server_data[:server_dns] = @server_data[:server][:dns]
-        end
+        #@server_data[:private_key] = server_key_file
+        #if @server_data[:server]
+        #  @server_data[:server_id] = @server_data[:server][:id]
+        #  @server_data[:server_ip] = @server_data[:server][:ip]
+        #  @server_data[:server_dns] = @server_data[:server][:dns]
+        #end
 
-        File.open("server_data.json", "w") { |f| f << JSON.pretty_generate(@server_data) }
+        File.open("server_data.json", "w") { |f| f << JSON.pretty_generate(@os_aws.server.to_os_hash) }
 
         # Print out some debugging commands (probably work on mac/linux only)
         puts ""
         puts "Server SSH Command:"
 
-        puts "ssh -i #{server_key_file} ubuntu@#{@server_data[:server_dns]}"
+        puts "ssh -i #{@local_key_file_name} ubuntu@#{@os_aws.server.data[:dns]}"
       end
 
       def create_workers(number_of_instances, instance_data = {})
         defaults = {instance_type: "m2.4xlarge"}
         instance_data = defaults.merge(instance_data)
 
-        raise "Can't create workers without a server instance running" if @server_data.nil?
+        raise "Can't create workers without a server instance running" if @os_aws.server.nil?
 
-        # append the information to the server_data hash that already exists
-        @server_data[:instance_type] = instance_data[:instance_type]
-        @server_data[:num] = number_of_instances
-        server_string = @server_data.to_json.gsub("\"", "\\\\\"")
+      
+        @os_aws.launch_workers(instance_data[:image_id], instance_data[:instance_type], number_of_instances)
 
-        start_string = "ruby #{os_aws_file_location} #{@config.access_key} #{@config.secret_key} us-east-1 EC2 launch_workers \"#{server_string}\""
-        puts "Worker Command: #{start_string}"
-        worker_data_string = `#{start_string}`
-        @worker_data = JSON.parse(worker_data_string, :symbolize_names => true)
-        File.open("worker_data.json", "w") { |f| f << JSON.pretty_generate(worker_data) }
-
-        # Print out some debugging commands (probably work on mac/linux only)
-        @worker_data[:workers].each do |worker|
+        ## append the information to the server_data hash that already exists
+        #@server_data[:instance_type] = instance_data[:instance_type]
+        #@server_data[:num] = number_of_instances
+        #server_string = @server_data.to_json.gsub("\"", "\\\\\"")
+        #
+        #start_string = "ruby #{os_aws_file_location} #{@config.access_key} #{@config.secret_key} us-east-1 EC2 launch_workers \"#{server_string}\""
+        #puts "Worker Command: #{start_string}"
+        #worker_data_string = `#{start_string}`
+        #@worker_data = JSON.parse(worker_data_string, :symbolize_names => true)
+        #File.open("worker_data.json", "w") { |f| f << JSON.pretty_generate(worker_data) }
+        #
+        ## Print out some debugging commands (probably work on mac/linux only)
+        @os_aws.workers.each do |worker|
           puts ""
           puts "Worker SSH Command:"
-          puts "ssh -i #{@server_data[:private_key]} ubuntu@#{worker[:dns]}"
+          puts "ssh -i #{@local_key_file_name} ubuntu@#{worker.data[:dns]}"
         end
+        
+        puts ""
+        puts "Waiting for server/worker configurations"
+        
+        @os_aws.configure_server_and_workers
       end
 
       def kill_instances()

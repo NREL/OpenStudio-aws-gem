@@ -18,24 +18,6 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ######################################################################
 
-######################################################################
-# == Synopsis
-#
-#   Uses the aws-sdk gem to communicate with AWS
-#
-# == Usage
-#
-#  ruby aws.rb access_key secret_key us-east-1 EC2 launch_server "{\"instance_type\":\"t1.micro\"}"
-#
-#  ARGV[0] - Access Key
-#  ARGV[1] - Secret Key
-#  ARGV[2] - Region
-#  ARGV[3] - Service (e.g. "EC2" or "CloudWatch")
-#  ARGV[4] - Command (e.g. "launch_server")
-#  ARGV[5] - Optional json with parameters associated with command
-#
-######################################################################
-
 require 'securerandom'
 require_relative 'openstudio_aws_logger'
 require_relative 'openstudio_aws_methods'
@@ -45,14 +27,16 @@ class OpenStudioAwsInstance
   include OpenStudioAwsMethods
 
   attr_reader :openstudio_instance_type
+  attr_reader :data
 
-  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid)
+  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, private_key)
     @data = nil # stored information about the instance
     @aws = aws_session
     @openstudio_instance_type = openstudio_instance_type # :server, :worker
     @key_pair_name = key_pair_name
     @security_group_name = security_group_name
     @group_uuid = group_uuid.to_s
+    @private_key = private_key
   end
 
 
@@ -106,7 +90,7 @@ class OpenStudioAwsInstance
     # now grab information about the instance 
     # todo: check lengths on all of arrays
     instance_data = @aws.describe_instances({:instance_ids => [aws_instance.instance_id]}).data.reservations.first.instances.first.to_hash
-    logger.info "instance description is: #{system_description}"
+    logger.info "instance description is: #{instance_data}"
 
     @data = create_struct(instance_data, processors)
   end
@@ -119,10 +103,10 @@ class OpenStudioAwsInstance
   end
 
   # Format of the OS JSON that is used for the command line based script
-  def to_os_json
-    json = ""
+  def to_os_hash
+    h = ""
     if @openstudio_instance_type == :server
-      json = {
+      h = {
           :timestamp => @group_uuid,
           #:private_key => @private_key, # need to stop printing this out
           :server => {
@@ -131,11 +115,24 @@ class OpenStudioAwsInstance
               :dns => @data.dns,
               :procs => @data.procs
           }
-      }.to_json
+      }
+    else
+      raise "do not know how to convert :worker instance to_os_hash. Use the os_aws.to_worker_hash method"
     end
+    
 
-    logger.info("server info #{json}")
+    logger.info("server info #{h}")
 
-    json
+    h
   end
+  
+  private
+
+  # store the data into a custom struct.  The instance is the full description.  The remaining fields are
+  # just easier accessors to the data in the raw request except for procs which is a custom request.
+  def create_struct(instance, procs)
+    instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs)
+    return instance_struct.new(instance, instance[:instance_id], instance[:public_ip_address], instance[:public_dns_name], procs)
+  end
+
 end

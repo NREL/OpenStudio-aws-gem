@@ -41,6 +41,7 @@ require_relative 'openstudio_aws_logger'
 class OpenStudioAwsWrapper
   include Logging
 
+  attr_reader :group_uuid               
   attr_reader :security_group_name
   attr_reader :key_pair_name
   attr_reader :server
@@ -159,8 +160,8 @@ class OpenStudioAwsWrapper
     instance_data
   end
 
-  def create_or_retrieve_key_pair(key_pair_name = nil)
-    tmp_name = "test" #key_pair_name || "os-key-pair-#{@group_uuid}"
+  def create_or_retrieve_key_pair(key_pair_name = nil, private_key_file = nil)
+    tmp_name = key_pair_name || "os-key-pair-#{@group_uuid}"
 
     # the describe_key_pairs method will raise an expection if it can't find the keypair, so catch it
     resp = nil
@@ -183,6 +184,13 @@ class OpenStudioAwsWrapper
     else
       logger.info "found existing keypair #{resp.key_pairs.first}"
       @key_pair_name = resp.key_pairs.first[:key_name]
+      
+      if File.exists(private_key_file)
+        @private_key = File.read(private_key_file, 'r')
+      else
+        # should we raise?
+        logger.error "Could not find the private key file to load from #{private_key_file}"
+      end
     end
     
     logger.info("create key pair: #{@key_pair_name}")
@@ -191,25 +199,29 @@ class OpenStudioAwsWrapper
   def save_private_key(filename)
     if @private_key
       File.open(filename, 'w') { |f| f << @private_key }
-    end
+      File.chmod(0600, filename)
+    else
+      logger.error "no private key found in which to persist"
+    end  
   end
 
   def launch_server(image_id, instance_type)
     user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/server_script.sh')
-    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid)
+    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key)
     @server.launch_instance(image_id, instance_type, user_data)
   end
 
   def launch_workers(image_id, instance_type, num)
     user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/worker_script.sh.template')
-    user_data.gsub!(/SERVER_IP/, @server.ip)
+    user_data.gsub!(/SERVER_IP/, @server.data.ip)
     user_data.gsub!(/SERVER_HOSTNAME/, 'master')
     user_data.gsub!(/SERVER_ALIAS/, '')
     logger.info("worker user_data #{user_data.inspect}")
-
+    
+    # thread the launching of the workers
     threads = []
     num.times do
-      @workers << OpenStudioAwsInstance.new(@aws, @key_pair_name, @security_group_name, @group_uuid)
+      @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_group_name, @group_uuid, @private_key)
       threads << Thread.new do
         @workers.last.launch_instance(image_id, instance_type, user_data)
       end
@@ -217,14 +229,55 @@ class OpenStudioAwsWrapper
     threads.each { |t| t.join }
 
     # todo: do we need to have a flag if the worker node is successful?
+    # todo: do we need to check the current list of running workers?
+  end
+  
+  # blocking method that waits for servers and workers to be fully configured (i.e. execution of user_data has
+  # occured on all nodes)
+  def configure_server_and_workers
+    #todo: add a timeout here!
+    logger.info("waiting for server user_data to complete")
+    @server.wait_command(@server.data.ip, '[ -e /home/ubuntu/user_data_done ] && echo "true"')
+    @logger.info("waiting for worker user_data to complete")
+    @workers.each { |worker| worker.wait_command(worker.data.ip, '[ -e /home/ubuntu/user_data_done ] && echo "true"') }
+
+    ips = "master|#{@server.data.ip}|#{@server.data.dns}|#{@server.data.procs}|ubuntu|ubuntu\n"
+    @workers.each { |worker| ips << "worker|#{worker.data.ip}|#{worker.data.dns}|#{worker.data.procs}|ubuntu|ubuntu|true\n" }
+    file = Tempfile.new('ip_addresses')
+    file.write(ips)                               
+    file.close
+    upload_file(@server.ip, file.path, 'ip_addresses')
+    file.unlink
+    logger.info("ips #{ips}")
+    @server.shell_command(@server.ip, 'chmod 664 /home/ubuntu/ip_addresses')
+    @server.shell_command(@server.ip, '~/setup-ssh-keys.sh')
+    @server.shell_command(@server.ip, '~/setup-ssh-worker-nodes.sh ip_addresses')
+
+    mongoid = File.read(File.expand_path(File.dirname(__FILE__))+'/mongoid.yml.template')
+    mongoid.gsub!(/SERVER_IP/, @server.data.ip)
+    file = Tempfile.new('mongoid.yml')
+    file.write(mongoid)
+    file.close
+    @server.upload_file(@server.data.ip, file.path, '/mnt/openstudio/rails-models/mongoid.yml')
+    @workers.each { |worker| worker.upload_file(worker.data.ip, file.path, '/mnt/openstudio/rails-models/mongoid.yml') }
+    file.unlink
+
+    # Does this command crash it?
+    @server.shell_command(@server.data.ip, 'chmod 664 /mnt/openstudio/rails-models/mongoid.yml')
+    @workers.each { |worker| worker.shell_command(worker.data.ip, 'chmod 664 /mnt/openstudio/rails-models/mongoid.yml') }
+    
+    true
   end
 
   # method to query the amazon api to find the server (if it exists), based on the group id
   # if it is found, then it will set the @server member variable.
   # Note that the information around keys and security groups is pulled from the instance information.
-  def find_server(group_uuid)
-    logger.info "finding the server for groupid of #{group_uuid}"
+  def find_server(group_uuid = nil)
+    group_uuid = group_uuid || @group_uuid
 
+    logger.info "finding the server for groupid of #{group_uuid}"
+    raise "no group uuid defined either in member variable or method argument" if group_uuid.nil?
+    
     resp = describe_running_instances(group_uuid, :server)
     if resp
       raise "more than one server running with group uuid of #{group_uuid} found, expecting only one" if resp.size > 1
@@ -239,6 +292,23 @@ class OpenStudioAwsWrapper
     else
       raise "could not find a running server instance"
     end
+  end
+  
+  def to_os_worker_hash
+    worker_hash = []
+    @workers.each { |worker|
+      worker_hash.push({
+                           :id => worker.data.id,
+                           :ip => 'http://' + worker.data.ip,
+                           :dns => worker.data.dns,
+                           :procs => worker.data.procs
+                       })
+    }
+    
+    out = {:workers => worker_hash}
+    logger.info out
+    
+    out
   end
 
 

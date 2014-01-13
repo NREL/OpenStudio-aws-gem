@@ -1,5 +1,6 @@
 require 'json'
 require 'net/scp'
+require 'net/http'
 require 'yaml'
 require 'logger'
 
@@ -17,4 +18,5 @@ require 'openstudio/aws/aws'
 require 'openstudio/aws/config'
 require 'openstudio/lib/openstudio_aws_instance'
 require 'openstudio/lib/openstudio_aws_wrapper'
+require 'openstudio/lib/ami_list'
 
