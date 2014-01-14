@@ -246,7 +246,7 @@ class OpenStudioAwsWrapper
     file = Tempfile.new('ip_addresses')
     file.write(ips)                               
     file.close
-    upload_file(@server.data.ip, file.path, 'ip_addresses')
+    @server.upload_file(@server.data.ip, file.path, 'ip_addresses')
     file.unlink
     logger.info("ips #{ips}")
     @server.shell_command(@server.data.ip, 'chmod 664 /home/ubuntu/ip_addresses')
