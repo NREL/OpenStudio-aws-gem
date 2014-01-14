@@ -1,10 +1,15 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.12
+--------------
+
+* Use HVM version when instance type is cc.* or c.*
+
 Version 0.1.11
 -------------
 
-* AMI lookup is now defaulted.
+* AMI lookup is now defaulted.  
 
 Version 0.1.8/9
 -------------

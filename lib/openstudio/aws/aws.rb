@@ -60,11 +60,17 @@ module OpenStudio
       end
 
       def create_workers(number_of_instances, instance_data = {})
-        defaults = {instance_type: "m2.4xlarge", image_id: @default_amis['worker']}
+        defaults = {instance_type: "m2.4xlarge"}
         instance_data = defaults.merge(instance_data)
 
+        if instance_data[:image_id].nil?
+          if instance_data[:instance_type] =~ /cc2|c3/
+            instance_data[:image_id] = @default_amis['cc2worker']
+          else
+            instance_data[:image_id] = @default_amis['worker']
+          end
+        end
 
-        #todo: raise an exception if the instance type and image id don't match
         raise "Can't create workers without a server instance running" if @os_aws.server.nil?
 
         @os_aws.launch_workers(instance_data[:image_id], instance_data[:instance_type], number_of_instances)
