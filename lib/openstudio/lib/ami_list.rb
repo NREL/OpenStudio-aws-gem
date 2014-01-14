@@ -39,7 +39,6 @@ class OpenStudioAmis
 
     raise "Could not find any amis for #{@version}" if amis.nil?
 
-    puts amis.inspect
     amis
   end
 

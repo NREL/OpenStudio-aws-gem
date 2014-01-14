@@ -208,6 +208,9 @@ class OpenStudioAwsWrapper
   def launch_server(image_id, instance_type)
     user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/server_script.sh')
     @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key)
+    
+    raise "image_id is nil" if not image_id
+    raise "instance type is nil" if not instance_type
     @server.launch_instance(image_id, instance_type, user_data)
   end
 
@@ -219,11 +222,15 @@ class OpenStudioAwsWrapper
     logger.info("worker user_data #{user_data.inspect}")
     
     # thread the launching of the workers
-    threads = []
+    
     num.times do
       @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_group_name, @group_uuid, @private_key)
+    end
+
+    threads = []
+    @workers.each do |worker|
       threads << Thread.new do
-        @workers.last.launch_instance(image_id, instance_type, user_data)
+        worker.launch_instance(image_id, instance_type, user_data)
       end
     end
     threads.each { |t| t.join }

@@ -41,18 +41,18 @@ class OpenStudioAwsInstance
 
 
   def launch_instance(image_id, instance_type, user_data)
-    logger.info("user_data #{user_data.inspect}")
-    result = @aws.run_instances(
-        {
-            :image_id => image_id,
-            :key_name => @key_pair_name,
-            :security_groups => [@security_group_name],
-            :user_data => Base64.encode64(user_data),
-            :instance_type => instance_type,
-            :min_count => 1,
-            :max_count => 1
-        }
-    )
+    #logger.info("user_data #{user_data.inspect}")
+    instance = {
+        :image_id => image_id,
+        :key_name => @key_pair_name,
+        :security_groups => [@security_group_name],
+        :user_data => Base64.encode64(user_data),
+        :instance_type => instance_type,
+        :min_count => 1,
+        :max_count => 1
+    }
+    #logger.info instance.inspect
+    result = @aws.run_instances(instance)
 
     # determine how many processors are suppose to be in this image (lookup for now?)
     processors = find_processors(instance_type)

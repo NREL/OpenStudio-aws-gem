@@ -11,13 +11,13 @@ module OpenStudio
         config = {:access_key_id => @config.access_key, :secret_access_key => @config.secret_key, :region => "us-east-1", :ssl_verify_peer => false}
         @os_aws = OpenStudioAwsWrapper.new(config)
         @local_key_file_name = nil
-        
+
         @default_amis = OpenStudioAmis.new(1, "1.1.3").get_amis
       end
 
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
       def create_server(instance_data = {})
-        defaults = {instance_type: "m2.xlarge", image_id: @default_amis[:server]}
+        defaults = {instance_type: "m2.xlarge", image_id: @default_amis['server']}
         instance_data = defaults.merge(instance_data)
 
         @os_aws.create_or_retrieve_security_group("openstudio-worker-sg-v1")
@@ -59,13 +59,13 @@ module OpenStudio
       end
 
       def create_workers(number_of_instances, instance_data = {})
-        defaults = {instance_type: "m2.4xlarge", image_id: @default_amis[:worker]}
+        defaults = {instance_type: "m2.4xlarge", image_id: @default_amis['worker']}
         instance_data = defaults.merge(instance_data)
 
-        
+
         #todo: raise an exception if the instance type and image id don't match
         raise "Can't create workers without a server instance running" if @os_aws.server.nil?
-      
+
         @os_aws.launch_workers(instance_data[:image_id], instance_data[:instance_type], number_of_instances)
 
         ## append the information to the server_data hash that already exists
@@ -80,15 +80,15 @@ module OpenStudio
         #File.open("worker_data.json", "w") { |f| f << JSON.pretty_generate(worker_data) }
         #
         ## Print out some debugging commands (probably work on mac/linux only)
+        puts ""
+        puts "Worker SSH Command:"
         @os_aws.workers.each do |worker|
-          puts ""
-          puts "Worker SSH Command:"
           puts "ssh -i #{@local_key_file_name} ubuntu@#{worker.data[:dns]}"
         end
-        
+
         puts ""
         puts "Waiting for server/worker configurations"
-        
+
         @os_aws.configure_server_and_workers
       end
 
