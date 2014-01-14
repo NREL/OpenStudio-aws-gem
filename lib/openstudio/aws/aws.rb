@@ -12,7 +12,8 @@ module OpenStudio
         @os_aws = OpenStudioAwsWrapper.new(config)
         @local_key_file_name = nil
 
-        @default_amis = OpenStudioAmis.new(1, "1.1.3").get_amis
+        # this will grab the default version of openstudio ami versions
+        @default_amis = OpenStudioAmis.new(1).get_amis
       end
 
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem

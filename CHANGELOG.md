@@ -1,6 +1,16 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.11
+-------------
+
+* AMI lookup is now defaulted.
+
+Version 0.1.8/9
+-------------
+
+* Use new version of AWS-SDK-Ruby (core).  Break out into several classes.
+
 Version 0.1.7
 -------------
 

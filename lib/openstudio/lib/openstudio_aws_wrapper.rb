@@ -276,6 +276,27 @@ class OpenStudioAwsWrapper
     true
   end
 
+  def describe_amis(filter = nil, image_ids = [], owned_by_me = true)
+    resp = nil
+
+    if owned_by_me
+      if filter  
+        resp = @aws.describe_images({:owners => [:self], :filter => filter}).data
+      else
+        resp = @aws.describe_images({:owners => [:self]}).data
+      end
+    else
+      if filter  
+        resp = @aws.describe_images({:filter => filter}).data
+      else
+        resp = @aws.describe_images({:image_ids => image_ids}).data
+      end
+    end
+
+
+    resp
+  end
+  
   # method to query the amazon api to find the server (if it exists), based on the group id
   # if it is found, then it will set the @server member variable.
   # Note that the information around keys and security groups is pulled from the instance information.
@@ -299,6 +320,26 @@ class OpenStudioAwsWrapper
     else
       raise "could not find a running server instance"
     end
+  end
+  
+  
+  # method to hit the existing list of available amis and compare to the list of AMIs on Amazon and then generate the 
+  # new ami list
+  def create_new_ami_json(version = 1)
+    existing_amis = OpenStudioAmis.new(version).list
+    logger.info existing_amis
+    
+    if version == 1
+      # check if the AMIs still exist (anywhere)
+      #test_ami = @os_aws.describe_amis(nil, )
+    elsif version == 2
+    end
+    
+
+    # check if the existing AMIs still exist
+    #existing_amis
+    available_amis = describe_amis()
+    logger.info available_amis
   end
   
   def to_os_worker_hash

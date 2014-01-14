@@ -28,7 +28,19 @@ class OpenStudioAmis
     @openstudio_server_version = openstudio_server_version
   end
 
-  def get_amis()
+  def list
+    json = nil
+    command = "list_amis_version_#{@version}"
+    if OpenStudioAmis.method_defined?(command)
+      json = send(command)
+    else
+      raise "Unknown api version command #{command}"
+    end
+    
+    json
+  end
+
+  def get_amis
     amis = nil
     command = "get_ami_version_#{@version}"
     if OpenStudioAmis.method_defined?(command)
@@ -42,28 +54,38 @@ class OpenStudioAmis
     amis
   end
 
-  protected 
-  
-  def get_ami_version_1()
+  protected
+
+  def list_amis_version_1
     endpoint = '/downloads/buildings/openstudio/rsrc/amis.json'
+    json = retrieve_json(endpoint)
+
+    json
+  end
+
+  def list_amis_version_2
+    endpoint = '/downloads/buildings/openstudio/rsrc/amis_v2.json'
 
     json = retrieve_json(endpoint)
+    json
+  end
+
+  def get_ami_version_1()
+    json = list_amis_version_1
     version = json.has_key?(@openstudio_version) ? @openstudio_version : 'default'
 
     json[version]
   end
 
   def get_ami_version_2()
-    endpoint = '/downloads/buildings/openstudio/rsrc/amis_v2.json'
-
-    json = retrieve_json(endpoint)
+    json = list_amis_version_2
     version = json.has_key?(@openstudio_version) ? @openstudio_version : 'default'
 
     #logic logic
   end
-  
+
   private
-  
+
   def retrieve_json(endpoint)
     result = nil
     resp = Net::HTTP.get_response('developer.nrel.gov', endpoint)

@@ -17,13 +17,15 @@ describe OpenStudioAmis do
 
       amis = a.get_amis
 
-      expect(amis['server']).to eq("ami-29e5cd40") 
-      expect(amis['worker']).to eq("ami-a9e4ccc0") 
-      expect(amis['cc2worker']).to eq("ami-5be4cc32") 
+      expect(amis['server']).to eq("ami-a3e4d4ca") 
+      expect(amis['worker']).to eq("ami-b9e4d4d0") 
+      expect(amis['cc2worker']).to eq("ami-a5e4d4cc") 
     end
     
-    it "should raise if passed an invalid version" do
+    it "should list all amis" do
+      a = OpenStudioAmis.new(1).list
       
+      expect(a).not_to be_nil
     end
   end
   
@@ -32,6 +34,9 @@ describe OpenStudioAmis do
       
     end
   end
+  
+  
+  
 
 end
 
