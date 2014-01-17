@@ -1,6 +1,11 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.13
+--------------
+
+* Add defaulted argument for the name of the server_json file to create_server
+
 Version 0.1.12
 --------------
 

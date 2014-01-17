@@ -17,9 +17,9 @@ describe OpenStudioAmis do
 
       amis = a.get_amis
 
-      expect(amis['server']).to eq("ami-a3e4d4ca") 
-      expect(amis['worker']).to eq("ami-b9e4d4d0") 
-      expect(amis['cc2worker']).to eq("ami-a5e4d4cc") 
+      expect(amis['server']).to eq("ami-a3edddca") 
+      expect(amis['worker']).to eq("ami-bfedddd6") 
+      expect(amis['cc2worker']).to eq("ami-b5eddddc") 
     end
     
     it "should list all amis" do

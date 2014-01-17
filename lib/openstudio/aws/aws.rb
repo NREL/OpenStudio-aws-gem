@@ -17,7 +17,7 @@ module OpenStudio
       end
 
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
-      def create_server(instance_data = {})
+      def create_server(instance_data = {}, server_json_filename = "server_data.json")
         defaults = {instance_type: "m2.xlarge", image_id: @default_amis['server']}
         instance_data = defaults.merge(instance_data)
 
@@ -50,7 +50,7 @@ module OpenStudio
         #  @server_data[:server_dns] = @server_data[:server][:dns]
         #end
 
-        File.open("server_data.json", "w") { |f| f << JSON.pretty_generate(@os_aws.server.to_os_hash) }
+        File.open(server_json_filename, "w") { |f| f << JSON.pretty_generate(@os_aws.server.to_os_hash) }
 
         # Print out some debugging commands (probably work on mac/linux only)
         puts ""
