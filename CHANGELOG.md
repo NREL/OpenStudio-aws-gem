@@ -1,6 +1,11 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.14
+-------------
+
+* Add support for proxies
+
 Version 0.1.13
 --------------
 
