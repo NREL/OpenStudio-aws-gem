@@ -41,13 +41,19 @@ require_relative 'openstudio_aws_logger'
 class OpenStudioAwsWrapper
   include Logging
 
-  attr_reader :group_uuid               
+  attr_reader :group_uuid
   attr_reader :security_group_name
   attr_reader :key_pair_name
   attr_reader :server
   attr_reader :workers
+  attr_reader :proxy
+  
+  # todo: put this into a module
+  VALID_OPTIONS = [
+      :proxy, :credentials
+  ]
 
-  def initialize(credentials = nil, group_uuid = nil)
+  def initialize(options = {}, group_uuid = nil)
     @group_uuid = group_uuid || Time.now.to_i.to_s
 
     @security_group_name = nil
@@ -56,10 +62,11 @@ class OpenStudioAwsWrapper
     @server = nil
     @workers = []
 
-    # If you already set the credentials in another script in memory, then you won't have to do it here, but
-    # it won't hurt if you do
-    Aws.config = credentials if credentials
-    @aws = Aws::EC2.new
+    # store an instance variable with the proxy for passing to instances for use in scp/ssh
+    @proxy = options[:proxy] ? options[:proxy] : nil
+    
+    # need to remove the prxoy information here
+    @aws = Aws::EC2.new(options[:credentials])
   end
 
   def create_or_retrieve_security_group(sg_name = nil)
@@ -170,21 +177,21 @@ class OpenStudioAwsWrapper
       raise "looks like there are 2 key pairs with the same name" if resp.key_pairs.size >= 2
     rescue
       logger.info "could not find key pair '#{tmp_name}'"
-    end  
-    
+    end
+
     if resp.nil? || resp.key_pairs.size == 0
       # create the new key_pair
       # check if the key pair name exists
       # create a new key pair everytime
       keypair = @aws.create_key_pair({:key_name => tmp_name})
-      
+
       # save the private key to memory (which can later be persisted via the save_private_key method)
       @private_key = keypair.data.key_material
       @key_pair_name = keypair.data.key_name
     else
       logger.info "found existing keypair #{resp.key_pairs.first}"
       @key_pair_name = resp.key_pairs.first[:key_name]
-      
+
       if File.exists(private_key_file)
         @private_key = File.read(private_key_file, 'r')
       else
@@ -192,7 +199,7 @@ class OpenStudioAwsWrapper
         logger.error "Could not find the private key file to load from #{private_key_file}"
       end
     end
-    
+
     logger.info("create key pair: #{@key_pair_name}")
   end
 
@@ -202,13 +209,13 @@ class OpenStudioAwsWrapper
       File.chmod(0600, filename)
     else
       logger.error "no private key found in which to persist"
-    end  
+    end
   end
 
   def launch_server(image_id, instance_type)
     user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/server_script.sh')
-    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key)
-    
+    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key, @proxy)
+
     raise "image_id is nil" if not image_id
     raise "instance type is nil" if not instance_type
     @server.launch_instance(image_id, instance_type, user_data)
@@ -220,11 +227,11 @@ class OpenStudioAwsWrapper
     user_data.gsub!(/SERVER_HOSTNAME/, 'master')
     user_data.gsub!(/SERVER_ALIAS/, '')
     logger.info("worker user_data #{user_data.inspect}")
-    
+
     # thread the launching of the workers
-    
+
     num.times do
-      @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_group_name, @group_uuid, @private_key)
+      @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_group_name, @group_uuid, @private_key, @proxy)
     end
 
     threads = []
@@ -238,7 +245,7 @@ class OpenStudioAwsWrapper
     # todo: do we need to have a flag if the worker node is successful?
     # todo: do we need to check the current list of running workers?
   end
-  
+
   # blocking method that waits for servers and workers to be fully configured (i.e. execution of user_data has
   # occured on all nodes)
   def configure_server_and_workers
@@ -251,7 +258,7 @@ class OpenStudioAwsWrapper
     ips = "master|#{@server.data.ip}|#{@server.data.dns}|#{@server.data.procs}|ubuntu|ubuntu\n"
     @workers.each { |worker| ips << "worker|#{worker.data.ip}|#{worker.data.dns}|#{worker.data.procs}|ubuntu|ubuntu|true\n" }
     file = Tempfile.new('ip_addresses')
-    file.write(ips)                               
+    file.write(ips)
     file.close
     @server.upload_file(@server.data.ip, file.path, 'ip_addresses')
     file.unlink
@@ -272,7 +279,7 @@ class OpenStudioAwsWrapper
     # Does this command crash it?
     @server.shell_command(@server.data.ip, 'chmod 664 /mnt/openstudio/rails-models/mongoid.yml')
     @workers.each { |worker| worker.shell_command(worker.data.ip, 'chmod 664 /mnt/openstudio/rails-models/mongoid.yml') }
-    
+
     true
   end
 
@@ -280,13 +287,13 @@ class OpenStudioAwsWrapper
     resp = nil
 
     if owned_by_me
-      if filter  
+      if filter
         resp = @aws.describe_images({:owners => [:self], :filter => filter}).data
       else
         resp = @aws.describe_images({:owners => [:self]}).data
       end
     else
-      if filter  
+      if filter
         resp = @aws.describe_images({:filter => filter}).data
       else
         resp = @aws.describe_images({:image_ids => image_ids}).data
@@ -296,7 +303,7 @@ class OpenStudioAwsWrapper
 
     resp
   end
-  
+
   # method to query the amazon api to find the server (if it exists), based on the group id
   # if it is found, then it will set the @server member variable.
   # Note that the information around keys and security groups is pulled from the instance information.
@@ -305,7 +312,7 @@ class OpenStudioAwsWrapper
 
     logger.info "finding the server for groupid of #{group_uuid}"
     raise "no group uuid defined either in member variable or method argument" if group_uuid.nil?
-    
+
     resp = describe_running_instances(group_uuid, :server)
     if resp
       raise "more than one server running with group uuid of #{group_uuid} found, expecting only one" if resp.size > 1
@@ -321,27 +328,27 @@ class OpenStudioAwsWrapper
       raise "could not find a running server instance"
     end
   end
-  
-  
+
+
   # method to hit the existing list of available amis and compare to the list of AMIs on Amazon and then generate the 
   # new ami list
   def create_new_ami_json(version = 1)
     existing_amis = OpenStudioAmis.new(version).list
     logger.info existing_amis
-    
+
     if version == 1
       # check if the AMIs still exist (anywhere)
       #test_ami = @os_aws.describe_amis(nil, )
     elsif version == 2
     end
-    
+
 
     # check if the existing AMIs still exist
     #existing_amis
     available_amis = describe_amis()
     logger.info available_amis
   end
-  
+
   def to_os_worker_hash
     worker_hash = []
     @workers.each { |worker|
@@ -352,10 +359,10 @@ class OpenStudioAwsWrapper
                            :procs => worker.data.procs
                        })
     }
-    
+
     out = {:workers => worker_hash}
     logger.info out
-    
+
     out
   end
 

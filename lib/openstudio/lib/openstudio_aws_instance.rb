@@ -22,6 +22,7 @@ require 'securerandom'
 require_relative 'openstudio_aws_logger'
 require_relative 'openstudio_aws_methods'
 
+
 class OpenStudioAwsInstance
   include Logging
   include OpenStudioAwsMethods
@@ -29,7 +30,8 @@ class OpenStudioAwsInstance
   attr_reader :openstudio_instance_type
   attr_reader :data
 
-  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, private_key)
+  
+  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, private_key, proxy = nil)
     @data = nil # stored information about the instance
     @aws = aws_session
     @openstudio_instance_type = openstudio_instance_type # :server, :worker
@@ -37,8 +39,8 @@ class OpenStudioAwsInstance
     @security_group_name = security_group_name
     @group_uuid = group_uuid.to_s
     @private_key = private_key
+    @proxy = proxy 
   end
-
 
   def launch_instance(image_id, instance_type, user_data)
     #logger.info("user_data #{user_data.inspect}")

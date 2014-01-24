@@ -1,15 +1,55 @@
 # This class is a wrapper around the command line version that is in the OpenStudio repository.
 module OpenStudio
   module Aws
+    VALID_OPTIONS = [
+        :proxy, :credentials
+    ]
+
     class Aws
       attr_reader :os_aws
 
-      def initialize()
-        # read in the config.yml file to get the secret/private key
-        @config = OpenStudio::Aws::Config.new()
+      # default constructor to create the AWS class that can spin up server and worker instances.
+      # options are optional with the following support:
+      #   credentials => {:access_key_id, :secret_access_key, :region, :ssl_verify_peer}
+      #   proxy => {:host => "192.168.0.1", :port => "8808", :username => "user", :password => "password"}}
+      def initialize(options = {})
+        invalid_options = options.keys - VALID_OPTIONS
+        if invalid_options.any?
+          raise ArgumentError, "invalid option(s): #{invalid_options.join(', ')}"
+        end
 
-        config = {:access_key_id => @config.access_key, :secret_access_key => @config.secret_key, :region => "us-east-1", :ssl_verify_peer => false}
-        @os_aws = OpenStudioAwsWrapper.new(config)
+        # read in the config.yml file to get the secret/private key
+        if !options[:credentials] 
+          config_file = OpenStudio::Aws::Config.new()
+
+          # populate the credentials
+          options = {
+              :credentials =>
+                  {
+                      :access_key_id => config_file.access_key,
+                      :secret_access_key => config_file.secret_key,
+                      :region => "us-east-1",  #todo: move this to a default
+                      :ssl_verify_peer => false
+                  }
+          }
+        end
+
+        if options[:proxy]
+          proxy_uri = nil
+          if options[:proxy][:username]
+            proxy_uri = "https://#{options[:proxy][:username]}:#{options[:proxy][:password]}@#{options[:proxy][:host]}:#{options[:proxy][:port]}"
+          else
+            proxy_uri = "https://#{options[:proxy][:host]}:#{options[:proxy][:port]}"
+          end
+          # todo: remove this proxy_uri and make a method to format correctly
+          options[:proxy_uri] = proxy_uri
+
+          #todo: do we need to escape a couple of the argument of username and password
+          
+          #todo: set some environment variables for system based proxy
+        end
+
+        @os_aws = OpenStudioAwsWrapper.new(options)
         @local_key_file_name = nil
 
         # this will grab the default version of openstudio ami versions

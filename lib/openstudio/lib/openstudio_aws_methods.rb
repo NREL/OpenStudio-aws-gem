@@ -30,10 +30,11 @@
 #  Member Variables:
 #    private_key : the in memory private key
 #    logger : logger class in which to write log messages
-# 
+#    @proxy : proxy setting if available 
 ######################################################################
 
 module OpenStudioAwsMethods
+  # This list of processors can be pulled out of the ../../doc/amazon_prices.xlsx file
   def find_processors(instance)
     lookup = {
         "m3.xlarge" => 4,
@@ -71,11 +72,24 @@ module OpenStudioAwsMethods
     processors
   end
 
-
+  def get_proxy()
+    proxy = nil
+    if @proxy
+      if @proxy[:username]
+        proxy = Net::SSH::Proxy::HTTP.new(@proxy[:host], @proxy[:port], :user => @proxy[:username], :password => proxy[:password])
+      else
+        proxy = Net::SSH::Proxy::HTTP.new(@proxy[:host], @proxy[:port])
+      end
+    end
+    
+    proxy
+  end
+  
+  
   def upload_file(host, local_path, remote_path)
     retries = 0
     begin
-      Net::SCP.start(host, 'ubuntu', :key_data => [@private_key]) do |scp|
+      Net::SCP.start(host, 'ubuntu', :proxy => get_proxy, :key_data => [@private_key]) do |scp|
         scp.upload! local_path, remote_path
       end
     rescue SystemCallError, Timeout::Error => e
@@ -98,7 +112,7 @@ module OpenStudioAwsMethods
     #retries = 0
     begin
       output = ''
-      Net::SSH.start(host, 'ubuntu', :key_data => [@private_key]) do |ssh|
+      Net::SSH.start(host, 'ubuntu', :proxy => get_proxy, :key_data => [@private_key]) do |ssh|
         response = ssh.exec!(command)
         output += response if !response.nil?
       end
@@ -124,13 +138,13 @@ module OpenStudioAwsMethods
     end
   end
 
-#======================= send command ======================#
-# Send a command through SSH Shell to an instance.
-# Need to pass instance object and the command as a string.
+  #======================= send command ======================#
+  # Send a command through SSH Shell to an instance.
+  # Need to pass instance object and the command as a string.
   def shell_command(host, command)
     begin
       @logger.info("ssh_command #{command}")
-      Net::SSH.start(host, 'ubuntu', :key_data => [@private_key]) do |ssh|
+      Net::SSH.start(host, 'ubuntu', :proxy => get_proxy, :key_data => [@private_key]) do |ssh|
         channel = ssh.open_channel do |ch|
           ch.exec "#{command}" do |ch, success|
             raise "could not execute #{command}" unless success
@@ -167,7 +181,7 @@ module OpenStudioAwsMethods
       flag = 0
       while flag == 0 do
         @logger.info("wait_command #{command}")
-        Net::SSH.start(host, 'ubuntu', :key_data => [@private_key]) do |ssh|
+        Net::SSH.start(host, 'ubuntu', :proxy => get_proxy, :key_data => [@private_key]) do |ssh|
           channel = ssh.open_channel do |ch|
             ch.exec "#{command}" do |ch, success|
               raise "could not execute #{command}" unless success
@@ -205,7 +219,7 @@ module OpenStudioAwsMethods
     rescue SystemCallError, Timeout::Error => e
       # port 22 might not be available immediately after the instance finishes launching
       sleep 5
-      @logger.info("Not Yet")
+      @logger.info("Timeout.  Perhaps there is a communication error to EC2?  Will try again")
       retry
     end
   end
@@ -213,7 +227,7 @@ module OpenStudioAwsMethods
   def download_file(host, remote_path, local_path)
     retries = 0
     begin
-      Net::SCP.start(host, 'ubuntu', :key_data => [@private_key]) do |scp|
+      Net::SCP.start(host, 'ubuntu', :proxy => get_proxy, :key_data => [@private_key]) do |scp|
         scp.download! remote_path, local_path
       end
     rescue SystemCallError, Timeout::Error => e
