@@ -17,14 +17,14 @@ describe OpenStudio::Aws::Aws do
 
     it "should create a server" do
       # use the default instance type
-      options = {instance_type: "m1.small", image_id: "ami-fb301292"}
+      options = {instance_type: "m1.small", image_id: "ami-29faca40"}
 
       @aws.create_server(options)
       expect(@aws.os_aws.server).not_to be_nil
     end
 
     it "should create a 1 worker" do
-      options = {instance_type: "m1.small", image_id: "ami-21301248"}
+      options = {instance_type: "m1.small", image_id: "ami-95f9c9fc"}
 
       @aws.create_workers(1, options)
 
@@ -33,7 +33,7 @@ describe OpenStudio::Aws::Aws do
     end
     
     it "should be able to connect a worker to an existing server" do
-      options = {instance_type: "t1.micro", image_id: "ami-a9e4ccc0"}
+      options = {instance_type: "m1.small", image_id: "ami-29faca40"}
 
       # will require a new @aws class--but attached to same group_uuid
       @config = OpenStudio::Aws::Config.new
@@ -46,18 +46,6 @@ describe OpenStudio::Aws::Aws do
 
     it "should kill running instances" do
       # how to test this?
-    end
-  end
-
-  context "proxy configuration" do
-    before :all do
-
-    end
-
-    it "should create a AWS instance with a proxy" do
-      options = {:proxy => {:host => "192.168.0.1", :port => 8080}}
-      @aws = OpenStudio::Aws::Aws.new(options)
-      expect(@aws.os_aws.proxy).to eq(options[:proxy])
     end
   end
 

@@ -30,8 +30,7 @@ class OpenStudioAwsInstance
   attr_reader :openstudio_instance_type
   attr_reader :data
 
-  
-  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, private_key, proxy = nil)
+  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, private_key, proxy = nil, options = {})
     @data = nil # stored information about the instance
     @aws = aws_session
     @openstudio_instance_type = openstudio_instance_type # :server, :worker

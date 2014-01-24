@@ -16,7 +16,7 @@ describe OpenStudio::Aws::Aws do
                   :ssl_verify_peer => false
               }
           }
-      }
+      
       @aws = OpenStudio::Aws::Aws.new(options)
       expect(@aws.os_aws).not_to be_nil
     end
