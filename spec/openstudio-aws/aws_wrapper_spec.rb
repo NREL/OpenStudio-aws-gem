@@ -33,9 +33,9 @@ describe OpenStudioAwsWrapper do
       it "should describe the zones" do
         resp = @aws.os_aws.describe_availability_zones
         expect { resp }.not_to be_nil
-        resp[:availability_zone_info].length.should eq(4)
+        expect(resp[:availability_zone_info].length).to eq(4)
 
-        resp[:availability_zone_info].inspect.should eq("[{:zone_name=>\"us-east-1a\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1b\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1c\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1d\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}]")
+        expect(resp[:availability_zone_info].inspect).to eq("[{:zone_name=>\"us-east-1a\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1b\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1c\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1d\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}]")
 
         resp = @aws.os_aws.describe_availability_zones_json
         expect { resp }.not_to be_nil
