@@ -170,6 +170,7 @@ class OpenStudioAwsWrapper
   def describe_amis(filter = nil, image_ids = [], owned_by_me = true)
     resp = nil
 
+    # todo: test the filter.  i don't think that it is exposed in the AWS gem?
     if owned_by_me
       if filter
         resp = @aws.describe_images({:owners => [:self], :filter => filter}).data
@@ -185,7 +186,7 @@ class OpenStudioAwsWrapper
     end
 
     resp = resp.to_hash
-    
+
     # map the tags to hashes
     resp[:images].each do |image|
       image[:tags_hash] = {}
@@ -198,7 +199,7 @@ class OpenStudioAwsWrapper
         end
       end
     end
-    
+
     resp
   end
 
@@ -351,18 +352,64 @@ class OpenStudioAwsWrapper
     existing_amis = OpenStudioAmis.new(version).list
     logger.info existing_amis
 
-    if version == 1
-      # check if the AMIs still exist (anywhere)
-      #test_ami = @os_aws.describe_amis(nil, )
-    elsif version == 2
-      
-    end
-
-
     # check if the existing AMIs still exist
     #existing_amis
     available_amis = describe_amis()
     logger.info available_amis
+
+    # transform the available amis into an easier to read format
+    amis = {:openstudio_server => {}, :openstudio => {}}
+    available_amis[:images].each do |ami|
+      sv = ami[:tags_hash][:openstudio_server_version]
+      sv = "unknown" if sv.nil?
+
+      a = nil
+      #initialize hashes
+      if sv == "unknown" # unknown is an array
+        amis[:openstudio_server][sv.to_sym] = [] if !amis[:openstudio_server][sv.to_sym]
+        amis[:openstudio_server][sv.to_sym] << {}
+        a = amis[:openstudio_server][sv.to_sym].last
+      else
+        amis[:openstudio_server][sv.to_sym] = {} if !amis[:openstudio_server][sv.to_sym]
+        a = amis[:openstudio_server][sv.to_sym]  
+      end
+
+      # initialize ami hash
+      a[:amis] = {} if !a[:amis]
+      
+      # fill in data (this will override data currently)
+      a[:deprecate] = true if sv == "unknown"
+      a[:openstudio_version] = ami[:tags_hash][:openstudio_version] if ami[:tags_hash][:openstudio_version]
+      a[:openstudio_version_sha] = ami[:tags_hash][:openstudio_version_sha] if ami[:tags_hash][:openstudio_version_sha]
+      a[:user_uuid] = ami[:tags_hash][:user_uuid] if ami[:tags_hash][:user_uuid]
+      a[:deprecate] = ami[:tags_hash][:deprecate] if ami[:tags_hash][:deprecate]
+      a[:created_on] = ami[:tags_hash][:created_on] if ami[:tags_hash][:created_on]
+
+      if ami[:name] =~ /Worker|Cluster/
+        if ami[:virtualization_type] == "paravirtual"
+          a[:amis][:worker] = ami[:image_id]
+        elsif ami[:virtualization_type] == "hvm"
+          a[:amis][:cc2worker] = ami[:image_id]
+        else
+          raise "unknown virtualization_type in #{ami[:name]}"
+        end
+      elsif ami[:name] =~ /Server/
+        a[:amis][:server] = ami[:image_id]
+      end
+    end
+    
+    # merge in the existing AMIs from the existing developer.nrel.gov JSON file
+    #puts JSON.pretty_generate(existing_amis)
+
+    if version == 1
+      amis = amis
+    elsif version == 2
+
+    end
+
+    amis
+
+
   end
 
   def to_os_worker_hash

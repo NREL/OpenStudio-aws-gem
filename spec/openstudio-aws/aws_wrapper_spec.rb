@@ -63,6 +63,19 @@ describe OpenStudioAwsWrapper do
       
       it "should create a new json" do
         resp = @aws.os_aws.create_new_ami_json(1)
+        expect(resp[:openstudio_server]["1.3.1".to_sym][:openstudio_version_sha]).to eq("7a955d780b")
+
+        #puts JSON.pretty_generate(resp)
+        
+        #"1.3.1": {
+        
+        #    "amis": {
+        #    "worker": "ami-39bb8750",
+        #    "cc2worker": "ami-4bbb8722",
+        #    "server": "ami-a9bb87c0"
+        #},
+        #    "openstudio_version": "1.2.1",
+        #    "openstudio_version_sha": "",
         
         
       end
