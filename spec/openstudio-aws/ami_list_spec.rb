@@ -34,9 +34,4 @@ describe OpenStudioAmis do
       
     end
   end
-  
-  
-  
-
 end
-

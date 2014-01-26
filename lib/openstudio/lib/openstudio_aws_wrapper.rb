@@ -47,7 +47,7 @@ class OpenStudioAwsWrapper
   attr_reader :server
   attr_reader :workers
   attr_reader :proxy
-  
+
   # todo: put this into a module
   VALID_OPTIONS = [
       :proxy, :credentials
@@ -64,7 +64,7 @@ class OpenStudioAwsWrapper
 
     # store an instance variable with the proxy for passing to instances for use in scp/ssh
     @proxy = options[:proxy] ? options[:proxy] : nil
-    
+
     # need to remove the prxoy information here
     @aws = Aws::EC2.new(options[:credentials])
   end
@@ -165,6 +165,41 @@ class OpenStudioAwsWrapper
     end
 
     instance_data
+  end
+
+  def describe_amis(filter = nil, image_ids = [], owned_by_me = true)
+    resp = nil
+
+    if owned_by_me
+      if filter
+        resp = @aws.describe_images({:owners => [:self], :filter => filter}).data
+      else
+        resp = @aws.describe_images({:owners => [:self]}).data
+      end
+    else
+      if filter
+        resp = @aws.describe_images({:filter => filter}).data
+      else
+        resp = @aws.describe_images({:image_ids => image_ids}).data
+      end
+    end
+
+    resp = resp.to_hash
+    
+    # map the tags to hashes
+    resp[:images].each do |image|
+      image[:tags_hash] = {}
+      image[:tags_hash][:tags] = []
+      image[:tags].each do |tag|
+        if tag[:value]
+          image[:tags_hash][tag[:key].to_sym] = tag[:value]
+        else
+          image[:tags_hash][:tags] << tag[:key]
+        end
+      end
+    end
+    
+    resp
   end
 
   def create_or_retrieve_key_pair(key_pair_name = nil, private_key_file = nil)
@@ -283,26 +318,6 @@ class OpenStudioAwsWrapper
     true
   end
 
-  def describe_amis(filter = nil, image_ids = [], owned_by_me = true)
-    resp = nil
-
-    if owned_by_me
-      if filter
-        resp = @aws.describe_images({:owners => [:self], :filter => filter}).data
-      else
-        resp = @aws.describe_images({:owners => [:self]}).data
-      end
-    else
-      if filter
-        resp = @aws.describe_images({:filter => filter}).data
-      else
-        resp = @aws.describe_images({:image_ids => image_ids}).data
-      end
-    end
-
-
-    resp
-  end
 
   # method to query the amazon api to find the server (if it exists), based on the group id
   # if it is found, then it will set the @server member variable.
@@ -340,6 +355,7 @@ class OpenStudioAwsWrapper
       # check if the AMIs still exist (anywhere)
       #test_ami = @os_aws.describe_amis(nil, )
     elsif version == 2
+      
     end
 
 

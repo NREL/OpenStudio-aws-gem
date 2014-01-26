@@ -54,6 +54,8 @@ class OpenStudioAmis
     amis
   end
 
+  
+
   protected
 
   def list_amis_version_1
@@ -85,6 +87,8 @@ class OpenStudioAmis
   end
 
   private
+  
+  
 
   def retrieve_json(endpoint)
     result = nil

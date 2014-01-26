@@ -51,11 +51,20 @@ describe OpenStudioAwsWrapper do
     context "create new ami json" do
       it "should describe existing AMIs" do
         resp = @aws.os_aws.describe_amis(nil, nil, true)
-        expect(resp).not_to be_nil
+        expect(resp[:images].length).to be >= 3
       end
 
+      it "should describe a specific image" do
+        resp = @aws.os_aws.describe_amis(nil, ["ami-39bb8750"], false)
+        expect(resp[:images].first[:image_id]).to eq("ami-39bb8750")
+        expect(resp[:images].first[:tags_hash][:user_uuid]).to eq("jenkins-139LADFJ178")
+        expect(resp[:images].first[:tags_hash][:openstudio_server_version]).to eq("1.3.1")
+      end
+      
       it "should create a new json" do
         resp = @aws.os_aws.create_new_ami_json(1)
+        
+        
       end
 
     end
