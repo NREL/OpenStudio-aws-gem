@@ -47,6 +47,7 @@ module OpenStudio
           #todo: do we need to escape a couple of the argument of username and password
           
           #todo: set some environment variables for system based proxy
+          
         end
 
         @os_aws = OpenStudioAwsWrapper.new(options)
