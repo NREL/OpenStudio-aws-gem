@@ -67,6 +67,7 @@ describe OpenStudioAwsWrapper do
         resp = @aws.os_aws.create_new_ami_json(1)
         expect(resp["1.1.3".to_sym][:server]).to eq("ami-fb301292")
         expect(resp["1.2.1".to_sym][:server]).to eq("ami-89744be0")
+        expect(resp["default".to_sym][:server]).to eq("ami-89744be0")
       end
     end
 

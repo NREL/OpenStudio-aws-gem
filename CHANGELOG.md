@@ -1,7 +1,7 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
-Version 0.1.14
+Version 0.1.14/15
 -------------
 
 * Add basic support for proxies for Net::SSH and Net::SCP (need to add for AWS still)
