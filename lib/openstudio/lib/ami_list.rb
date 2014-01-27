@@ -24,8 +24,8 @@ class OpenStudioAmis
 
   def initialize(version = 1, openstudio_version = 'default', openstudio_server_version = 'default')
     @version = 1
-    @openstudio_version = openstudio_version
-    @openstudio_server_version = openstudio_server_version
+    @openstudio_version = openstudio_version.to_sym
+    @openstudio_server_version = openstudio_server_version.to_sym
   end
 
   def list
@@ -53,8 +53,6 @@ class OpenStudioAmis
 
     amis
   end
-
-  
 
   protected
 
@@ -94,7 +92,7 @@ class OpenStudioAmis
     result = nil
     resp = Net::HTTP.get_response('developer.nrel.gov', endpoint)
     if resp.code == '200'
-      result = JSON.parse(resp.body)
+      result = JSON.parse(resp.body, :symbolize_names => true)
     else
       raise "#{resp.code} Unable to download AMI IDs"
     end

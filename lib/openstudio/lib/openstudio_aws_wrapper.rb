@@ -345,71 +345,42 @@ class OpenStudioAwsWrapper
     end
   end
 
-
   # method to hit the existing list of available amis and compare to the list of AMIs on Amazon and then generate the 
   # new ami list
   def create_new_ami_json(version = 1)
+    # get the list of existing amis from developer.nrel.gov
     existing_amis = OpenStudioAmis.new(version).list
-    logger.info existing_amis
 
-    # check if the existing AMIs still exist
-    #existing_amis
+    # list of available AMIs from AWS
     available_amis = describe_amis()
-    logger.info available_amis
 
-    # transform the available amis into an easier to read format
-    amis = {:openstudio_server => {}, :openstudio => {}}
-    available_amis[:images].each do |ami|
-      sv = ami[:tags_hash][:openstudio_server_version]
-      sv = "unknown" if sv.nil?
-
-      a = nil
-      #initialize hashes
-      if sv == "unknown" # unknown is an array
-        amis[:openstudio_server][sv.to_sym] = [] if !amis[:openstudio_server][sv.to_sym]
-        amis[:openstudio_server][sv.to_sym] << {}
-        a = amis[:openstudio_server][sv.to_sym].last
-      else
-        amis[:openstudio_server][sv.to_sym] = {} if !amis[:openstudio_server][sv.to_sym]
-        a = amis[:openstudio_server][sv.to_sym]  
-      end
-
-      # initialize ami hash
-      a[:amis] = {} if !a[:amis]
-      
-      # fill in data (this will override data currently)
-      a[:deprecate] = true if sv == "unknown"
-      a[:openstudio_version] = ami[:tags_hash][:openstudio_version] if ami[:tags_hash][:openstudio_version]
-      a[:openstudio_version_sha] = ami[:tags_hash][:openstudio_version_sha] if ami[:tags_hash][:openstudio_version_sha]
-      a[:user_uuid] = ami[:tags_hash][:user_uuid] if ami[:tags_hash][:user_uuid]
-      a[:deprecate] = ami[:tags_hash][:deprecate] if ami[:tags_hash][:deprecate]
-      a[:created_on] = ami[:tags_hash][:created_on] if ami[:tags_hash][:created_on]
-
-      if ami[:name] =~ /Worker|Cluster/
-        if ami[:virtualization_type] == "paravirtual"
-          a[:amis][:worker] = ami[:image_id]
-        elsif ami[:virtualization_type] == "hvm"
-          a[:amis][:cc2worker] = ami[:image_id]
-        else
-          raise "unknown virtualization_type in #{ami[:name]}"
-        end
-      elsif ami[:name] =~ /Server/
-        a[:amis][:server] = ami[:image_id]
-      end
-    end
-    
-    # merge in the existing AMIs from the existing developer.nrel.gov JSON file
-    #puts JSON.pretty_generate(existing_amis)
+    amis = transform_ami_lists(existing_amis, available_amis)
 
     if version == 1
-      amis = amis
-    elsif version == 2
+      version1 = {}
 
+      # grab the old AMIs that are in the 0.0.1 section
+      amis[:openstudio_server]["0.0.1".to_sym].each do |a|
+        next if a[:deprecate]
+
+        version1[a[:openstudio_version]] = a[:amis]
+      end
+
+      # now grab the good keys - they should be sorted newest to older... so go backwards
+      amis[:openstudio_server].keys.reverse.each do |key|
+        next if key == "0.0.1".to_sym
+
+        a = amis[:openstudio_server][key]
+        # this will override any of the old ami/os version
+        version1[a[:openstudio_version].to_sym] = a[:amis]
+      end
+
+      amis = version1
+    elsif version == 2
+      # don't need to transform anything right now
     end
 
     amis
-
-
   end
 
   def to_os_worker_hash
@@ -429,5 +400,91 @@ class OpenStudioAwsWrapper
     out
   end
 
+  private
+
+  # transform the available amis into an easier to read format
+  def transform_ami_lists(existing, available)
+    # initialize ami hash
+    amis = {:openstudio_server => {}, :openstudio => {}}
+    
+    available[:images].each do |ami|
+      sv = ami[:tags_hash][:openstudio_server_version]
+      sv = "0.0.1" if sv.nil?
+
+      a = nil
+      #initialize hashes
+      if sv == "0.0.1" # unknown is an array
+        amis[:openstudio_server][sv.to_sym] = [] if !amis[:openstudio_server][sv.to_sym]
+        amis[:openstudio_server][sv.to_sym] << {}
+        a = amis[:openstudio_server][sv.to_sym].last
+      else
+        amis[:openstudio_server][sv.to_sym] = {} if !amis[:openstudio_server][sv.to_sym]
+        a = amis[:openstudio_server][sv.to_sym]
+      end
+
+      # initialize ami hash
+      a[:amis] = {} if !a[:amis]
+
+      # fill in data (this will override data currently)
+      a[:deprecate] = true if sv == "0.0.1"
+      a[:openstudio_version] = ami[:tags_hash][:openstudio_version] if ami[:tags_hash][:openstudio_version]
+      a[:openstudio_version_sha] = ami[:tags_hash][:openstudio_version_sha] if ami[:tags_hash][:openstudio_version_sha]
+      a[:user_uuid] = ami[:tags_hash][:user_uuid] if ami[:tags_hash][:user_uuid]
+      a[:deprecate] = ami[:tags_hash][:deprecate] if ami[:tags_hash][:deprecate]
+      a[:created_on] = ami[:tags_hash][:created_on] if ami[:tags_hash][:created_on]
+
+      if ami[:name] =~ /Worker|Cluster/
+        if ami[:virtualization_type] == "paravirtual"
+          a[:amis][:worker] = ami[:image_id]
+        elsif ami[:virtualization_type] == "hvm"
+          a[:amis][:cc2worker] = ami[:image_id]
+        else
+          raise "unknown virtualization_type in #{ami[:name]}"
+        end
+      elsif ami[:name] =~ /Server/
+        a[:amis][:server] = ami[:image_id]
+      end
+    end
+
+    # dump the existing amis into the 'unknown category, but don't flag them as 'deprecate'
+    existing.keys.each do |ami_key|
+      next if ami_key == "default".to_sym # ignore default
+
+      amis[:openstudio_server]["0.0.1".to_sym] = [] if !amis[:openstudio_server]["0.0.1".to_sym]
+      amis[:openstudio_server]["0.0.1".to_sym] << {}
+      a = amis[:openstudio_server]["0.0.1".to_sym].last
+      a[:amis] = {} if !a[:amis]
+
+      a[:openstudio_version] = ami_key
+      a[:amis][:server] = existing[ami_key][:server]
+      a[:amis][:worker] = existing[ami_key][:worker]
+      a[:amis][:cc2worker] = existing[ami_key][:cc2worker]
+    end
+
+    # flip these around for openstudio section
+    amis[:openstudio_server].keys.each do |key|
+      next if key == "0.0.1".to_sym
+      a = amis[:openstudio_server][key]
+      ov = a[:openstudio_version]
+
+      amis[:openstudio][ov] = {} if !amis[:openstudio][ov]
+      osv = key
+      amis[:openstudio][ov][osv] = {} if !amis[:openstudio][ov][osv]
+      amis[:openstudio][ov][osv][:amis] = {} if !amis[:openstudio][ov][osv][:amis]
+      amis[:openstudio][ov][osv][:amis][:server] = a[:amis][:server]
+      amis[:openstudio][ov][osv][:amis][:worker] = a[:amis][:worker]
+      amis[:openstudio][ov][osv][:amis][:cc2worker] = a[:amis][:cc2worker]
+    end
+
+    # sort on the semantic version so that grabbing the key will be the most recent
+    amis[:openstudio_server].sort_by { |k, _| Semantic::Version.new(k.to_s) }
+
+    # determine the defaults - for now just grab the most recent in each openstudio version
+    amis[:openstudio].keys.each do |key|
+      amis[:openstudio][key][:default] = amis[:openstudio][key].keys[0]
+    end
+
+    amis
+  end
 
 end

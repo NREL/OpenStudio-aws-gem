@@ -3,6 +3,7 @@ require 'net/scp'
 require 'net/http'
 require 'yaml'
 require 'logger'
+require 'semantic'
 
 # AWS SDK CORE
 begin

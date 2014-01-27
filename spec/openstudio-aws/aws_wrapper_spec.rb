@@ -60,24 +60,20 @@ describe OpenStudioAwsWrapper do
         expect(resp[:images].first[:tags_hash][:user_uuid]).to eq("jenkins-139LADFJ178")
         expect(resp[:images].first[:tags_hash][:openstudio_server_version]).to eq("1.3.1")
       end
-      
+    end
+
+    context "version 1" do
       it "should create a new json" do
         resp = @aws.os_aws.create_new_ami_json(1)
-        expect(resp[:openstudio_server]["1.3.1".to_sym][:openstudio_version_sha]).to eq("7a955d780b")
+        expect(resp["1.1.3".to_sym][:server]).to eq("ami-fb301292")
+        expect(resp["1.2.1".to_sym][:server]).to eq("ami-89744be0")
+      end
+    end
 
-        #puts JSON.pretty_generate(resp)
-        
-        #"1.3.1": {
-        
-        #    "amis": {
-        #    "worker": "ami-39bb8750",
-        #    "cc2worker": "ami-4bbb8722",
-        #    "server": "ami-a9bb87c0"
-        #},
-        #    "openstudio_version": "1.2.1",
-        #    "openstudio_version_sha": "",
-        
-        
+    context "version 2" do     
+      it "should create a new json" do
+        resp = @aws.os_aws.create_new_ami_json(2)
+        expect(resp[:openstudio_server]["1.3.1".to_sym][:openstudio_version_sha]).to eq("7a955d780b")
       end
 
     end
