@@ -377,7 +377,7 @@ class OpenStudioAwsWrapper
 
       # create the default version. First sort, then grab the first hash's values
       version1.sort_by { |k, _| Semantic::Version.new(k.to_s) }
-      version1[:default] = version1.first[1]    
+      version1[:default] = version1.first[1]
       
       amis = version1
     elsif version == 2

@@ -1,6 +1,11 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.16
+--------------
+
+* Fix tests
+
 Version 0.1.14/15
 -------------
 
