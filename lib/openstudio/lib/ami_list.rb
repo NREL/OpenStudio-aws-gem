@@ -22,8 +22,11 @@
 
 class OpenStudioAmis
 
-  def initialize(version = 1, openstudio_version = 'default', openstudio_server_version = 'default')
-    @version = 1
+  def initialize(version = 1, openstudio_version = 'default', openstudio_server_version = 'default',
+      host = 'developer.nrel.gov', url = '/downloads/buildings/openstudio/rsrc')
+    @host = host
+    @url = url
+    @version = version
     @openstudio_version = openstudio_version.to_sym
     @openstudio_server_version = openstudio_server_version.to_sym
   end
@@ -36,7 +39,7 @@ class OpenStudioAmis
     else
       raise "Unknown api version command #{command}"
     end
-    
+
     json
   end
 
@@ -57,14 +60,14 @@ class OpenStudioAmis
   protected
 
   def list_amis_version_1
-    endpoint = '/downloads/buildings/openstudio/rsrc/amis.json'
+    endpoint = "#{@url}/amis.json"
     json = retrieve_json(endpoint)
 
     json
   end
 
   def list_amis_version_2
-    endpoint = '/downloads/buildings/openstudio/rsrc/amis_v2.json'
+    endpoint = "#{@url}/amis_v2.json"
 
     json = retrieve_json(endpoint)
     json
@@ -85,12 +88,11 @@ class OpenStudioAmis
   end
 
   private
-  
-  
+
 
   def retrieve_json(endpoint)
     result = nil
-    resp = Net::HTTP.get_response('developer.nrel.gov', endpoint)
+    resp = Net::HTTP.get_response(@host, endpoint)
     if resp.code == '200'
       result = JSON.parse(resp.body, :symbolize_names => true)
     else

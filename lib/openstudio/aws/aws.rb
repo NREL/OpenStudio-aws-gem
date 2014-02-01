@@ -2,11 +2,13 @@
 module OpenStudio
   module Aws
     VALID_OPTIONS = [
-        :proxy, :credentials
+        :proxy, :credentials, :ami_lookup_version, :openstudio_server_version,
+        :region, :ssl_verify_peer, :host, :url
     ]
 
     class Aws
       attr_reader :os_aws
+      attr_reader :default_amis
 
       # default constructor to create the AWS class that can spin up server and worker instances.
       # options are optional with the following support:
@@ -18,20 +20,27 @@ module OpenStudio
           raise ArgumentError, "invalid option(s): #{invalid_options.join(', ')}"
         end
 
+        # merge in some defaults
+        defaults = {:ami_lookup_version => 1, :region => 'us-east-1', :ssl_verify_peer => false,
+                    :host => 'developer.nrel.gov', :url => '/downloads/buildings/openstudio/rsrc'}
+        options = defaults.merge(options)
+
+
         # read in the config.yml file to get the secret/private key
-        if !options[:credentials] 
+        if !options[:credentials]
           config_file = OpenStudio::Aws::Config.new()
 
           # populate the credentials
-          options = {
-              :credentials =>
-                  {
-                      :access_key_id => config_file.access_key,
-                      :secret_access_key => config_file.secret_key,
-                      :region => "us-east-1",  #todo: move this to a default
-                      :ssl_verify_peer => false
-                  }
-          }
+          options[:credentials] =
+              {
+                  :access_key_id => config_file.access_key,
+                  :secret_access_key => config_file.secret_key,
+                  :region => options[:region],
+                  :ssl_verify_peer => options[:ssl_verify_peer]
+              }
+        else
+          options[:credentials][:region] = options[:region]
+          options[:credentials][:ssl_verify_peer] = options[:ssl_verify_peer]
         end
 
         if options[:proxy]
@@ -45,16 +54,21 @@ module OpenStudio
           options[:proxy_uri] = proxy_uri
 
           #todo: do we need to escape a couple of the argument of username and password
-          
+
           #todo: set some environment variables for system based proxy
-          
         end
+
+        #puts "Final options are: #{options.inspect}"
 
         @os_aws = OpenStudioAwsWrapper.new(options)
         @local_key_file_name = nil
 
         # this will grab the default version of openstudio ami versions
-        @default_amis = OpenStudioAmis.new(1).get_amis
+        if options[:openstudio_server_version]
+          @default_amis = OpenStudioAmis.new(options[:ami_lookup_version], options[:openstudio_server_version]).get_amis
+        else
+          @default_amis = OpenStudioAmis.new(options[:ami_lookup_version]).get_amis
+        end
       end
 
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
