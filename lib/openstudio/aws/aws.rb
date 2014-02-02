@@ -2,8 +2,8 @@
 module OpenStudio
   module Aws
     VALID_OPTIONS = [
-        :proxy, :credentials, :ami_lookup_version, :openstudio_server_version,
-        :region, :ssl_verify_peer, :host, :url
+        :proxy, :credentials, :ami_lookup_version, :openstudio_version, 
+        :openstudio_server_version, :region, :ssl_verify_peer, :host, :url
     ]
 
     class Aws
@@ -72,6 +72,7 @@ module OpenStudio
         # get the arugments for the AMI lookup
         ami_options = {}
         ami_options[:openstudio_server_version] = options[:openstudio_server_version] if options[:openstudio_server_version]
+        ami_options[:openstudio_version] = options[:openstudio_version] if options[:openstudio_version]
         ami_options[:host] = options[:host] if options[:host]
         ami_options[:url] = options[:url] if options[:url]
         

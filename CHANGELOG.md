@@ -8,7 +8,7 @@ Version 0.1.16
 
 * Add option parsing to AMI list
 
-* Better Support of Version 2
+* Better Support of Version 2 AMI listing
 
 Version 0.1.14/15
 -------------
