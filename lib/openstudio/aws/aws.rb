@@ -22,7 +22,7 @@ module OpenStudio
 
         # merge in some defaults
         defaults = {:ami_lookup_version => 1, :region => 'us-east-1', :ssl_verify_peer => false,
-                    :host => 'developer.nrel.gov', :url => '/downloads/buildings/openstudio/rsrc'}
+                    :host => 'developer.nrel.gov', :url => '/downloads/buildings/server'}
         options = defaults.merge(options)
 
 
@@ -66,6 +66,7 @@ module OpenStudio
         # this will grab the default version of openstudio ami versions
         if options[:openstudio_server_version]
           @default_amis = OpenStudioAmis.new(options[:ami_lookup_version], options[:openstudio_server_version]).get_amis
+          puts @default_amis.inspect
         else
           @default_amis = OpenStudioAmis.new(options[:ami_lookup_version]).get_amis
         end

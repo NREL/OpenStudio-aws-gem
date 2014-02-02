@@ -355,7 +355,7 @@ class OpenStudioAwsWrapper
     available_amis = describe_amis()
 
     amis = transform_ami_lists(existing_amis, available_amis)
-
+    
     if version == 1
       version1 = {}
 
@@ -376,10 +376,22 @@ class OpenStudioAwsWrapper
       end
 
       # create the default version. First sort, then grab the first hash's values
-      version1.sort_by { |k, _| Semantic::Version.new(k.to_s) }
-      version1[:default] = version1.first[1]
+      puts JSON.pretty_generate(version1)
+      default_v = nil
+      version1.each do |k,v|
+        default_v ||= k
+        # todo: add a check if the AMI is not marked as invalid 
+        if Semantic::Version.new(k.to_s) >= Semantic::Version.new(default_v.to_s)
+          default_v = k  
+        end
+      end
+      puts JSON.pretty_generate(version1)
+      
+      version1[:default] = version1[default_v]
+      puts JSON.pretty_generate(version1)
       
       amis = version1
+      
     elsif version == 2
       # don't need to transform anything right now
     end

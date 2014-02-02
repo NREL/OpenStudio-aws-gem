@@ -21,9 +21,9 @@
 # Class for managing the AMI ids based on the openstudio version and the openstudio-server version
 
 class OpenStudioAmis
-
+  
   def initialize(version = 1, openstudio_version = 'default', openstudio_server_version = 'default',
-      host = 'developer.nrel.gov', url = '/downloads/buildings/openstudio/rsrc')
+      host = 'developer.nrel.gov', url = '/downloads/buildings/openstudio/server')
     @host = host
     @url = url
     @version = version
@@ -60,7 +60,7 @@ class OpenStudioAmis
   protected
 
   def list_amis_version_1
-    endpoint = "#{@url}/amis.json"
+    endpoint = "#{@url}/amis_v1.json"
     json = retrieve_json(endpoint)
 
     json
@@ -82,13 +82,23 @@ class OpenStudioAmis
 
   def get_ami_version_2()
     json = list_amis_version_2
-    version = json.has_key?(@openstudio_version) ? @openstudio_version : 'default'
+    
+    amis = nil
+    puts @openstudio_server_version
+    if @openstudio_server_version == :default
+      # just grab the most recent server
+      key, value = json[:openstudio_server].first
+      amis = value[:amis]
+      #puts json.inspect
+    else
+      value = json[:openstudio_server][@openstudio_server_version]
+      amis = value[:amis]
+    end
 
-    #logic logic
+    amis
   end
 
   private
-
 
   def retrieve_json(endpoint)
     result = nil

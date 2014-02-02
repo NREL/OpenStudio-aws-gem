@@ -19,7 +19,8 @@ describe OpenStudio::Aws::Aws do
           :ami_lookup_version => 2
       }
       aws = OpenStudio::Aws::Aws.new(options)
-      puts aws.default_amis
+
+      expect(aws.default_amis).not_to be_nil
     end
   end
 
@@ -27,11 +28,22 @@ describe OpenStudio::Aws::Aws do
     it "should not find a json" do
       options = {
           :ami_lookup_version => 2,
-          :url => 'unknown/url'
+          :url => '/unknown/url'
       }
-      expect{ OpenStudio::Aws::Aws.new(options) }.to raise_exception
+      expect { aws = OpenStudio::Aws::Aws.new(options) }.to raise_exception
     end
+  end
 
+  context "version testing" do
+    it "version 2: should find the right AMIs Server 1.3.1" do
+      options = {
+          :ami_lookup_version => 2,
+          :openstudio_server_version => "1.3.1"
+      }
+      aws = OpenStudio::Aws::Aws.new(options)
+      expect(aws.default_amis[:worker]).to eq("ami-39bb8750")
+      expect(aws.default_amis[:server]).to eq("ami-a9bb87c0")
+    end
   end
 
   context "proxy configuration" do
@@ -45,7 +57,7 @@ describe OpenStudio::Aws::Aws do
       }
 
       @aws = OpenStudio::Aws::Aws.new(options)
-      puts @aws.inspect
+      #puts @aws.inspect
       expect(@aws.os_aws).not_to be_nil
     end
 
