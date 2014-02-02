@@ -248,16 +248,22 @@ class OpenStudioAwsWrapper
     end
   end
 
-  def launch_server(image_id, instance_type)
+  def launch_server(image_id, instance_type, options = {})
+    defaults = { :user_id => "unknown_user" }
+    options = defaults.merge(options)
+    
     user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/server_script.sh')
     @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key, @proxy)
 
     raise "image_id is nil" if not image_id
     raise "instance type is nil" if not instance_type
-    @server.launch_instance(image_id, instance_type, user_data)
+    @server.launch_instance(image_id, instance_type, user_data, options[:user_id])
   end
 
-  def launch_workers(image_id, instance_type, num)
+  def launch_workers(image_id, instance_type, num, options = {})
+    defaults = { :user_id => "unknown_user" }
+    options = defaults.merge(options)
+    
     user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/worker_script.sh.template')
     user_data.gsub!(/SERVER_IP/, @server.data.ip)
     user_data.gsub!(/SERVER_HOSTNAME/, 'master')
@@ -273,7 +279,7 @@ class OpenStudioAwsWrapper
     threads = []
     @workers.each do |worker|
       threads << Thread.new do
-        worker.launch_instance(image_id, instance_type, user_data)
+        worker.launch_instance(image_id, instance_type, user_data, options[:user_id])
       end
     end
     threads.each { |t| t.join }

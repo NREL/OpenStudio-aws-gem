@@ -79,8 +79,8 @@ module OpenStudio
       end
 
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
-      def create_server(instance_data = {}, server_json_filename = "server_data.json")
-        defaults = {instance_type: "m2.xlarge", image_id: @default_amis['server']}
+      def create_server(instance_data = {}, server_json_filename = "server_data.json", user_id="unknown_user")
+        defaults = {instance_type: "m2.xlarge", image_id: @default_amis[:server]}
         instance_data = defaults.merge(instance_data)
 
         @os_aws.create_or_retrieve_security_group("openstudio-worker-sg-v1")
@@ -88,7 +88,7 @@ module OpenStudio
 
         @local_key_file_name = "ec2_server_key.pem"
         @os_aws.save_private_key(@local_key_file_name)
-        @os_aws.launch_server(instance_data[:image_id], instance_data[:instance_type])
+        @os_aws.launch_server(instance_data[:image_id], instance_data[:instance_type], {:user_id => user_id})
 
         puts @os_aws.server.to_os_hash.to_json
 
@@ -101,21 +101,21 @@ module OpenStudio
         puts "ssh -i #{@local_key_file_name} ubuntu@#{@os_aws.server.data[:dns]}"
       end
 
-      def create_workers(number_of_instances, instance_data = {})
+      def create_workers(number_of_instances, instance_data = {}, user_id="unknown_user")
         defaults = {instance_type: "m2.4xlarge"}
         instance_data = defaults.merge(instance_data)
 
         if instance_data[:image_id].nil?
           if instance_data[:instance_type] =~ /cc2|c3/
-            instance_data[:image_id] = @default_amis['cc2worker']
+            instance_data[:image_id] = @default_amis[:cc2worker]
           else
-            instance_data[:image_id] = @default_amis['worker']
+            instance_data[:image_id] = @default_amis[:worker]
           end
         end
 
         raise "Can't create workers without a server instance running" if @os_aws.server.nil?
 
-        @os_aws.launch_workers(instance_data[:image_id], instance_data[:instance_type], number_of_instances)
+        @os_aws.launch_workers(instance_data[:image_id], instance_data[:instance_type], number_of_instances, {:user_id => user_id})
 
         ## append the information to the server_data hash that already exists
         #@server_data[:instance_type] = instance_data[:instance_type]

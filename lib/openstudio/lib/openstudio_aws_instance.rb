@@ -41,7 +41,7 @@ class OpenStudioAwsInstance
     @proxy = proxy 
   end
 
-  def launch_instance(image_id, instance_type, user_data)
+  def launch_instance(image_id, instance_type, user_data, user_id)
     #logger.info("user_data #{user_data.inspect}")
     instance = {
         :image_id => image_id,
@@ -67,7 +67,8 @@ class OpenStudioAwsInstance
                 {:key => 'Name', :value => "OpenStudio-#{@openstudio_instance_type.capitalize}"}, # todo: abstract out the server and version
                 {:key => 'GroupUUID', :value => @group_uuid},
                 {:key => 'NumberOfProcessors', :value => processors.to_s},
-                {:key => 'Purpose', :value => "OpenStudio#{@openstudio_instance_type.capitalize}"}
+                {:key => 'Purpose', :value => "OpenStudio#{@openstudio_instance_type.capitalize}"},
+                {:key => 'UserID', :value => user_id}
             ]
         }
     )
