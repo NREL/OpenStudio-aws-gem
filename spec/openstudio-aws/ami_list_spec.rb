@@ -13,7 +13,7 @@ describe OpenStudioAmis do
     end
 
     it "should return specific amis if passed a version" do
-      a = OpenStudioAmis.new(1, "1.2.0")
+      a = OpenStudioAmis.new(1, {:openstudio_version => "1.2.0"})
 
       amis = a.get_amis
 

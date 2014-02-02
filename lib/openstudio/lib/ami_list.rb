@@ -21,14 +21,25 @@
 # Class for managing the AMI ids based on the openstudio version and the openstudio-server version
 
 class OpenStudioAmis
+  VALID_OPTIONS = [
+      :openstudio_version, :openstudio_server_version, :host, :url
+  ]
   
-  def initialize(version = 1, openstudio_version = 'default', openstudio_server_version = 'default',
-      host = 'developer.nrel.gov', url = '/downloads/buildings/openstudio/server')
-    @host = host
-    @url = url
+  def initialize(version = 1, options = {})
+    invalid_options = options.keys - VALID_OPTIONS
+    if invalid_options.any?
+      raise ArgumentError, "invalid option(s): #{invalid_options.join(', ')}"
+    end
+
+    # merge in some defaults
+    defaults = {
+        :openstudio_version => 'default', 
+        :openstudio_server_version => 'default',
+        :host => 'developer.nrel.gov',
+        :url => '/downloads/buildings/openstudio/server'
+    }
     @version = version
-    @openstudio_version = openstudio_version.to_sym
-    @openstudio_server_version = openstudio_server_version.to_sym
+    @options = defaults.merge(options)
   end
 
   def list
@@ -60,14 +71,14 @@ class OpenStudioAmis
   protected
 
   def list_amis_version_1
-    endpoint = "#{@url}/amis_v1.json"
+    endpoint = "#{@options[:url]}/amis_v1.json"
     json = retrieve_json(endpoint)
 
     json
   end
 
   def list_amis_version_2
-    endpoint = "#{@url}/amis_v2.json"
+    endpoint = "#{@options[:url]}/amis_v2.json"
 
     json = retrieve_json(endpoint)
     json
@@ -75,7 +86,7 @@ class OpenStudioAmis
 
   def get_ami_version_1()
     json = list_amis_version_1
-    version = json.has_key?(@openstudio_version) ? @openstudio_version : 'default'
+    version = json.has_key?(@options[:openstudio_version].to_sym) ? @options[:openstudio_version].to_sym : 'default'
 
     json[version]
   end
@@ -84,14 +95,13 @@ class OpenStudioAmis
     json = list_amis_version_2
     
     amis = nil
-    puts @openstudio_server_version
-    if @openstudio_server_version == :default
+    if @options[:openstudio_server_version].to_sym == :default
       # just grab the most recent server
       key, value = json[:openstudio_server].first
       amis = value[:amis]
       #puts json.inspect
     else
-      value = json[:openstudio_server][@openstudio_server_version]
+      value = json[:openstudio_server][@options[:openstudio_server_version].to_sym]
       amis = value[:amis]
     end
 
@@ -102,7 +112,7 @@ class OpenStudioAmis
 
   def retrieve_json(endpoint)
     result = nil
-    resp = Net::HTTP.get_response(@host, endpoint)
+    resp = Net::HTTP.get_response(@options[:host], endpoint)
     if resp.code == '200'
       result = JSON.parse(resp.body, :symbolize_names => true)
     else

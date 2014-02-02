@@ -21,8 +21,13 @@ module OpenStudio
         end
 
         # merge in some defaults
-        defaults = {:ami_lookup_version => 1, :region => 'us-east-1', :ssl_verify_peer => false,
-                    :host => 'developer.nrel.gov', :url => '/downloads/buildings/server'}
+        defaults = {
+            :ami_lookup_version => 1,
+            :region => 'us-east-1',
+            :ssl_verify_peer => false,
+            :host => 'developer.nrel.gov',
+            :url => '/downloads/buildings/openstudio/server'
+        }
         options = defaults.merge(options)
 
 
@@ -64,12 +69,13 @@ module OpenStudio
         @local_key_file_name = nil
 
         # this will grab the default version of openstudio ami versions
-        if options[:openstudio_server_version]
-          @default_amis = OpenStudioAmis.new(options[:ami_lookup_version], options[:openstudio_server_version]).get_amis
-          puts @default_amis.inspect
-        else
-          @default_amis = OpenStudioAmis.new(options[:ami_lookup_version]).get_amis
-        end
+        # get the arugments for the AMI lookup
+        ami_options = {}
+        ami_options[:openstudio_server_version] = options[:openstudio_server_version] if options[:openstudio_server_version]
+        ami_options[:host] = options[:host] if options[:host]
+        ami_options[:url] = options[:url] if options[:url]
+        
+        @default_amis = OpenStudioAmis.new(options[:ami_lookup_version], ami_options).get_amis
       end
 
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
