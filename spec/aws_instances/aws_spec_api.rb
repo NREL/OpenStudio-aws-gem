@@ -11,10 +11,6 @@ describe OpenStudio::Aws::Aws do
       @aws.should_not be_nil
     end
 
-    
-    it "should ask the user to create a new config file" do
-    end
-
     it "should create a server" do
       # use the default instance type
       options = {instance_type: "m1.small", image_id: "ami-29faca40"}
@@ -43,7 +39,7 @@ describe OpenStudio::Aws::Aws do
 
       expect(@aws.os_aws.server).not_to be_nil
     end
-
+    
     it "should kill running instances" do
       # how to test this?
     end
