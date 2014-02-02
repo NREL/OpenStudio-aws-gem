@@ -6,6 +6,10 @@ Version 0.1.16
 
 * Fix tests
 
+* Add option parsing to AMI list
+
+* Better Support of Version 2
+
 Version 0.1.14/15
 -------------
 
