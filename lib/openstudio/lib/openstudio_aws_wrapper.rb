@@ -249,9 +249,9 @@ class OpenStudioAwsWrapper
   end
 
   def launch_server(image_id, instance_type, options = {})
-    defaults = { :user_id => "unknown_user" }
+    defaults = {:user_id => "unknown_user"}
     options = defaults.merge(options)
-    
+
     user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/server_script.sh')
     @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key, @proxy)
 
@@ -261,9 +261,9 @@ class OpenStudioAwsWrapper
   end
 
   def launch_workers(image_id, instance_type, num, options = {})
-    defaults = { :user_id => "unknown_user" }
+    defaults = {:user_id => "unknown_user"}
     options = defaults.merge(options)
-    
+
     user_data = File.read(File.expand_path(File.dirname(__FILE__))+'/worker_script.sh.template')
     user_data.gsub!(/SERVER_IP/, @server.data.ip)
     user_data.gsub!(/SERVER_HOSTNAME/, 'master')
@@ -355,26 +355,26 @@ class OpenStudioAwsWrapper
   # new ami list
   def create_new_ami_json(version = 1)
     # get the list of existing amis from developer.nrel.gov
-    existing_amis = OpenStudioAmis.new(version).list
+    existing_amis = OpenStudioAmis.new(1).list
 
     # list of available AMIs from AWS
     available_amis = describe_amis()
 
     amis = transform_ami_lists(existing_amis, available_amis)
-    
+
     if version == 1
       version1 = {}
 
       # grab the old AMIs that are in the 0.0.1 section
-      amis[:openstudio_server]["0.0.1".to_sym].each do |a|
-        next if a[:deprecate]
+      #amis[:openstudio_server]["0.0.1".to_sym].each do |a|
+      #  next if a[:deprecate]
 
-        version1[a[:openstudio_version]] = a[:amis]
-      end
+      #  version1[a[:openstudio_version]] = a[:amis]
+      #end
 
       # now grab the good keys - they should be sorted newest to older... so go backwards
       amis[:openstudio_server].keys.reverse.each do |key|
-        next if key == "0.0.1".to_sym
+        next if amis[:openstudio_server][key][:deprecate]
 
         a = amis[:openstudio_server][key]
         # this will override any of the old ami/os version
@@ -384,22 +384,23 @@ class OpenStudioAwsWrapper
       # create the default version. First sort, then grab the first hash's values
       puts JSON.pretty_generate(version1)
       default_v = nil
-      version1.each do |k,v|
+      version1.each do |k, v|
         default_v ||= k
         # todo: add a check if the AMI is not marked as invalid 
-        if Semantic::Version.new(k.to_s) >= Semantic::Version.new(default_v.to_s)
-          default_v = k  
+        if k.to_s.to_version >= default_v.to_s.to_version
+          default_v = k
         end
       end
       puts JSON.pretty_generate(version1)
-      
+
       version1[:default] = version1[default_v]
       puts JSON.pretty_generate(version1)
-      
+
       amis = version1
-      
+
     elsif version == 2
       # don't need to transform anything right now
+      puts JSON.pretty_generate(amis)
     end
 
     amis
@@ -422,38 +423,65 @@ class OpenStudioAwsWrapper
     out
   end
 
-  private
+  # take the base version and increment the patch until
+  def get_next_version(base, list_of_svs)
+    b = base.to_version
+
+    # first go through the array and test that there isn't any other versions > that in the array
+    list_of_svs.each do |v|
+      b = v.to_version if v.to_version.satisfies("#{b.major}.#{b.minor}.*") && v.to_version.patch > b.patch
+    end
+
+    # get the max version in the list_of_svs
+    while list_of_svs.include?(b.to_s)
+      b.patch += 1
+    end
+
+    # return the value back as a string
+    b.to_s
+  end
+
+  protected
 
   # transform the available amis into an easier to read format
   def transform_ami_lists(existing, available)
     # initialize ami hash
+    puts existing.inspect
+    puts available.inspect
+
     amis = {:openstudio_server => {}, :openstudio => {}}
-    
+    list_of_svs = []
+
     available[:images].each do |ami|
       sv = ami[:tags_hash][:openstudio_server_version]
-      sv = "0.0.1" if sv.nil?
 
-      a = nil
-      #initialize hashes
-      if sv == "0.0.1" # unknown is an array
-        amis[:openstudio_server][sv.to_sym] = [] if !amis[:openstudio_server][sv.to_sym]
-        amis[:openstudio_server][sv.to_sym] << {}
-        a = amis[:openstudio_server][sv.to_sym].last
-      else
-        amis[:openstudio_server][sv.to_sym] = {} if !amis[:openstudio_server][sv.to_sym]
-        a = amis[:openstudio_server][sv.to_sym]
+
+      if sv.nil? || sv == ""
+        puts "found nil version, incrementing from 0.0.1"
+        sv = get_next_version("0.0.1", list_of_svs)
       end
+      list_of_svs << sv
+
+      puts list_of_svs.inspect
+      amis[:openstudio_server][sv.to_sym] = {} if !amis[:openstudio_server][sv.to_sym]
+      a = amis[:openstudio_server][sv.to_sym]
 
       # initialize ami hash
       a[:amis] = {} if !a[:amis]
 
       # fill in data (this will override data currently)
-      a[:deprecate] = true if sv == "0.0.1"
+      a[:deprecate] = true if sv.to_version.satisfies("0.0.*")
       a[:openstudio_version] = ami[:tags_hash][:openstudio_version] if ami[:tags_hash][:openstudio_version]
       a[:openstudio_version_sha] = ami[:tags_hash][:openstudio_version_sha] if ami[:tags_hash][:openstudio_version_sha]
       a[:user_uuid] = ami[:tags_hash][:user_uuid] if ami[:tags_hash][:user_uuid]
       a[:deprecate] = ami[:tags_hash][:deprecate] if ami[:tags_hash][:deprecate]
       a[:created_on] = ami[:tags_hash][:created_on] if ami[:tags_hash][:created_on]
+      a[:openstudio_server_version] = sv.to_s
+      if ami[:tags_hash][:tested]
+        a[:tested] = ami[:tags_hash][:tested].downcase == "true"
+      else
+        a[:tested] = false
+      end
 
       if ami[:name] =~ /Worker|Cluster/
         if ami[:virtualization_type] == "paravirtual"
@@ -467,25 +495,33 @@ class OpenStudioAwsWrapper
         a[:amis][:server] = ami[:image_id]
       end
     end
+    #puts "Current AMIs: #{JSON.pretty_generate(amis)}"
 
-    # dump the existing amis into the 'unknown category, but don't flag them as 'deprecate'
+    # merge in the existing AMIs the existing amis into the 'unknown category, but don't flag them as 'deprecate'
+    #puts "Existing AMIs: #{JSON.pretty_generate(existing)}"
     existing.keys.each do |ami_key|
       next if ami_key == "default".to_sym # ignore default
 
-      amis[:openstudio_server]["0.0.1".to_sym] = [] if !amis[:openstudio_server]["0.0.1".to_sym]
-      amis[:openstudio_server]["0.0.1".to_sym] << {}
-      a = amis[:openstudio_server]["0.0.1".to_sym].last
+      # get next version
+      next_version = get_next_version("0.0.1", list_of_svs)
+      list_of_svs << next_version
+
+      amis[:openstudio_server][next_version.to_sym] = {} if !amis[:openstudio_server][next_version.to_sym]
+      a = amis[:openstudio_server][next_version.to_sym]
       a[:amis] = {} if !a[:amis]
 
       a[:openstudio_version] = ami_key
       a[:amis][:server] = existing[ami_key][:server]
       a[:amis][:worker] = existing[ami_key][:worker]
       a[:amis][:cc2worker] = existing[ami_key][:cc2worker]
+      a[:openstudio_server_version] = next_version.to_s
     end
 
-    # flip these around for openstudio section
+    puts "After merge: #{JSON.pretty_generate(amis)}"
+    # flip these around for openstudio server section
     amis[:openstudio_server].keys.each do |key|
-      next if key == "0.0.1".to_sym
+      next if key.to_s.to_version.satisfies("0.0.*")
+
       a = amis[:openstudio_server][key]
       ov = a[:openstudio_version]
 
@@ -499,12 +535,24 @@ class OpenStudioAwsWrapper
     end
 
     # sort on the semantic version so that grabbing the key will be the most recent
-    amis[:openstudio_server].sort_by { |k, _| Semantic::Version.new(k.to_s) }
+    amis[:openstudio_server].each do |k, v|
+      puts "K is #{k}"
+      puts "V is #{v}"
+      puts "version is #{v[:openstudio_server_version]}"
+      puts "version is #{v[:openstudio_server_version].class}"
+    end
 
-    # determine the defaults - for now just grab the most recent in each openstudio version
+    # sort the openstudio server version
+    amis[:openstudio_server] = Hash[amis[:openstudio_server].sort_by { |k, v| v[:openstudio_server_version].to_version }.reverse]
+
+    # now sort the openstudio section & determine the defaults
     amis[:openstudio].keys.each do |key|
+      amis[:openstudio][key] = Hash[amis[:openstudio][key].sort_by { |k, _| k.to_s.to_version }.reverse]
       amis[:openstudio][key][:default] = amis[:openstudio][key].keys[0]
     end
+    amis[:openstudio] = Hash[amis[:openstudio].sort_by { |k, _| k.to_s.to_version }.reverse]
+
+    puts "After sort: #{JSON.pretty_generate(amis)}"
 
     amis
   end

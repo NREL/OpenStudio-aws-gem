@@ -67,16 +67,33 @@ describe OpenStudioAwsWrapper do
         resp = @aws.os_aws.create_new_ami_json(1)
         expect(resp["1.1.3".to_sym][:server]).to eq("ami-fb301292")
         expect(resp["1.2.1".to_sym][:server]).to eq("ami-89744be0")
-        expect(resp["default".to_sym][:server]).to_not eq("ami-89744be0") 
+        expect(resp["default".to_sym][:server]).to_not eq("ami-89744be0")
       end
     end
 
-    context "version 2" do     
+    context "version 2" do
       it "should create a new json" do
         resp = @aws.os_aws.create_new_ami_json(2)
         expect(resp[:openstudio_server]["1.3.1".to_sym][:openstudio_version_sha]).to eq("7a955d780b")
+        expect(resp[:openstudio_server]["1.3.5".to_sym][:tested]).to eq(false)
       end
 
+    end
+  end
+
+  context "ami list" do
+    before :all do
+      @aws = OpenStudio::Aws::Aws.new
+    end
+
+    it "should get the next version" do
+      expect(@aws.os_aws.get_next_version("0.1.1", [])).to eq("0.1.1")
+      expect(@aws.os_aws.get_next_version("0.1.1", ["0.1.1"])).to eq("0.1.2")
+      expect(@aws.os_aws.get_next_version("0.1.1", ["0.1.1", "0.1.3"])).to eq("0.1.4")
+      expect(@aws.os_aws.get_next_version("0.1.1", ["0.1.1", "0.1.2", "0.1.3"])).to eq("0.1.4")
+      expect(@aws.os_aws.get_next_version("0.1.1", ["0.1.1", "0.1.2", "0.1.3", "0.1.15"])).to eq("0.1.16")
+      expect(@aws.os_aws.get_next_version("0.1.1", ["0.1.1", "0.1.2", "0.1.3", "0.1.15", "3.1.0"])).to eq("0.1.16")
+      expect(@aws.os_aws.get_next_version("0.1.1", ["0.1.1", "0.1.2", "0.1.3", "0.1.15", "3.1.27"])).to eq("0.1.16")
     end
   end
 

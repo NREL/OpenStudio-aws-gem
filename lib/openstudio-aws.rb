@@ -4,6 +4,7 @@ require 'net/http'
 require 'yaml'
 require 'logger'
 require 'semantic'
+require 'semantic/core_ext'
 
 # AWS SDK CORE
 begin

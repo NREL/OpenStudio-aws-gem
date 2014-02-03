@@ -11,3 +11,4 @@ worker_data.json
 tmp/*
 aws.log
 spec/reports
+~$*

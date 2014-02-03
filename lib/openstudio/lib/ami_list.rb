@@ -20,6 +20,7 @@
 
 # Class for managing the AMI ids based on the openstudio version and the openstudio-server version
 
+
 class OpenStudioAmis
   VALID_OPTIONS = [
       :openstudio_version, :openstudio_server_version, :host, :url
@@ -36,7 +37,7 @@ class OpenStudioAmis
         :openstudio_version => 'default', 
         :openstudio_server_version => 'default',
         :host => 'developer.nrel.gov',
-        :url => '/downloads/buildings/openstudio/server'
+        :url => '/downloads/buildings/openstudio/rsrc'
     }
     @version = version
     @options = defaults.merge(options)
@@ -97,7 +98,13 @@ class OpenStudioAmis
     amis = nil
     if @options[:openstudio_server_version].to_sym == :default
       # just grab the most recent server
+      # need to do a sort to get the most recent because we can't promise that they are in order
+      json[:openstudio].each do |k,v|
+        
+        
+      end
       key, value = json[:openstudio_server].first
+      
       amis = value[:amis]
       #puts json.inspect
     else
