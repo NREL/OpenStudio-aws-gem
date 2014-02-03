@@ -1,6 +1,12 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.17/18/19
+-------------------
+* Fix the sorting of AMIs
+
+* Fix default URL and point to rsrc (not server) on developer.nrel.gov
+
 Version 0.1.16
 --------------
 
