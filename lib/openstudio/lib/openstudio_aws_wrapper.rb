@@ -363,14 +363,8 @@ class OpenStudioAwsWrapper
     amis = transform_ami_lists(existing_amis, available_amis)
 
     if version == 1
+      puts "Creating version 1 of the AMI file"
       version1 = {}
-
-      # grab the old AMIs that are in the 0.0.1 section
-      #amis[:openstudio_server]["0.0.1".to_sym].each do |a|
-      #  next if a[:deprecate]
-
-      #  version1[a[:openstudio_version]] = a[:amis]
-      #end
 
       # now grab the good keys - they should be sorted newest to older... so go backwards
       amis[:openstudio_server].keys.reverse.each do |key|
@@ -382,25 +376,19 @@ class OpenStudioAwsWrapper
       end
 
       # create the default version. First sort, then grab the first hash's values
-      puts JSON.pretty_generate(version1)
+      
+      version1.sort_by()
       default_v = nil
-      version1.each do |k, v|
-        default_v ||= k
-        # todo: add a check if the AMI is not marked as invalid 
-        if k.to_s.to_version >= default_v.to_s.to_version
-          default_v = k
-        end
-      end
-      puts JSON.pretty_generate(version1)
+      version1 = Hash[version1.sort_by { |k, _| k.to_s.to_version }.reverse]
+      default_v = version1.keys[0]
 
       version1[:default] = version1[default_v]
-      puts JSON.pretty_generate(version1)
+      puts "Pretty version 1: #{JSON.pretty_generate(version1)}"
 
       amis = version1
-
     elsif version == 2
       # don't need to transform anything right now
-      puts JSON.pretty_generate(amis)
+      puts "Pretty version 2: #{JSON.pretty_generate(amis)}"
     end
 
     amis
@@ -446,9 +434,6 @@ class OpenStudioAwsWrapper
   # transform the available amis into an easier to read format
   def transform_ami_lists(existing, available)
     # initialize ami hash
-    puts existing.inspect
-    puts available.inspect
-
     amis = {:openstudio_server => {}, :openstudio => {}}
     list_of_svs = []
 
@@ -462,7 +447,6 @@ class OpenStudioAwsWrapper
       end
       list_of_svs << sv
 
-      puts list_of_svs.inspect
       amis[:openstudio_server][sv.to_sym] = {} if !amis[:openstudio_server][sv.to_sym]
       a = amis[:openstudio_server][sv.to_sym]
 
@@ -517,7 +501,7 @@ class OpenStudioAwsWrapper
       a[:openstudio_server_version] = next_version.to_s
     end
 
-    puts "After merge: #{JSON.pretty_generate(amis)}"
+    #puts "After merge: #{JSON.pretty_generate(amis)}"
     # flip these around for openstudio server section
     amis[:openstudio_server].keys.each do |key|
       next if key.to_s.to_version.satisfies("0.0.*")
@@ -534,14 +518,6 @@ class OpenStudioAwsWrapper
       amis[:openstudio][ov][osv][:amis][:cc2worker] = a[:amis][:cc2worker]
     end
 
-    # sort on the semantic version so that grabbing the key will be the most recent
-    amis[:openstudio_server].each do |k, v|
-      puts "K is #{k}"
-      puts "V is #{v}"
-      puts "version is #{v[:openstudio_server_version]}"
-      puts "version is #{v[:openstudio_server_version].class}"
-    end
-
     # sort the openstudio server version
     amis[:openstudio_server] = Hash[amis[:openstudio_server].sort_by { |k, v| v[:openstudio_server_version].to_version }.reverse]
 
@@ -552,7 +528,7 @@ class OpenStudioAwsWrapper
     end
     amis[:openstudio] = Hash[amis[:openstudio].sort_by { |k, _| k.to_s.to_version }.reverse]
 
-    puts "After sort: #{JSON.pretty_generate(amis)}"
+    #puts "After sort: #{JSON.pretty_generate(amis)}"
 
     amis
   end
