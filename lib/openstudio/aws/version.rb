@@ -1,6 +1,5 @@
 module OpenStudio
   module Aws
-    VERSION = "0.1.16"
-    OPENSTUDIO_VERSION = "1.2.1"
+    VERSION = "0.1.17"
   end
 end
