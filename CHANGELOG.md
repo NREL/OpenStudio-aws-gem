@@ -1,6 +1,11 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.20
+--------------
+
+* Always enable the true flag for the master node running as a server
+
 Version 0.1.17/18/19
 -------------------
 * Fix the sorting of AMIs

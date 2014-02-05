@@ -297,7 +297,7 @@ class OpenStudioAwsWrapper
     @logger.info("waiting for worker user_data to complete")
     @workers.each { |worker| worker.wait_command(worker.data.ip, '[ -e /home/ubuntu/user_data_done ] && echo "true"') }
 
-    ips = "master|#{@server.data.ip}|#{@server.data.dns}|#{@server.data.procs}|ubuntu|ubuntu\n"
+    ips = "master|#{@server.data.ip}|#{@server.data.dns}|#{@server.data.procs}|ubuntu|ubuntu|true\n"
     @workers.each { |worker| ips << "worker|#{worker.data.ip}|#{worker.data.dns}|#{worker.data.procs}|ubuntu|ubuntu|true\n" }
     file = Tempfile.new('ip_addresses')
     file.write(ips)
