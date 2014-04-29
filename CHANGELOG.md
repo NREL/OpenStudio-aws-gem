@@ -1,6 +1,13 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.23/24
+--------------
+
+* Delay the starting of MongoDB for 15 seconds on boot because of the preallocation of journals
+
+* Code cleanup
+
 Version 0.1.22
 --------------
 

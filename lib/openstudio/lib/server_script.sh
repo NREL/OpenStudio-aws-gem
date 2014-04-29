@@ -33,6 +33,9 @@ sudo rm -rf /var/lib/mongodb
 
 # restart mongo
 sudo service mongodb start
+# delay the continuation because mongo is a forked process and when it initializes
+# it has to create the preallocated journal files (takes ~ 5 seconds)
+sleep 15
 
 # restart the rails application
 sudo service apache2 stop
