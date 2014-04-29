@@ -44,7 +44,7 @@ module OpenStudioAwsMethods
         "c3.large" => 2,
         "c3.xlarge" => 4,
         "c3.2xlarge" => 8,
-        "c3.4xlarge" => 16,
+        "c3.4xlarge" => 8,
         "c3.8xlarge" => 16,
         "r3.large" => 2,
         "r3.xlarge" => 4,
