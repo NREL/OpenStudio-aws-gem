@@ -26,7 +26,6 @@ sudo service apache2 stop
 sudo service mongodb stop
 
 # remove mongo db & add it back
-sudo rm -rf /mnt/mongodb/data
 sudo mkdir -p /mnt/mongodb/data
 sudo chown mongodb:nogroup /mnt/mongodb/data
 sudo rm -rf /var/lib/mongodb
@@ -34,8 +33,8 @@ sudo rm -rf /var/lib/mongodb
 # restart mongo
 sudo service mongodb start
 # delay the continuation because mongo is a forked process and when it initializes
-# it has to create the preallocated journal files (takes ~ 5 seconds)
-sleep 15
+# it has to create the preallocated journal files (takes ~ 90 seconds on a slower system)
+sleep 2m
 
 # restart the rails application
 sudo service apache2 stop
