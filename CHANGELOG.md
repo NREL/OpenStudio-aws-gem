@@ -1,6 +1,13 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.21
+--------------
+
+* Test AWS Ruby API RC6
+
+* Update pricing information
+
 Version 0.1.20
 --------------
 
