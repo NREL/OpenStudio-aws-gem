@@ -26,7 +26,7 @@ module OpenStudio
             :region => 'us-east-1',
             :ssl_verify_peer => false,
             :host => 'developer.nrel.gov',
-            :url => '/downloads/buildings/openstudio/rsrc'
+            :url => '/downloads/buildings/openstudio/api'
         }
         options = defaults.merge(options)
 

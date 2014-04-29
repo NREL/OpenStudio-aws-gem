@@ -37,7 +37,7 @@ class OpenStudioAmis
         :openstudio_version => 'default', 
         :openstudio_server_version => 'default',
         :host => 'developer.nrel.gov',
-        :url => '/downloads/buildings/openstudio/rsrc'
+        :url => '/downloads/buildings/openstudio/api'
     }
     @version = version
     @options = defaults.merge(options)

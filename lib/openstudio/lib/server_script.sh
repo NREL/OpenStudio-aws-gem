@@ -1,5 +1,9 @@
 #!/bin/sh
-# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files
+
+# NOTE: This file is now the main script -- OpenStudio's version is now out of date
+
+# AWS Server Bootstrap File
+# This script is used to configure the AWS boxes
 
 # Change Host File Entries
 ENTRY="localhost localhost master"
@@ -11,34 +15,59 @@ else
 fi
 
 # copy all the setup scripts to the appropriate home directory
+# the scripts are called by the AWS connector for passwordless ssh config
 cp /data/launch-instance/setup* /home/ubuntu/
 chmod 775 /home/ubuntu/setup*
 chown ubuntu:ubuntu /home/ubuntu/setup*
 
-# Set permissions on rails apps folders
-sudo chmod 777 /var/www/rails/openstudio/public
+# stop the various services that use mongo
+sudo service delayed_job stop
+sudo service apache2 stop
+sudo service mongodb stop
 
-# Force the generation of OpenStudio on the EBS mount and copy worker files
-sudo rm -rf /mnt/openstudio
-sudo mkdir -p /mnt/openstudio
-sudo chmod -R 777 /mnt/openstudio
-cp -rf /data/worker-nodes/* /mnt/openstudio/
-
-# Unzip the worker files (including Mongoid models) and set permissions one last time
-# Note that the 777 is redundant but needed until we actually deploy ACL
-cd /mnt/openstudio/rails-models && unzip -o rails-models.zip
-sudo chmod -R 777 /mnt/openstudio
-
-# Force the generation of MongoDB dbpath on the EBS mount
+# remove mongo db & add it back
 sudo rm -rf /mnt/mongodb/data
 sudo mkdir -p /mnt/mongodb/data
 sudo chown mongodb:nogroup /mnt/mongodb/data
-sudo service mongodb restart
-sudo service delayed_job restart
+sudo rm -rf /var/lib/mongodb
 
-# Add database indexes after it gets mounted for the first time
+# restart mongo
+sudo service mongodb start
+
+# restart the rails application
+sudo service apache2 stop
+sudo service apache2 start
+
+# Add in the database indexes after making the db directory
+sudo chmod 777 /var/www/rails/openstudio/public
 cd /var/www/rails/openstudio
-sudo rake db:mongoid:create_indexes
+rake db:purge
+rake db:mongoid:create_indexes
+
+## Worker Data Configuration
+# Force the generation of various directories that are in the EBS mnt
+sudo rm -rf /mnt/openstudio
+sudo mkdir -p /mnt/openstudio
+sudo chown -R ubuntu:www-data /mnt/openstudio
+sudo chmod -R 775 /mnt/openstudio
+
+# save application files into the right directory
+cp -rf /data/worker-nodes/* /mnt/openstudio/
+
+# copy over the models needed for mongo
+cd /mnt/openstudio/rails-models && unzip -o rails-models.zip
+
+# rerun the permissions after unzipping the files
+sudo chown -R ubuntu:www-data /mnt/openstudio
+sudo find /mnt/openstudio -type d -print0 | xargs -0 chmod 775
+sudo find /mnt/openstudio -type f -print0 | xargs -0 chmod 664
+## End of Worker Data Configuration
+
+# restart rserve
+sudo service Rserve restart
+
+# restart delayed jobs
+sudo service delayed_job start
 
 #file flag the user_data has completed
 cat /dev/null > /home/ubuntu/user_data_done

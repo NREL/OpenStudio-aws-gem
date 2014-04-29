@@ -1,7 +1,8 @@
 #!/bin/sh
-# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files
+# NOTE: This file is now the main script to configure AWS workers
 
 # AWS Worker Bootstrap File
+# File used to configure worker nodes on AWS
 
 # Change Host File Entries
 ENTRY="SERVER_IP SERVER_HOSTNAME SERVER_ALIAS"
@@ -17,16 +18,24 @@ cp /data/launch-instance/setup* /home/ubuntu/
 chmod 775 /home/ubuntu/setup*
 chown ubuntu:ubuntu /home/ubuntu/setup*
 
-# Force the generation of OpenStudio on the EBS mount and copy worker files
+## Worker Data Configuration
+# Force the generation of various directories that are in the EBS mnt
 sudo rm -rf /mnt/openstudio
 sudo mkdir -p /mnt/openstudio
-sudo chmod -R 777 /mnt/openstudio
+sudo chown -R ubuntu:www-data /mnt/openstudio
+sudo chmod -R 775 /mnt/openstudio
+
+# save application files into the right directory
 cp -rf /data/worker-nodes/* /mnt/openstudio/
 
-# Unzip the worker files (including Mongoid models) and set permissions one last time
-# Note that the 777 is redundant but needed until we actually deploy ACL
+# copy over the models needed for mongo
 cd /mnt/openstudio/rails-models && unzip -o rails-models.zip
-sudo chmod -R 777 /mnt/openstudio
+
+# rerun the permissions after unzipping the files
+sudo chown -R ubuntu:www-data /mnt/openstudio
+sudo find /mnt/openstudio -type d -print0 | xargs -0 chmod 775
+sudo find /mnt/openstudio -type f -print0 | xargs -0 chmod 664
+## End of Worker Data Configuration
 
 #turn off hyperthreading
 for cpunum in $(

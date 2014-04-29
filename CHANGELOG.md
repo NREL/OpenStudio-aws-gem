@@ -1,6 +1,11 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.1.22
+--------------
+
+* Update Worker and Server Scripts to remove world writable warning
+
 Version 0.1.21
 --------------
 
