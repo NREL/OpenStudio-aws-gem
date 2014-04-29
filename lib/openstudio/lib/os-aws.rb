@@ -1,18 +1,18 @@
 # NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files
 ######################################################################
-#  Copyright (c) 2008-2014, Alliance for Sustainable Energy.  
+#  Copyright (c) 2008-2014, Alliance for Sustainable Energy.
 #  All rights reserved.
-#  
+#
 #  This library is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU Lesser General Public
 #  License as published by the Free Software Foundation; either
 #  version 2.1 of the License, or (at your option) any later version.
-#  
+#
 #  This library is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 #  Lesser General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU Lesser General Public
 #  License along with this library; if not, write to the Free Software
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
@@ -52,10 +52,10 @@ require 'base64'
 def error(code, msg)
   puts (
            {
-               :error => {
-                   :code => code, :message => msg
-               },
-               :arguments => ARGV[2..-1]
+             error: {
+               code: code, message: msg
+             },
+             arguments: ARGV[2..-1]
            }.to_json
        )
   exit(1)
@@ -81,7 +81,7 @@ if ARGV[4].empty?
   error(-1, 'Missing command argument')
 end
 
-Aws.config = {:access_key_id => ARGV[0], :secret_access_key => ARGV[1], :region => ARGV[2], :ssl_verify_peer => false}
+Aws.config = { access_key_id: ARGV[0], secret_access_key: ARGV[1], region: ARGV[2], ssl_verify_peer: false }
 
 if ARGV[3] == 'EC2'
   @aws = Aws::EC2.new
@@ -100,11 +100,11 @@ end
 
 OPENSTUDIO_VERSION = '1.1.4' unless defined?(OPENSTUDIO_VERSION)
 
-SERVER_PEM_FILENAME = File.expand_path("~/openstudio-server.pem")
+SERVER_PEM_FILENAME = File.expand_path('~/openstudio-server.pem')
 
-if (!defined?(@server_image_id) || !defined?(@worker_image_id))
+if !defined?(@server_image_id) || !defined?(@worker_image_id)
   amis = OpenStudioAmis.new(1, OPENSTUDIO_VERSION)
-  
+
   if amis
     @server_image_id = amis['server']
     if ARGV.length >= 6 && @params['instance_type'] == 'cc2.8xlarge'
@@ -118,8 +118,8 @@ if (!defined?(@server_image_id) || !defined?(@worker_image_id))
 end
 
 begin
-  @logger = Logger.new(File.expand_path("~/.aws.log"))
-  @logger.info("initialized")
+  @logger = Logger.new(File.expand_path('~/.aws.log'))
+  @logger.info('initialized')
   case ARGV[4]
     when 'describe_availability_zones'
       os_aws = OpenStudioAwsWrapper.new
@@ -137,15 +137,15 @@ begin
       if ARGV.length < 6
         resp = os_aws.describe_instance_status
       else
-        resp = os_aws.describe_instance_status({:instance_ids => [@params['instance_id']]})
+        resp = os_aws.describe_instance_status(instance_ids: [@params['instance_id']])
       end
-      #resp = nil
-      #if ARGV.length < 6
+      # resp = nil
+      # if ARGV.length < 6
       #  resp = @aws.client.describe_instance_status
-      #else
+      # else
       #  resp = @aws.client.describe_instance_status({:instance_ids => [@params['instance_id']]})
-      #end
-      output = Hash.new
+      # end
+      output = {}
       resp.data[:instance_status_set].each { |instance|
         output[instance[:instance_id]] = instance[:instance_state][:name]
       }
@@ -155,11 +155,11 @@ begin
         error(-1, 'Invalid number of args')
       end
       os_aws = OpenStudioAwsWrapper.new
-      os_aws.create_or_retrieve_security_group("openstudio-server-sg-v1")
+      os_aws.create_or_retrieve_security_group('openstudio-server-sg-v1')
       os_aws.create_or_retrieve_key_pair
 
       # this step is really important because this is read from the worker nodes.  We
-      # should not be printing this to screen nor putting into the log in case the 
+      # should not be printing this to screen nor putting into the log in case the
       # user is starting to used shared keys.
       os_aws.save_private_key(SERVER_PEM_FILENAME)
 
@@ -172,17 +172,17 @@ begin
 
       puts os_aws.server.to_os_hash.to_json
     when 'launch_workers'
-      @timestamp = @params['timestamp'] #timestamp is renamed to groupuuid in the backend
+      @timestamp = @params['timestamp'] # timestamp is renamed to groupuuid in the backend
 
       os_aws = OpenStudioAwsWrapper.new(nil, @timestamp)
       os_aws.find_server(@timestamp) # really the group id
-      os_aws.create_or_retrieve_security_group("openstudio-worker-sg-v1")
+      os_aws.create_or_retrieve_security_group('openstudio-worker-sg-v1')
 
       # find the private key in the users home directory, or crash
-      if File.exists?(SERVER_PEM_FILENAME)
+      if File.exist?(SERVER_PEM_FILENAME)
         os_aws.create_or_retrieve_key_pair(nil, SERVER_PEM_FILENAME)
       else
-        raise "Could not find previous private key which should be here: #{SERVER_PEM_FILENAME}"
+        fail "Could not find previous private key which should be here: #{SERVER_PEM_FILENAME}"
       end
 
       if ARGV.length < 6
@@ -194,13 +194,13 @@ begin
 
       @worker_instance_type = @params['instance_type']
       begin
-        # this will launch and configure with threads inside os_aws  
+        # this will launch and configure with threads inside os_aws
         os_aws.launch_workers(@worker_image_id, @worker_instance_type, @params['num'])
       rescue Exception => e
         error(-1, "Server status: #{e.message}")
       end
 
-      #wait for user_data to complete execution
+      # wait for user_data to complete execution
       os_aws.configure_server_and_workers
 
       # have to print to screen for c++ to grab the information
@@ -214,7 +214,7 @@ begin
       server = @aws.instances[@params['server_id']]
       error(-1, "Server node #{@params['server_id']} does not exist") unless server.exists?
 
-      #@timestamp = @aws.client.describe_instances({:instance_ids=>[@params['server_id']]}).data[:instance_index][@params['server_id']][:key_name][9,10]
+      # @timestamp = @aws.client.describe_instances({:instance_ids=>[@params['server_id']]}).data[:instance_index][@params['server_id']][:key_name][9,10]
       @timestamp = server.key_name[9, 10]
 
       instances.push(server)
@@ -230,9 +230,9 @@ begin
       sleep 5 while instances.any? { |instance| instance.status != :terminated }
 
       # When session is fully terminated, then delete the key pair
-      #@aws.client.delete_security_group({:group_name=>'openstudio-server-sg-v1'}"})
-      #@aws.client.delete_security_group({:group_name=>'openstudio-worker-sg-v1'}"})
-      @aws.client.delete_key_pair({:key_name => "key-pair-#{@timestamp}"})
+      # @aws.client.delete_security_group({:group_name=>'openstudio-server-sg-v1'}"})
+      # @aws.client.delete_security_group({:group_name=>'openstudio-worker-sg-v1'}"})
+      @aws.client.delete_key_pair(key_name: "key-pair-#{@timestamp}")
 
     when 'termination_status'
       if ARGV.length < 6
@@ -241,39 +241,39 @@ begin
       notTerminated = 0
 
       server = @aws.instances[@params['server_id']]
-      notTerminated += 1 if (server.exists? && server.status != :terminated)
+      notTerminated += 1 if server.exists? && server.status != :terminated
 
-      @params['worker_ids'].each { |worker_id|
+      @params['worker_ids'].each do |worker_id|
         worker = @aws.instances[worker_id]
-        notTerminated += 1 if (worker.exists? && worker.status != :terminated)
-      }
+        notTerminated += 1 if worker.exists? && worker.status != :terminated
+      end
 
-      puts ({:all_instances_terminated => (notTerminated == 0)}.to_json)
+      puts ({ all_instances_terminated: (notTerminated == 0) }.to_json)
 
     when 'session_uptime'
       if ARGV.length < 6
         error(-1, 'Invalid number of args')
       end
       server_id = @params['server_id']
-      #No need to call AWS, but we can
-      #minutes = (Time.now.to_i - @aws.client.describe_instances({:instance_ids=>[server_id]}).data[:instance_index][server_id][:launch_time].to_i)/60
-      minutes = (Time.now.to_i - @params['timestamp'].to_i)/60
-      puts ({:session_uptime => minutes}.to_json)
+      # No need to call AWS, but we can
+      # minutes = (Time.now.to_i - @aws.client.describe_instances({:instance_ids=>[server_id]}).data[:instance_index][server_id][:launch_time].to_i)/60
+      minutes = (Time.now.to_i - @params['timestamp'].to_i) / 60
+      puts ({ session_uptime: minutes }.to_json)
 
     when 'estimated_charges'
       endTime = Time.now.utc
-      startTime = endTime - 86400
-      resp = @aws.client.get_metric_statistics({:dimensions => [{:name => 'ServiceName', :value => 'AmazonEC2'}, {:name => 'Currency', :value => 'USD'}], :metric_name => 'EstimatedCharges', :namespace => 'AWS/Billing', :start_time => startTime.iso8601, :end_time => endTime.iso8601, :period => 300, :statistics => ['Maximum']})
+      startTime = endTime - 86_400
+      resp = @aws.client.get_metric_statistics(dimensions: [{ name: 'ServiceName', value: 'AmazonEC2' }, { name: 'Currency', value: 'USD' }], metric_name: 'EstimatedCharges', namespace: 'AWS/Billing', start_time: startTime.iso8601, end_time: endTime.iso8601, period: 300, statistics: ['Maximum'])
       error(-1, 'No Billing Data') if resp.data[:datapoints].length == 0
       datapoints = resp.data[:datapoints]
       datapoints.sort! { |a, b| a[:timestamp] <=> b[:timestamp] }
-      puts ({:estimated_charges => datapoints[-1][:maximum],
-             :timestamp => datapoints[-1][:timestamp].to_i}.to_json)
+      puts ({ estimated_charges: datapoints[-1][:maximum],
+              timestamp: datapoints[-1][:timestamp].to_i }.to_json)
 
     else
       error(-1, "Unknown command: #{ARGV[4]} (#{ARGV[3]})")
   end
-    #puts \"Status: #{resp.http_response.status}\"
+    # puts \"Status: #{resp.http_response.status}\"
 rescue SystemExit => e
 rescue Exception => e
   if e.message == 'getaddrinfo: No such host is known. '
