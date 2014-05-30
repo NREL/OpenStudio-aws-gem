@@ -1,6 +1,11 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.2.0
+-------------
+
+* Unzip mongoid models to a model subdirectory. 
+
 Version 0.1.23-25
 --------------
 
