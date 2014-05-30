@@ -57,7 +57,7 @@ sudo chmod -R 775 /mnt/openstudio
 cp -rf /data/worker-nodes/* /mnt/openstudio/
 
 # copy over the models needed for mongo
-cd /mnt/openstudio/rails-models && unzip -o rails-models.zip
+cd /mnt/openstudio/rails-models && unzip -o rails-models.zip -d models
 
 # rerun the permissions after unzipping the files
 sudo chown -R ubuntu:www-data /mnt/openstudio
