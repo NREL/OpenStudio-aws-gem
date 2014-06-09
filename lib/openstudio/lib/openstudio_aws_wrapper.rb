@@ -80,7 +80,7 @@ class OpenStudioAwsWrapper
 
               group_name: tmp_name,
               ip_permissions: [
-                { ip_protocol: 'tcp', from_port: 1, to_port: 65_535, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
+                { ip_protocol: 'tcp', from_port: 1, to_port: 65535, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
               ]
 
       )
