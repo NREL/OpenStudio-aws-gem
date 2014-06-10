@@ -262,8 +262,15 @@ begin
 
     when 'estimated_charges'
       endTime = Time.now.utc
-      startTime = endTime - 86_400
-      resp = @aws.client.get_metric_statistics(dimensions: [{ name: 'ServiceName', value: 'AmazonEC2' }, { name: 'Currency', value: 'USD' }], metric_name: 'EstimatedCharges', namespace: 'AWS/Billing', start_time: startTime.iso8601, end_time: endTime.iso8601, period: 300, statistics: ['Maximum'])
+      startTime = endTime - 86400
+      resp = @aws.client.get_metric_statistics(dimensions: [{ name: 'ServiceName', value: 'AmazonEC2' },
+                                                            { name: 'Currency', value: 'USD' }],
+                                               metric_name: 'EstimatedCharges',
+                                               namespace: 'AWS/Billing',
+                                               start_time: startTime.iso8601,
+                                               end_time: endTime.iso8601,
+                                               period: 300,
+                                               statistics: ['Maximum'])
       error(-1, 'No Billing Data') if resp.data[:datapoints].length == 0
       datapoints = resp.data[:datapoints]
       datapoints.sort! { |a, b| a[:timestamp] <=> b[:timestamp] }

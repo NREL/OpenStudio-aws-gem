@@ -6,6 +6,10 @@ Version 0.2.0
 
 * Unzip mongoid models to a model subdirectory. 
 
+Version 0.1.26
+--------------
+* Fix underscore in the port range for security groups
+
 Version 0.1.23-25
 --------------
 
