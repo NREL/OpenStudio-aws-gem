@@ -7,6 +7,7 @@ module OpenStudio
       def initialize(yml_config_file = nil)
         @yml_config_file = yml_config_file
         @config = nil
+
         if @yml_config_file.nil?
           @yml_config_file = File.join(File.expand_path('~'), 'aws_config.yml')
           unless File.exist?(@yml_config_file)
@@ -21,7 +22,7 @@ module OpenStudio
           @access_key = @config['access_key_id']
           @secret_key = @config['secret_access_key']
         rescue
-          raise "Couldn't read config file #{@yml_config_file}. Delete file then recreate by rerunning script"
+          fail "Couldn't read config file #{@yml_config_file}. Delete file then recreate by rerunning script"
         end
       end
 
