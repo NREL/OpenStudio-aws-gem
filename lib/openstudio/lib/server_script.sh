@@ -46,7 +46,8 @@ cd /var/www/rails/openstudio
 rake db:purge
 rake db:mongoid:create_indexes
 
-## Worker Data Configuration
+## Worker Data Configuration -- On Vagrant this is a separate file
+
 # Force the generation of various directories that are in the EBS mnt
 sudo rm -rf /mnt/openstudio
 sudo mkdir -p /mnt/openstudio
@@ -54,16 +55,23 @@ sudo chown -R ubuntu:www-data /mnt/openstudio
 sudo chmod -R 775 /mnt/openstudio
 
 # save application files into the right directory
-cp -rf /data/worker-nodes/* /mnt/openstudio/
+sudo cp -rf /data/worker-nodes/* /mnt/openstudio/
+
+# install workflow dependencies
+cd /mnt/openstudio
+sudo rm -f Gemfile.lock
+bundle update
+sudo bundle update
 
 # copy over the models needed for mongo
-cd /mnt/openstudio/rails-models && unzip -o rails-models.zip -d models
+cd /mnt/openstudio/rails-models && sudo unzip -o rails-models.zip -d models
 
 # rerun the permissions after unzipping the files
 sudo chown -R ubuntu:www-data /mnt/openstudio
 sudo find /mnt/openstudio -type d -print0 | xargs -0 chmod 775
 sudo find /mnt/openstudio -type f -print0 | xargs -0 chmod 664
-## End of Worker Data Configuration
+
+## End Worker Data Configuration
 
 # restart rserve
 sudo service Rserve restart
