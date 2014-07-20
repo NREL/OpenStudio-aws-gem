@@ -37,6 +37,8 @@ module OpenStudioAwsMethods
   # This list of processors can be pulled out of the ../../doc/amazon_prices.xlsx file
   def find_processors(instance)
     lookup = {
+        "m2.2xlarge" => 4,
+        "m2.4xlarge" => 8,
         "m3.medium" => 1,
         "m3.large" => 2,
         "m3.xlarge" => 4,
@@ -184,7 +186,7 @@ module OpenStudioAwsMethods
                   @logger.info("wait_command #{command} is true")
                   flag = 1
                 else
-                  sleep 5
+                  sleep 10
                 end
               end
 
@@ -195,7 +197,7 @@ module OpenStudioAwsMethods
                   @logger.info("wait_command #{command} is true")
                   flag = 1
                 else
-                  sleep 5
+                  sleep 10
                 end
               end
             end
@@ -205,11 +207,11 @@ module OpenStudioAwsMethods
     rescue Net::SSH::HostKeyMismatch => e
       e.remember_host!
       @logger.info('key mismatch, retry')
-      sleep 5
+      sleep 10
       retry
     rescue SystemCallError, Timeout::Error => e
       # port 22 might not be available immediately after the instance finishes launching
-      sleep 5
+      sleep 10
       @logger.info('Timeout.  Perhaps there is a communication error to EC2?  Will try again')
       retry
     end

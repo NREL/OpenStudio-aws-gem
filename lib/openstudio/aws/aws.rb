@@ -9,6 +9,7 @@ module OpenStudio
     class Aws
       attr_reader :os_aws
       attr_reader :default_amis
+      attr_reader :description_file
 
       # default constructor to create the AWS class that can spin up server and worker instances.
       # options are optional with the following support:
@@ -26,7 +27,8 @@ module OpenStudio
           region: 'us-east-1',
           ssl_verify_peer: false,
           host: 'developer.nrel.gov',
-          url: '/downloads/buildings/openstudio/api'
+          url: '/downloads/buildings/openstudio/api',
+          #description_file: 'server_data.json'
         }
         options = defaults.merge(options)
 
@@ -79,11 +81,11 @@ module OpenStudio
       end
 
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
-      def create_server(instance_data = {}, server_json_filename = 'server_data.json', user_id = 'unknown_user')
+      def create_server(instance_data = {}, server_json_filename = 'server_data.json', user_id = 'unknown_user', security_group = 'openstudio-worker-sg-v1')
         defaults = { instance_type: 'm2.xlarge', image_id: @default_amis[:server] }
         instance_data = defaults.merge(instance_data)
 
-        @os_aws.create_or_retrieve_security_group('openstudio-worker-sg-v1')
+        @os_aws.create_or_retrieve_security_group(security_group)
         @os_aws.create_or_retrieve_key_pair
 
         @local_key_file_name = 'ec2_server_key.pem'
@@ -141,9 +143,14 @@ module OpenStudio
         @os_aws.configure_server_and_workers
       end
 
-      def kill_instances
+      def kill_instances(group_id, instances_to_kill)
         # Add this method to kill all the running instances
+
+        # query AWS
+
+
       end
+
 
       private
 

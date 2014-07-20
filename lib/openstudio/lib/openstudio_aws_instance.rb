@@ -43,13 +43,13 @@ class OpenStudioAwsInstance
   def launch_instance(image_id, instance_type, user_data, user_id)
     # logger.info("user_data #{user_data.inspect}")
     instance = {
-      image_id: image_id,
-      key_name: @key_pair_name,
-      security_groups: [@security_group_name],
-      user_data: Base64.encode64(user_data),
-      instance_type: instance_type,
-      min_count: 1,
-      max_count: 1
+        image_id: image_id,
+        key_name: @key_pair_name,
+        security_groups: [@security_group_name],
+        user_data: Base64.encode64(user_data),
+        instance_type: instance_type,
+        min_count: 1,
+        max_count: 1
     }
     # logger.info instance.inspect
     result = @aws.run_instances(instance)
@@ -60,16 +60,14 @@ class OpenStudioAwsInstance
     # only asked for 1 instance, so therefore it should be the first
     aws_instance = result.data.instances.first
     @aws.create_tags(
-
-            resources: [aws_instance.instance_id],
-            tags: [
-              { key: 'Name', value: "OpenStudio-#{@openstudio_instance_type.capitalize}" }, # todo: abstract out the server and version
-              { key: 'GroupUUID', value: @group_uuid },
-              { key: 'NumberOfProcessors', value: processors.to_s },
-              { key: 'Purpose', value: "OpenStudio#{@openstudio_instance_type.capitalize}" },
-              { key: 'UserID', value: user_id }
-            ]
-
+        resources: [aws_instance.instance_id],
+        tags: [
+            {key: 'Name', value: "OpenStudio-#{@openstudio_instance_type.capitalize}"}, # todo: abstract out the server and version
+            {key: 'GroupUUID', value: @group_uuid},
+            {key: 'NumberOfProcessors', value: processors.to_s},
+            {key: 'Purpose', value: "OpenStudio#{@openstudio_instance_type.capitalize}"},
+            {key: 'UserID', value: user_id}
+        ]
     )
 
     # get the instance information
@@ -108,13 +106,14 @@ class OpenStudioAwsInstance
     h = ''
     if @openstudio_instance_type == :server
       h = {
-        timestamp: @group_uuid,
+          timestamp: @group_uuid,
           #:private_key => @private_key, # need to stop printing this out
-        server: {
-          id: @data.id,
-          ip: 'http://' + @data.ip,
-          dns: @data.dns,
-          procs: @data.procs
+          location: 'AWS',
+          server: {
+              id: @data.id,
+              ip: 'http://' + @data.ip,
+              dns: @data.dns,
+              procs: @data.procs
           }
       }
     else

@@ -136,10 +136,9 @@ class OpenStudioAwsWrapper
                 { name: 'instance-state-code', values: [0.to_s, 16.to_s] }, # running or pending
                 { name: 'tag-key', values: ['GroupUUID'] },
                 { name: 'tag-value', values: [group_uuid.to_s] } # todo: how to check for the server versions
-              # {:name => "tag-value", :values => [group_uuid.to_s, "OpenStudio#{@openstudio_instance_type.capitalize}"]}
-              # {:name => "tag:key=value", :values => ["GroupUUID=#{group_uuid.to_s}"]}
+                #{:name => "tag-value", :values => [group_uuid.to_s, "OpenStudio#{@openstudio_instance_type.capitalize}"]}
+               # {:name => "tag:key=value", :values => ["GroupUUID=#{group_uuid.to_s}"]}
               ]
-
       )
     else
       # todo: need to restrict this to only the current user
@@ -396,7 +395,7 @@ class OpenStudioAwsWrapper
     @workers.each { |worker|
       worker_hash.push(
                            id: worker.data.id,
-                           ip: 'http://' + worker.data.ip,
+                           ip: "http://#{worker.data.ip}",
                            dns: worker.data.dns,
                            procs: worker.data.procs
                        )
