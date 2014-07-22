@@ -24,26 +24,26 @@ describe OpenStudioAwsWrapper do
 
     context 'new instance' do
       it 'should be created' do
-        expect { @aws.os_aws }.not_to be_nil
+        expect(@aws.os_aws).not_to be_nil
       end
     end
 
     context 'availability' do
       it 'should describe the zones' do
         resp = @aws.os_aws.describe_availability_zones
-        expect { resp }.not_to be_nil
+        expect(resp).not_to be_nil
         expect(resp[:availability_zone_info].length).to eq(4)
 
         expect(resp[:availability_zone_info].inspect).to eq("[{:zone_name=>\"us-east-1a\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1b\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1c\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1d\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}]")
 
         resp = @aws.os_aws.describe_availability_zones_json
-        expect { resp }.not_to be_nil
+        expect(resp).not_to be_nil
 
       end
 
       it 'should list number of instances' do
         resp = @aws.os_aws.describe_total_instances
-        expect { resp }.not_to be_nil
+        expect(resp).not_to be_nil
       end
     end
 
