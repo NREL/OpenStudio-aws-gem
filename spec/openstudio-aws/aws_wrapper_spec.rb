@@ -17,6 +17,7 @@ describe OpenStudioAwsWrapper do
     end
   end
 
+
   context 'authenticated session' do
     before :all do
       @aws = OpenStudio::Aws::Aws.new

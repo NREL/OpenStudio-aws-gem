@@ -48,17 +48,20 @@ class OpenStudioAwsWrapper
   attr_reader :workers
   attr_reader :proxy
 
-  # todo: put this into a module
-  VALID_OPTIONS = [
-    :proxy, :credentials
-  ]
+  attr_accessor :private_key_file_name
+
+  VALID_OPTIONS = [:proxy, :credentials]
 
   def initialize(options = {}, group_uuid = nil)
     @group_uuid = group_uuid || Time.now.to_i.to_s
 
     @security_group_name = nil
     @key_pair_name = nil
-    @private_key = nil
+    @private_key_file_name = nil
+
+    @private_key = nil # Private key data
+
+    # List of instances
     @server = nil
     @workers = []
 
@@ -71,31 +74,27 @@ class OpenStudioAwsWrapper
 
   def create_or_retrieve_security_group(sg_name = nil)
     tmp_name = sg_name || 'openstudio-server-sg-v1'
-    group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
+    group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.length == 0
       logger.info 'server group not found --- will create a new one'
       @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
       @aws.authorize_security_group_ingress(
-
-              group_name: tmp_name,
-              ip_permissions: [
-                { ip_protocol: 'tcp', from_port: 1, to_port: 65535, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
-              ]
-
+          group_name: tmp_name,
+          ip_permissions: [
+              {ip_protocol: 'tcp', from_port: 1, to_port: 65535, ip_ranges: [cidr_ip: '0.0.0.0/0']}
+          ]
       )
       @aws.authorize_security_group_ingress(
-
-              group_name: tmp_name,
-              ip_permissions: [
-                { ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0']
-                }
-              ]
-
+          group_name: tmp_name,
+          ip_permissions: [
+              {ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0']
+              }
+          ]
       )
 
       # reload group information
-      group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
+      group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
     end
     @security_group_name = group.data.security_groups.first.group_name
     logger.info("server_group #{group.data.security_groups.first.group_name}")
@@ -108,7 +107,7 @@ class OpenStudioAwsWrapper
       map << zn.to_hash
     end
 
-    { availability_zone_info: map }
+    {availability_zone_info: map}
   end
 
   def describe_availability_zones_json
@@ -119,7 +118,7 @@ class OpenStudioAwsWrapper
     resp = @aws.describe_instance_status
 
     region = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : 'no_instances'
-    { total_instances: resp.instance_statuses.length, region: region }
+    {total_instances: resp.instance_statuses.length, region: region}
   end
 
   def describe_total_instances_json
@@ -131,33 +130,31 @@ class OpenStudioAwsWrapper
     resp = nil
     if group_uuid
       resp = @aws.describe_instances(
-
-              filters: [
-                { name: 'instance-state-code', values: [0.to_s, 16.to_s] }, # running or pending
-                { name: 'tag-key', values: ['GroupUUID'] },
-                { name: 'tag-value', values: [group_uuid.to_s] } # todo: how to check for the server versions
-                #{:name => "tag-value", :values => [group_uuid.to_s, "OpenStudio#{@openstudio_instance_type.capitalize}"]}
-               # {:name => "tag:key=value", :values => ["GroupUUID=#{group_uuid.to_s}"]}
-              ]
+          filters: [
+              {name: 'instance-state-code', values: [0.to_s, 16.to_s]}, # running or pending
+              {name: 'tag-key', values: ['GroupUUID']},
+              {name: 'tag-value', values: [group_uuid.to_s]}
+          ]
       )
     else
-      # todo: need to restrict this to only the current user
       resp = @aws.describe_instances
     end
 
     instance_data = nil
     if resp
-      if resp.reservations.length > 0
-        resp = resp.reservations.first
-        if resp.instances
-          instance_data = []
-          resp.instances.each do |i|
-            instance_data << i.to_hash
+      instance_data = []
+      resp.reservations.each do |r|
+        r.instances.each do |i|
+          i_h = i.to_hash
+          if openstudio_instance_type
+            # {:key=>"Purpose", :value=>"OpenStudioWorker"}
+            if i_h[:tags].any? { |h| (h[:key] == "Purpose") && (h[:value] == "OpenStudio#{openstudio_instance_type.capitalize}") }
+              instance_data << i_h
+            end
+          else
+            instance_data << i_h
           end
-
         end
-      else
-        logger.info 'no running instances found'
       end
     end
 
@@ -200,7 +197,25 @@ class OpenStudioAwsWrapper
     resp
   end
 
-  def create_or_retrieve_key_pair(key_pair_name = nil, private_key_file = nil)
+  def stop_instances(ids)
+    resp = @aws.stop_instances(
+        instance_ids: ids,
+        force: true
+    )
+
+    resp
+  end
+
+  def terminate_instances(ids)
+    resp = @aws.terminate_instances(
+        instance_ids: ids,
+    )
+
+    resp
+  end
+
+
+  def create_or_retrieve_key_pair(key_pair_name = nil)
     tmp_name = key_pair_name || "os-key-pair-#{@group_uuid}"
 
     # the describe_key_pairs method will raise an expection if it can't find the keypair, so catch it
@@ -225,40 +240,44 @@ class OpenStudioAwsWrapper
       logger.info "found existing keypair #{resp.key_pairs.first}"
       @key_pair_name = resp.key_pairs.first[:key_name]
 
-      if File.exists(private_key_file)
-        @private_key = File.read(private_key_file, 'r')
-      else
-        # should we raise?
-        logger.error "Could not find the private key file to load from #{private_key_file}"
-      end
+      # This will not set the private key because it doesn't live on the remote system
     end
 
     logger.info("create key pair: #{@key_pair_name}")
   end
 
+  def load_private_key(filename)
+    fail "Could not find private key #{filename}" unless File.exist? filename
+    @private_key_file_name = File.expand_path filename
+    @private_key = File.read(filename)
+  end
+
   def save_private_key(filename)
     if @private_key
+      @private_key_file_name = File.expand_path filename
       File.open(filename, 'w') { |f| f << @private_key }
       File.chmod(0600, filename)
     else
-      logger.error 'no private key found in which to persist'
+      fail "No private key found in which to persist with filename #{filename}"
     end
   end
 
   def launch_server(image_id, instance_type, options = {})
-    defaults = { user_id: 'unknown_user' }
+    defaults = {user_id: 'unknown_user'}
     options = defaults.merge(options)
 
     user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/server_script.sh')
-    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key, @proxy)
+    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key, @private_key_file_name, @proxy)
+
+    # create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
 
     fail 'image_id is nil' unless image_id
     fail 'instance type is nil' unless instance_type
-    @server.launch_instance(image_id, instance_type, user_data, options[:user_id])
+    @server.launch_instance(image_id, instance_type, user_data, options[:user_id], options[:ebs_volume_size])
   end
 
   def launch_workers(image_id, instance_type, num, options = {})
-    defaults = { user_id: 'unknown_user' }
+    defaults = {user_id: 'unknown_user'}
     options = defaults.merge(options)
 
     user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/worker_script.sh.template')
@@ -270,13 +289,14 @@ class OpenStudioAwsWrapper
     # thread the launching of the workers
 
     num.times do
-      @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_group_name, @group_uuid, @private_key, @proxy)
+      @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_group_name, @group_uuid, @private_key, @private_key_file_name, @proxy)
     end
 
     threads = []
     @workers.each do |worker|
       threads << Thread.new do
-        worker.launch_instance(image_id, instance_type, user_data, options[:user_id])
+        # create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
+        worker.launch_instance(image_id, instance_type, user_data, options[:user_id], options[:ebs_volume_size])
       end
     end
     threads.each { |t| t.join }
@@ -288,36 +308,35 @@ class OpenStudioAwsWrapper
   # blocking method that waits for servers and workers to be fully configured (i.e. execution of user_data has
   # occured on all nodes)
   def configure_server_and_workers
-    # todo: add a timeout here!
-    logger.info('waiting for server user_data to complete')
-    @server.wait_command(@server.data.ip, '[ -e /home/ubuntu/user_data_done ] && echo "true"')
+    @logger.info('waiting for server user_data to complete')
+    @server.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"')
     @logger.info('waiting for worker user_data to complete')
-    @workers.each { |worker| worker.wait_command(worker.data.ip, '[ -e /home/ubuntu/user_data_done ] && echo "true"') }
+    @workers.each { |worker| worker.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"') }
 
     ips = "master|#{@server.data.ip}|#{@server.data.dns}|#{@server.data.procs}|ubuntu|ubuntu|true\n"
     @workers.each { |worker| ips << "worker|#{worker.data.ip}|#{worker.data.dns}|#{worker.data.procs}|ubuntu|ubuntu|true\n" }
     file = Tempfile.new('ip_addresses')
     file.write(ips)
     file.close
-    @server.upload_file(@server.data.ip, file.path, 'ip_addresses')
+    @server.upload_file(file.path, 'ip_addresses')
     file.unlink
     logger.info("ips #{ips}")
-    @server.shell_command(@server.data.ip, 'chmod 664 /home/ubuntu/ip_addresses')
-    @server.shell_command(@server.data.ip, '~/setup-ssh-keys.sh')
-    @server.shell_command(@server.data.ip, '~/setup-ssh-worker-nodes.sh ip_addresses')
+    @server.shell_command('chmod 664 /home/ubuntu/ip_addresses')
+    @server.shell_command('~/setup-ssh-keys.sh')
+    @server.shell_command('~/setup-ssh-worker-nodes.sh ip_addresses')
 
     mongoid = File.read(File.expand_path(File.dirname(__FILE__)) + '/mongoid.yml.template')
     mongoid.gsub!(/SERVER_IP/, @server.data.ip)
     file = Tempfile.new('mongoid.yml')
     file.write(mongoid)
     file.close
-    @server.upload_file(@server.data.ip, file.path, '/mnt/openstudio/rails-models/mongoid.yml')
-    @workers.each { |worker| worker.upload_file(worker.data.ip, file.path, '/mnt/openstudio/rails-models/mongoid.yml') }
+    @server.upload_file(file.path, '/mnt/openstudio/rails-models/mongoid.yml')
+    @workers.each { |worker| worker.upload_file(file.path, '/mnt/openstudio/rails-models/mongoid.yml') }
     file.unlink
 
     # Does this command crash it?
-    @server.shell_command(@server.data.ip, 'chmod 664 /mnt/openstudio/rails-models/mongoid.yml')
-    @workers.each { |worker| worker.shell_command(worker.data.ip, 'chmod 664 /mnt/openstudio/rails-models/mongoid.yml') }
+    @server.shell_command('chmod 664 /mnt/openstudio/rails-models/mongoid.yml')
+    @workers.each { |worker| worker.shell_command('chmod 664 /mnt/openstudio/rails-models/mongoid.yml') }
 
     true
   end
@@ -337,7 +356,7 @@ class OpenStudioAwsWrapper
       resp = resp.first
       if !@server
         logger.info "Server found and loading data into object [instance id is #{resp[:instance_id]}]"
-        @server = OpenStudioAwsInstance.new(@aws, :server, resp[:key_name], resp[:security_groups].first[:group_name], group_uuid, @private_key)
+        @server = OpenStudioAwsInstance.new(@aws, :server, resp[:key_name], resp[:security_groups].first[:group_name], group_uuid, @private_key, @private_key_file_name)
         @server.load_instance_data(resp)
       else
         logger.info "Server instance is already defined with instance #{resp[:instance_id]}"
@@ -345,6 +364,9 @@ class OpenStudioAwsWrapper
     else
       fail 'could not find a running server instance'
     end
+
+    # Really don't need to return anything because this sets the class instance variable
+    @server
   end
 
   # method to hit the existing list of available amis and compare to the list of AMIs on Amazon and then generate the
@@ -392,16 +414,17 @@ class OpenStudioAwsWrapper
 
   def to_os_worker_hash
     worker_hash = []
-    @workers.each { |worker|
+    @workers.each do |worker|
       worker_hash.push(
-                           id: worker.data.id,
-                           ip: "http://#{worker.data.ip}",
-                           dns: worker.data.dns,
-                           procs: worker.data.procs
-                       )
-    }
+          id: worker.data.id,
+          ip: "http://#{worker.data.ip}",
+          dns: worker.data.dns,
+          procs: worker.data.procs,
+          private_key_file_name: worker.data.private_key_file_name
+      )
+    end
 
-    out = { workers: worker_hash }
+    out = {workers: worker_hash}
     logger.info out
 
     out
@@ -430,7 +453,7 @@ class OpenStudioAwsWrapper
   # transform the available amis into an easier to read format
   def transform_ami_lists(existing, available)
     # initialize ami hash
-    amis = { openstudio_server: {}, openstudio: {} }
+    amis = {openstudio_server: {}, openstudio: {}}
     list_of_svs = []
 
     available[:images].each do |ami|

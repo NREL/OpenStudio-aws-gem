@@ -180,6 +180,7 @@ begin
 
       # find the private key in the users home directory, or crash
       if File.exist?(SERVER_PEM_FILENAME)
+        #TODO: this will no longer work.  need to refactor this file to be more like the OpenSTudio analysis spreadsheet
         os_aws.create_or_retrieve_key_pair(nil, SERVER_PEM_FILENAME)
       else
         fail "Could not find previous private key which should be here: #{SERVER_PEM_FILENAME}"

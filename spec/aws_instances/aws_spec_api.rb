@@ -13,14 +13,14 @@ describe OpenStudio::Aws::Aws do
 
     it 'should create a server' do
       # use the default instance type
-      options = { instance_type: 'm1.small', image_id: 'ami-29faca40' }
+      options = {instance_type: 'm1.small', image_id: 'ami-29faca40'}
 
       @aws.create_server(options)
       expect(@aws.os_aws.server).not_to be_nil
     end
 
     it 'should create a 1 worker' do
-      options = { instance_type: 'm1.small', image_id: 'ami-95f9c9fc' }
+      options = {instance_type: 'm1.small', image_id: 'ami-95f9c9fc'}
 
       @aws.create_workers(1, options)
 
@@ -29,7 +29,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should be able to connect a worker to an existing server' do
-      options = { instance_type: 'm1.small', image_id: 'ami-29faca40' }
+      options = {instance_type: 'm1.small', image_id: 'ami-29faca40'}
 
       # will require a new @aws class--but attached to same group_uuid
       @config = OpenStudio::Aws::Config.new
@@ -55,7 +55,17 @@ describe OpenStudio::Aws::Aws do
     end
   end
 
-  context 'larger cluster' do
+  context 'create ebs storage' do
+    before(:all) do
+      @aws = OpenStudio::Aws::Aws.new
+    end
+
+    it 'should create an EBS volume' do
+      options = {instance_type: 'm1.small', image_id: 'ami-29faca40', ebs_volume_size: 128}
+      @aws.create_volume()
+      @aws.create_server(options)
+      expect(@aws.os_aws.server).not_to be_nil
+    end
 
   end
 
