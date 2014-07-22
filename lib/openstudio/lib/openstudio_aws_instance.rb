@@ -24,6 +24,7 @@ class OpenStudioAwsInstance
   attr_reader :openstudio_instance_type
   attr_reader :data
   attr_reader :private_key_file_name
+  attr_reader :group_uuid
 
   def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, private_key, private_key_file_name, proxy = nil, options = {})
     @data = nil # stored information about the instance
@@ -154,7 +155,9 @@ class OpenStudioAwsInstance
     h = ''
     if @openstudio_instance_type == :server
       h = {
+          group_id: @group_uuid,
           timestamp: @group_uuid,
+          time_created: Time.at(@group_uuid.to_i),
           #private_key_path: "#{File.expand_path(@private_key_path)}"
           #:private_key => @private_key, # need to stop printing this out
           location: 'AWS',
@@ -223,7 +226,8 @@ class OpenStudioAwsInstance
   def upload_file(local_path, remote_path)
     retries = 0
     begin
-      Net::SCP.start(@ip_address, @user, proxy: get_proxy, key_data: [@private_key]) do |scp|
+      Net::SCP.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |scp|
+        puts "uploading"
         scp.upload! local_path, remote_path
       end
     rescue SystemCallError, Timeout::Error => e
@@ -246,7 +250,7 @@ class OpenStudioAwsInstance
   def shell_command(command)
     begin
       @logger.info("ssh_command #{command}")
-      Net::SSH.start(@ip_address, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
+      Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
         channel = ssh.open_channel do |ch|
           ch.exec "#{command}" do |ch, success|
             fail "could not execute #{command}" unless success

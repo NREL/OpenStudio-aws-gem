@@ -116,7 +116,7 @@ module OpenStudio
           @os_aws.save_private_key('ec2_server_key.pem')
         end
 
-        server_options = {user_id: user_id}
+        server_options = {user_id: options[:user_id]}
         # if instance_data[:ebs_volume_id]
         #   server_options[:ebs_volume_id] = instance_data[:ebs_volume_id]
         # end
@@ -159,7 +159,7 @@ module OpenStudio
 
         fail "Can't create workers without a server instance running" if @os_aws.server.nil?
 
-        worker_options = {user_id: user_id}
+        worker_options = {user_id: options[:user_id]}
         # if options[:ebs_volume_size]
         #   worker_options[:ebs_volume_size] = options[:ebs_volume_size]
         # end
@@ -209,15 +209,24 @@ module OpenStudio
         resp
       end
 
+      def load_instance_info_from_file(filename)
+        fail 'Could not find instance description JSON file' unless File.exist? filename
+
+        h = JSON.parse(File.read(filename), symbolize_names: true)
+        @os_aws.find_server(h)
+
+        # load the worker nodes too someday
+      end
+
       # Send a file to the server or worker nodes
       def upload_file(server_or_worker, local_file, remote_file)
         case server_or_worker
           when :server
             fail "Server node is nil" unless @os_aws.server
-            @os_aws.server.upload_file(local_file, remote_file)
+            return @os_aws.server.upload_file(local_file, remote_file)
           when :worker
             fail "Worker list is empty" if @os_aws.workers.empty?
-            @os_aws.workers.each { |w| w.upload_file(local_file, remote_file) }
+            return @os_aws.workers.each { |w| w.upload_file(local_file, remote_file) }
         end
       end
 

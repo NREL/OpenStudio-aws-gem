@@ -344,8 +344,9 @@ class OpenStudioAwsWrapper
   # method to query the amazon api to find the server (if it exists), based on the group id
   # if it is found, then it will set the @server member variable.
   # Note that the information around keys and security groups is pulled from the instance information.
-  def find_server(group_uuid = nil)
-    group_uuid = group_uuid || @group_uuid
+  def find_server(server_data_hash)
+    group_uuid = server_data_hash[:group_id] || @group_uuid
+    load_private_key(server_data_hash[:server][:private_key_file_name])
 
     logger.info "finding the server for groupid of #{group_uuid}"
     fail 'no group uuid defined either in member variable or method argument' if group_uuid.nil?
