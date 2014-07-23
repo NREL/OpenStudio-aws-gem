@@ -242,6 +242,18 @@ module OpenStudio
         end
       end
 
+      # Download remote files that are on the server or worker.  note that the worker at the moment
+      # will not work because it would simply overwrite the downloaded filas at this time.
+      def download_remote_file(server_or_workers, remote_file, local_file)
+        case server_or_workers
+          when :server
+            fail "Server node is nil" unless @os_aws.server
+            return @os_aws.server.download_file(remote_file, local_file)
+          when :worker
+            fail "Worker file download is not available"
+        end
+      end
+
       private
 
       def os_aws_file_location

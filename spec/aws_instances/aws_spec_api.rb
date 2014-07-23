@@ -94,7 +94,17 @@ describe OpenStudio::Aws::Aws do
 
       aws.upload_file(:server, local_file, remote_file)
 
-      aws.shell_command(:server, "source #{remote_file}")
+      aws.shell_command(:server, "source /etc/profile; source ~/.bash_profile && source #{remote_file}")
+
+      FileUtils.rm_f 'success.receipt' if File.exist? 'success.receipt'
+      aws.download_remote_file(:server, '/home/ubuntu/success.receipt', 'success.receipt')
+      expect(File.exist?('success.receipt')).to be true
+
+      FileUtils.rm_f 'gemlist.receipt' if File.exist? 'gemlist.receipt'
+      aws.download_remote_file(:server, '/home/ubuntu/gemlist.receipt', 'gemlist.receipt')
+      expect(File.exist?('gemlist.receipt')).to be true
+      gemlist = File.read('gemlist.receipt')
+      expect(gemlist).to match /^s3 \(.*\)$/
     end
 
     after :all do
