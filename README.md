@@ -17,4 +17,4 @@ Development Notes
 There is an underlying attempt to merge several OpenStudio based gems into one and have a general 
 OpenStudio namespace for ruby classes.
 
-The AWS SDK gem is custom built and distributed with this gem in order to remove the JSON dependency.  If you are running ruby 1.9 or greater, then JSON is installed in teh std lib and should be called out in the gemspec.
+The AWS SDK gem is custom built and distributed with this gem in order to remove the JSON dependency.  If you are running ruby 1.9 or greater, then JSON is installed in the std lib and should be called out in the gemspec.

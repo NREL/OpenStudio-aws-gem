@@ -22,7 +22,7 @@ module OpenStudio
           @access_key = @config['access_key_id']
           @secret_key = @config['secret_access_key']
         rescue
-          fail "Couldn't read config file #{@yml_config_file}. Delete file then recreate by rerunning script"
+          raise "Couldn't read config file #{@yml_config_file}. Delete file then recreate by rerunning script"
         end
       end
 

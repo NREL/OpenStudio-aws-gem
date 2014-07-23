@@ -166,7 +166,7 @@ begin
       @server_instance_type = @params['instance_type']
       begin
         os_aws.launch_server(@server_image_id, @server_instance_type)
-      rescue Exception => e
+      rescue => e
         error(-1, "Server status: #{e.message}")
       end
 
@@ -180,7 +180,7 @@ begin
 
       # find the private key in the users home directory, or crash
       if File.exist?(SERVER_PEM_FILENAME)
-        #TODO: this will no longer work.  need to refactor this file to be more like the OpenSTudio analysis spreadsheet
+        # TODO: this will no longer work.  need to refactor this file to be more like the OpenSTudio analysis spreadsheet
         os_aws.create_or_retrieve_key_pair(nil, SERVER_PEM_FILENAME)
       else
         fail "Could not find previous private key which should be here: #{SERVER_PEM_FILENAME}"
@@ -197,7 +197,7 @@ begin
       begin
         # this will launch and configure with threads inside os_aws
         os_aws.launch_workers(@worker_image_id, @worker_instance_type, @params['num'])
-      rescue Exception => e
+      rescue => e
         error(-1, "Server status: #{e.message}")
       end
 
@@ -263,7 +263,7 @@ begin
 
     when 'estimated_charges'
       endTime = Time.now.utc
-      startTime = endTime - 86400
+      startTime = endTime - 86_400
       resp = @aws.client.get_metric_statistics(dimensions: [{ name: 'ServiceName', value: 'AmazonEC2' },
                                                             { name: 'Currency', value: 'USD' }],
                                                metric_name: 'EstimatedCharges',
@@ -281,9 +281,9 @@ begin
     else
       error(-1, "Unknown command: #{ARGV[4]} (#{ARGV[3]})")
   end
-    # puts \"Status: #{resp.http_response.status}\"
+# puts \"Status: #{resp.http_response.status}\"
 rescue SystemExit => e
-rescue Exception => e
+rescue => e
   if e.message == 'getaddrinfo: No such host is known. '
     error(503, 'Offline')
   elsif defined? e.http_response

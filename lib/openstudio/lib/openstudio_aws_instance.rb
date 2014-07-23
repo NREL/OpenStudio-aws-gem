@@ -26,7 +26,7 @@ class OpenStudioAwsInstance
   attr_reader :private_key_file_name
   attr_reader :group_uuid
 
-  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, private_key, private_key_file_name, proxy = nil, options = {})
+  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, private_key, private_key_file_name, proxy = nil, _options = {})
     @data = nil # stored information about the instance
     @aws = aws_session
     @openstudio_instance_type = openstudio_instance_type # :server, :worker
@@ -45,11 +45,11 @@ class OpenStudioAwsInstance
 
   def create_and_attach_volume(size, instance_id, availability_zone)
     options = {
-        size: size,
-        # required
-        availability_zone: availability_zone,
-        volume_type: "standard"
-        #encrypted: true
+      size: size,
+      # required
+      availability_zone: availability_zone,
+      volume_type: 'standard'
+      # encrypted: true
     }
     resp = @aws.create_volume(options).to_hash
 
@@ -57,7 +57,7 @@ class OpenStudioAwsInstance
     test_result = @aws.describe_volumes(volume_ids: [resp[:volume_id]])
     puts test_result
     begin
-      Timeout.timeout(600) {# 10 minutes
+      Timeout.timeout(600) { # 10 minutes
         while test_result.nil? || test_result.instance_state.name != 'available'
           # refresh the server instance information
 
@@ -73,12 +73,12 @@ class OpenStudioAwsInstance
     # need to wait until it is available
 
     @aws.attach_volume(
-        {
-            volume_id: resp[:volume_id],
-            instance_id: instance_id,
-            # required
-            device: "/dev/sdh"
-        }
+
+          volume_id: resp[:volume_id],
+          instance_id: instance_id,
+          # required
+          device: '/dev/sdh'
+
     )
 
     # Wait for the volume to attach
@@ -86,16 +86,16 @@ class OpenStudioAwsInstance
     # true?
   end
 
-  def launch_instance(image_id, instance_type, user_data, user_id, ebs_volume_size=nil)
+  def launch_instance(image_id, instance_type, user_data, user_id, ebs_volume_size = nil)
     # logger.info("user_data #{user_data.inspect}")
     instance = {
-        image_id: image_id,
-        key_name: @key_pair_name,
-        security_groups: [@security_group_name],
-        user_data: Base64.encode64(user_data),
-        instance_type: instance_type,
-        min_count: 1,
-        max_count: 1
+      image_id: image_id,
+      key_name: @key_pair_name,
+      security_groups: [@security_group_name],
+      user_data: Base64.encode64(user_data),
+      instance_type: instance_type,
+      min_count: 1,
+      max_count: 1
     }
     result = @aws.run_instances(instance)
 
@@ -107,18 +107,18 @@ class OpenStudioAwsInstance
     @aws.create_tags(
         resources: [aws_instance.instance_id],
         tags: [
-            {key: 'Name', value: "OpenStudio-#{@openstudio_instance_type.capitalize}"}, # todo: abstract out the server and version
-            {key: 'GroupUUID', value: @group_uuid},
-            {key: 'NumberOfProcessors', value: processors.to_s},
-            {key: 'Purpose', value: "OpenStudio#{@openstudio_instance_type.capitalize}"},
-            {key: 'UserID', value: user_id}
+          { key: 'Name', value: "OpenStudio-#{@openstudio_instance_type.capitalize}" }, # todo: abstract out the server and version
+          { key: 'GroupUUID', value: @group_uuid },
+          { key: 'NumberOfProcessors', value: processors.to_s },
+          { key: 'Purpose', value: "OpenStudio#{@openstudio_instance_type.capitalize}" },
+          { key: 'UserID', value: user_id }
         ]
     )
 
     # get the instance information
     test_result = @aws.describe_instance_status(instance_ids: [aws_instance.instance_id]).data.instance_statuses.first
     begin
-      Timeout.timeout(600) {# 10 minutes
+      Timeout.timeout(600) { # 10 minutes
         while test_result.nil? || test_result.instance_state.name != 'running'
           # refresh the server instance information
 
@@ -155,19 +155,19 @@ class OpenStudioAwsInstance
     h = ''
     if @openstudio_instance_type == :server
       h = {
-          group_id: @group_uuid,
-          timestamp: @group_uuid,
-          time_created: Time.at(@group_uuid.to_i),
-          #private_key_path: "#{File.expand_path(@private_key_path)}"
-          #:private_key => @private_key, # need to stop printing this out
-          location: 'AWS',
-          server: {
-              id: @data.id,
-              ip: 'http://' + @data.ip,
-              dns: @data.dns,
-              procs: @data.procs,
-              private_key_file_name: @private_key_file_name
-          }
+        group_id: @group_uuid,
+        timestamp: @group_uuid,
+        time_created: Time.at(@group_uuid.to_i),
+        # private_key_path: "#{File.expand_path(@private_key_path)}"
+        #:private_key => @private_key, # need to stop printing this out
+        location: 'AWS',
+        server: {
+          id: @data.id,
+          ip: 'http://' + @data.ip,
+          dns: @data.dns,
+          procs: @data.procs,
+          private_key_file_name: @private_key_file_name
+        }
       }
     else
       fail 'do not know how to convert :worker instance to_os_hash. Use the os_aws.to_worker_hash method'
@@ -180,24 +180,24 @@ class OpenStudioAwsInstance
 
   def find_processors(instance)
     lookup = {
-        "m2.2xlarge" => 4,
-        "m2.4xlarge" => 8,
-        "m3.medium" => 1,
-        "m3.large" => 2,
-        "m3.xlarge" => 4,
-        "m3.2xlarge" => 8,
-        "c3.large" => 2,
-        "c3.xlarge" => 2,
-        "c3.2xlarge" => 4,
-        "c3.4xlarge" => 8,
-        "c3.8xlarge" => 16,
-        "r3.large" => 2,
-        "r3.xlarge" => 4,
-        "r3.2xlarge" => 8,
-        "r3.4xlarge" => 16,
-        "r3.8xlarge" => 32,
-        "t1.micro" => 1,
-        "m1.small" => 1,
+      'm2.2xlarge' => 4,
+      'm2.4xlarge' => 8,
+      'm3.medium' => 1,
+      'm3.large' => 2,
+      'm3.xlarge' => 4,
+      'm3.2xlarge' => 8,
+      'c3.large' => 2,
+      'c3.xlarge' => 2,
+      'c3.2xlarge' => 4,
+      'c3.4xlarge' => 8,
+      'c3.8xlarge' => 16,
+      'r3.large' => 2,
+      'r3.xlarge' => 4,
+      'r3.2xlarge' => 8,
+      'r3.4xlarge' => 16,
+      'r3.8xlarge' => 32,
+      't1.micro' => 1,
+      'm1.small' => 1,
     }
 
     processors = 1
@@ -247,87 +247,79 @@ class OpenStudioAwsInstance
   # Send a command through SSH Shell to an instance.
   # Need to pass  the command as a string.
   def shell_command(command, load_env = true)
-    begin
-      logger.info("ssh_command #{command} with load environment #{load_env}")
-      command = "source /etc/profile; source ~/.bash_profile; #{command}" if load_env
+    logger.info("ssh_command #{command} with load environment #{load_env}")
+    command = "source /etc/profile; source ~/.bash_profile; #{command}" if load_env
+    Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
+      channel = ssh.open_channel do |ch|
+        ch.exec "#{command}" do |ch, success|
+          fail "could not execute #{command}" unless success
+          # "on_data" is called when the process wr_ites something to stdout
+          ch.on_data do |_c, data|
+            # $stdout.print data
+            logger.info("#{data.inspect}")
+          end
+          # "on_extended_data" is called when the process writes something to s_tde_rr
+          ch.on_extended_data do |_c, _type, data|
+            # $stderr.print data
+            logger.info("#{data.inspect}")
+          end
+        end
+      end
+    end
+  rescue Net::SSH::HostKeyMismatch => e
+    e.remember_host!
+    logger.info('key mismatch, retry')
+    sleep 1
+    retry
+  rescue SystemCallError, Timeout::Error => e
+    # port 22 might not be available immediately after the instance finishes launching
+    sleep 1
+    logger.info('SystemCallError, Waiting for SSH to become available')
+    retry
+  end
+
+  def wait_command(command)
+    flag = 0
+    while flag == 0
+      logger.info("wait_command #{command}")
       Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
         channel = ssh.open_channel do |ch|
           ch.exec "#{command}" do |ch, success|
             fail "could not execute #{command}" unless success
-
-            # "on_data" is called when the process writes something to stdout
-            ch.on_data do |c, data|
-              # $stdout.print data
+            # "on_data" is called_ when the process writes something to stdout
+            ch.on_data do |_c, data|
               logger.info("#{data.inspect}")
-            end
-
-            # "on_extended_data" is called when the process writes something to stderr
-            ch.on_extended_data do |c, type, data|
-              # $stderr.print data
-              logger.info("#{data.inspect}")
-            end
-          end
-        end
-      end
-    rescue Net::SSH::HostKeyMismatch => e
-      e.remember_host!
-      logger.info('key mismatch, retry')
-      sleep 1
-      retry
-    rescue SystemCallError, Timeout::Error => e
-      # port 22 might not be available immediately after the instance finishes launching
-      sleep 1
-      logger.info('SystemCallError, Waiting for SSH to become available')
-      retry
-    end
-  end
-
-  def wait_command(command)
-    begin
-      flag = 0
-      while flag == 0
-        logger.info("wait_command #{command}")
-        Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
-          channel = ssh.open_channel do |ch|
-            ch.exec "#{command}" do |ch, success|
-              fail "could not execute #{command}" unless success
-
-              # "on_data" is called when the process writes something to stdout
-              ch.on_data do |c, data|
-                logger.info("#{data.inspect}")
-                if data.chomp == 'true'
-                  logger.info("wait_command #{command} is true")
-                  flag = 1
-                else
-                  sleep 10
-                end
+              if data.chomp == 'true'
+                logger.info("wait_command #{command} is true")
+                flag = 1
+              else
+                sleep 10
               end
-
-              # "on_extended_data" is called when the process writes something to stderr
-              ch.on_extended_data do |c, type, data|
-                logger.info("#{data.inspect}")
-                if data == 'true'
-                  logger.info("wait_command #{command} is true")
-                  flag = 1
-                else
-                  sleep 10
-                end
+            end
+            # "on_extended_data" is called when the process writes some_thi_ng to stderr
+            ch.on_extended_data do |_c, _type, data|
+              logger.info("#{data.inspect}")
+              if data == 'true'
+                logger.info("wait_command #{command} is true")
+                flag = 1
+              else
+                sleep 10
               end
             end
           end
         end
       end
-    rescue Net::SSH::HostKeyMismatch => e
-      e.remember_host!
-      logger.info('key mismatch, retry')
-      sleep 10
-      retry
-    rescue SystemCallError, Timeout::Error => e
-      # port 22 might not be available immediately after the instance finishes launching
-      sleep 10
-      logger.info('Timeout.  Perhaps there is a communication error to EC2?  Will try again')
-      retry
     end
+  rescue Net::SSH::HostKeyMismatch => e
+    e.remember_host!
+    logger.info('key mismatch, retry')
+    sleep 10
+    retry
+  rescue SystemCallError, Timeout::Error => e
+    # port 22 might not be available immediately after the instance finishes launching
+    sleep 10
+    logger.info('Timeout.  Perhaps there is a communication error to EC2?  Will try again')
+    retry
   end
 
   def download_file(remote_path, local_path)

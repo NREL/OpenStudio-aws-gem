@@ -74,7 +74,7 @@ class OpenStudioAwsWrapper
 
   def create_or_retrieve_security_group(sg_name = nil)
     tmp_name = sg_name || 'openstudio-server-sg-v1'
-    group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
+    group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.length == 0
       logger.info 'server group not found --- will create a new one'
@@ -82,19 +82,19 @@ class OpenStudioAwsWrapper
       @aws.authorize_security_group_ingress(
           group_name: tmp_name,
           ip_permissions: [
-              {ip_protocol: 'tcp', from_port: 1, to_port: 65535, ip_ranges: [cidr_ip: '0.0.0.0/0']}
+            { ip_protocol: 'tcp', from_port: 1, to_port: 65_535, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
           ]
       )
       @aws.authorize_security_group_ingress(
           group_name: tmp_name,
           ip_permissions: [
-              {ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0']
-              }
+            { ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0']
+            }
           ]
       )
 
       # reload group information
-      group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
+      group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     end
     @security_group_name = group.data.security_groups.first.group_name
     logger.info("server_group #{group.data.security_groups.first.group_name}")
@@ -107,7 +107,7 @@ class OpenStudioAwsWrapper
       map << zn.to_hash
     end
 
-    {availability_zone_info: map}
+    { availability_zone_info: map }
   end
 
   def describe_availability_zones_json
@@ -118,7 +118,7 @@ class OpenStudioAwsWrapper
     resp = @aws.describe_instance_status
 
     region = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : 'no_instances'
-    {total_instances: resp.instance_statuses.length, region: region}
+    { total_instances: resp.instance_statuses.length, region: region }
   end
 
   def describe_total_instances_json
@@ -131,9 +131,9 @@ class OpenStudioAwsWrapper
     if group_uuid
       resp = @aws.describe_instances(
           filters: [
-              {name: 'instance-state-code', values: [0.to_s, 16.to_s]}, # running or pending
-              {name: 'tag-key', values: ['GroupUUID']},
-              {name: 'tag-value', values: [group_uuid.to_s]}
+            { name: 'instance-state-code', values: [0.to_s, 16.to_s] }, # running or pending
+            { name: 'tag-key', values: ['GroupUUID'] },
+            { name: 'tag-value', values: [group_uuid.to_s] }
           ]
       )
     else
@@ -148,7 +148,7 @@ class OpenStudioAwsWrapper
           i_h = i.to_hash
           if openstudio_instance_type
             # {:key=>"Purpose", :value=>"OpenStudioWorker"}
-            if i_h[:tags].any? { |h| (h[:key] == "Purpose") && (h[:value] == "OpenStudio#{openstudio_instance_type.capitalize}") }
+            if i_h[:tags].any? { |h| (h[:key] == 'Purpose') && (h[:value] == "OpenStudio#{openstudio_instance_type.capitalize}") }
               instance_data << i_h
             end
           else
@@ -214,7 +214,6 @@ class OpenStudioAwsWrapper
     resp
   end
 
-
   def create_or_retrieve_key_pair(key_pair_name = nil)
     tmp_name = key_pair_name || "os-key-pair-#{@group_uuid}"
 
@@ -263,7 +262,7 @@ class OpenStudioAwsWrapper
   end
 
   def launch_server(image_id, instance_type, options = {})
-    defaults = {user_id: 'unknown_user'}
+    defaults = { user_id: 'unknown_user' }
     options = defaults.merge(options)
 
     user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/server_script.sh')
@@ -277,7 +276,7 @@ class OpenStudioAwsWrapper
   end
 
   def launch_workers(image_id, instance_type, num, options = {})
-    defaults = {user_id: 'unknown_user'}
+    defaults = { user_id: 'unknown_user' }
     options = defaults.merge(options)
 
     user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/worker_script.sh.template')
@@ -425,7 +424,7 @@ class OpenStudioAwsWrapper
       )
     end
 
-    out = {workers: worker_hash}
+    out = { workers: worker_hash }
     logger.info out
 
     out
@@ -454,7 +453,7 @@ class OpenStudioAwsWrapper
   # transform the available amis into an easier to read format
   def transform_ami_lists(existing, available)
     # initialize ami hash
-    amis = {openstudio_server: {}, openstudio: {}}
+    amis = { openstudio_server: {}, openstudio: {} }
     list_of_svs = []
 
     available[:images].each do |ami|
@@ -538,7 +537,7 @@ class OpenStudioAwsWrapper
     end
 
     # sort the openstudio server version
-    amis[:openstudio_server] = Hash[amis[:openstudio_server].sort_by { |k, v| v[:openstudio_server_version].to_version }.reverse]
+    amis[:openstudio_server] = Hash[amis[:openstudio_server].sort_by { |_k, v| v[:openstudio_server_version].to_version }.reverse]
 
     # now sort the openstudio section & determine the defaults
     amis[:openstudio].keys.each do |key|

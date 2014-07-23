@@ -2,8 +2,8 @@
 module OpenStudio
   module Aws
     VALID_OPTIONS = [
-        :proxy, :credentials, :ami_lookup_version, :openstudio_version,
-        :openstudio_server_version, :region, :ssl_verify_peer, :host, :url
+      :proxy, :credentials, :ami_lookup_version, :openstudio_version,
+      :openstudio_server_version, :region, :ssl_verify_peer, :host, :url
     ]
 
     class Aws
@@ -23,11 +23,11 @@ module OpenStudio
 
         # merge in some defaults
         defaults = {
-            ami_lookup_version: 1,
-            region: 'us-east-1',
-            ssl_verify_peer: false,
-            host: 'developer.nrel.gov',
-            url: '/downloads/buildings/openstudio/api',
+          ami_lookup_version: 1,
+          region: 'us-east-1',
+          ssl_verify_peer: false,
+          host: 'developer.nrel.gov',
+          url: '/downloads/buildings/openstudio/api',
         }
         options = defaults.merge(options)
 
@@ -38,10 +38,10 @@ module OpenStudio
           # populate the credentials
           options[:credentials] =
               {
-                  access_key_id: config_file.access_key,
-                  secret_access_key: config_file.secret_key,
-                  region: options[:region],
-                  ssl_verify_peer: options[:ssl_verify_peer]
+                access_key_id: config_file.access_key,
+                secret_access_key: config_file.secret_key,
+                region: options[:region],
+                ssl_verify_peer: options[:ssl_verify_peer]
               }
         else
           options[:credentials][:region] = options[:region]
@@ -89,20 +89,20 @@ module OpenStudio
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
       def create_server(options = {}, instances_json = 'server_data.json')
         defaults = {
-            instance_type: 'm2.xlarge',
-            security_group: 'openstudio-worker-sg-v1',
-            image_id: @default_amis[:server],
-            user_id: 'unknown_user',
+          instance_type: 'm2.xlarge',
+          security_group: 'openstudio-worker-sg-v1',
+          image_id: @default_amis[:server],
+          user_id: 'unknown_user',
 
-            # optional -- will default later
-            ebs_volume_id: nil,
-            aws_key_pair_name: nil,
-            private_key_file_name: nil, # required if using an existing "aws_key_pair_name"
+          # optional -- will default later
+          ebs_volume_id: nil,
+          aws_key_pair_name: nil,
+          private_key_file_name: nil, # required if using an existing "aws_key_pair_name"
         }
         options = defaults.merge(options)
 
         if options[:aws_key_pair_name]
-          fail "Must pass in the private_key_file_name" unless options[:private_key_file_name]
+          fail 'Must pass in the private_key_file_name' unless options[:private_key_file_name]
           fail "Private key was not found: #{options[:private_key_file_name]}" unless File.exist? options[:private_key_file_name]
         end
 
@@ -118,7 +118,7 @@ module OpenStudio
           @os_aws.save_private_key('ec2_server_key.pem')
         end
 
-        server_options = {user_id: options[:user_id]}
+        server_options = { user_id: options[:user_id] }
         # if instance_data[:ebs_volume_id]
         #   server_options[:ebs_volume_id] = instance_data[:ebs_volume_id]
         # end
@@ -137,17 +137,17 @@ module OpenStudio
         puts "ssh -i #{@local_key_file_name} ubuntu@#{@os_aws.server.data[:dns]}"
       end
 
-      def create_workers(number_of_instances, options = {}, user_id = 'unknown_user')
+      def create_workers(number_of_instances, options = {}, _user_id = 'unknown_user')
         defaults = {
-            instance_type: 'm2.4xlarge',
-            security_group: 'openstudio-worker-sg-v1',
-            image_id: @default_amis[:server],
-            user_id: 'unknown_user',
+          instance_type: 'm2.4xlarge',
+          security_group: 'openstudio-worker-sg-v1',
+          image_id: @default_amis[:server],
+          user_id: 'unknown_user',
 
-            # optional -- will default later
-            ebs_volume_id: nil,
-            aws_key_pair_name: nil,
-            private_key_file_name: nil, # required if using an existing "aws_key_pair_name"
+          # optional -- will default later
+          ebs_volume_id: nil,
+          aws_key_pair_name: nil,
+          private_key_file_name: nil, # required if using an existing "aws_key_pair_name"
         }
         options = defaults.merge(options)
 
@@ -162,7 +162,7 @@ module OpenStudio
 
         fail "Can't create workers without a server instance running" if @os_aws.server.nil?
 
-        worker_options = {user_id: options[:user_id]}
+        worker_options = { user_id: options[:user_id] }
         # if options[:ebs_volume_size]
         #   worker_options[:ebs_volume_size] = options[:ebs_volume_size]
         # end
@@ -224,17 +224,16 @@ module OpenStudio
         @os_aws.find_server(h)
 
         # load the worker nodes someday
-
       end
 
       # Send a file to the server or worker nodes
       def upload_file(server_or_workers, local_file, remote_file)
         case server_or_workers
           when :server
-            fail "Server node is nil" unless @os_aws.server
+            fail 'Server node is nil' unless @os_aws.server
             return @os_aws.server.upload_file(local_file, remote_file)
           when :worker
-            fail "Worker list is empty" if @os_aws.workers.empty?
+            fail 'Worker list is empty' if @os_aws.workers.empty?
             return @os_aws.workers.each { |w| w.upload_file(local_file, remote_file) }
         end
       end
@@ -242,10 +241,10 @@ module OpenStudio
       def shell_command(server_or_workers, command, load_env = true)
         case server_or_workers
           when :server
-            fail "Server node is nil" unless @os_aws.server
+            fail 'Server node is nil' unless @os_aws.server
             return @os_aws.server.shell_command(command, load_env)
           when :worker
-            fail "Worker list is empty" if @os_aws.workers.empty?
+            fail 'Worker list is empty' if @os_aws.workers.empty?
             return @os_aws.workers.each { |w| w.shell_command(command, load_env) }
         end
       end
@@ -255,10 +254,10 @@ module OpenStudio
       def download_remote_file(server_or_workers, remote_file, local_file)
         case server_or_workers
           when :server
-            fail "Server node is nil" unless @os_aws.server
+            fail 'Server node is nil' unless @os_aws.server
             return @os_aws.server.download_file(remote_file, local_file)
           when :worker
-            fail "Worker file download is not available"
+            fail 'Worker file download is not available'
         end
       end
 

@@ -9,14 +9,13 @@ describe OpenStudioAwsWrapper do
           secret_access_key: 'some_super_secret_access_key',
           region: 'us-east-1',
           ssl_verify_peer: false
-            }
+        }
       }
 
       @os_aws = OpenStudioAwsWrapper.new(options)
       expect { @os_aws.describe_availability_zones }.to raise_exception
     end
   end
-
 
   context 'authenticated session' do
     before :all do

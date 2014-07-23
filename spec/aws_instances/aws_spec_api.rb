@@ -14,9 +14,9 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should create a server' do
-      options = {instance_type: 'm1.small', image_id: 'ami-29faca40'}
+      options = { instance_type: 'm1.small', image_id: 'ami-29faca40' }
 
-      test_pem_file = "ec2_server_key.pem"
+      test_pem_file = 'ec2_server_key.pem'
       FileUtils.rm_f test_pem_file if File.exist? test_pem_file
       FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
 
@@ -33,11 +33,10 @@ describe OpenStudio::Aws::Aws do
 
       @group_id = h[:group_id]
 
-
     end
 
     it 'should create a 1 worker' do
-      options = {instance_type: 'm1.small', image_id: 'ami-95f9c9fc'}
+      options = { instance_type: 'm1.small', image_id: 'ami-95f9c9fc' }
 
       @aws.create_workers(1, options)
 
@@ -46,7 +45,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should be able to connect a worker to an existing server' do
-      options = {instance_type: 'm1.small', image_id: 'ami-29faca40'}
+      options = { instance_type: 'm1.small', image_id: 'ami-29faca40' }
 
       # will require a new @aws class--but attached to same group_uuid
       @config = OpenStudio::Aws::Config.new
@@ -71,7 +70,7 @@ describe OpenStudio::Aws::Aws do
       config = OpenStudio::Aws::Config.new
       aws = OpenStudio::Aws::Aws.new
 
-      options = {instance_type: 'm1.small', image_id: 'ami-29faca40'}
+      options = { instance_type: 'm1.small', image_id: 'ami-29faca40' }
 
       aws.create_server(options)
     end
@@ -108,7 +107,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     after :all do
-      #FileUtils.rm_f 'ec2_server_key.pem' if File.exist? 'ec2_server_key.pem'
+      # FileUtils.rm_f 'ec2_server_key.pem' if File.exist? 'ec2_server_key.pem'
     end
   end
 
