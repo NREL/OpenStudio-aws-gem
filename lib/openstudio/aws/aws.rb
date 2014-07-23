@@ -215,18 +215,30 @@ module OpenStudio
         h = JSON.parse(File.read(filename), symbolize_names: true)
         @os_aws.find_server(h)
 
-        # load the worker nodes too someday
+        # load the worker nodes someday
+
       end
 
       # Send a file to the server or worker nodes
-      def upload_file(server_or_worker, local_file, remote_file)
-        case server_or_worker
+      def upload_file(server_or_workers, local_file, remote_file)
+        case server_or_workers
           when :server
             fail "Server node is nil" unless @os_aws.server
             return @os_aws.server.upload_file(local_file, remote_file)
           when :worker
             fail "Worker list is empty" if @os_aws.workers.empty?
             return @os_aws.workers.each { |w| w.upload_file(local_file, remote_file) }
+        end
+      end
+
+      def shell_command(server_or_workers, command)
+        case server_or_workers
+          when :server
+            fail "Server node is nil" unless @os_aws.server
+            return @os_aws.server.shell_command(command)
+          when :worker
+            fail "Worker list is empty" if @os_aws.workers.empty?
+            return @os_aws.workers.each { |w| w.shell_command(command) }
         end
       end
 

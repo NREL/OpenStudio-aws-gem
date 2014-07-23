@@ -74,8 +74,6 @@ describe OpenStudio::Aws::Aws do
       options = {instance_type: 'm1.small', image_id: 'ami-29faca40'}
 
       aws.create_server(options)
-
-
     end
 
     it 'should upload a file after loading the existing server' do
@@ -91,10 +89,12 @@ describe OpenStudio::Aws::Aws do
       expect(aws.os_aws.server.group_uuid).to eq j[:group_id]
       puts aws.os_aws.server.inspect
 
-      local_file = File.expand_path('../resources/upload_me.sh', File.dirname(__FILE__))
-      remote_file = '/mnt/openstudio/i_uploaded_this_file.sh'
+      local_file = File.expand_path('spec/resources/upload_me.sh')
+      remote_file = '/home/ubuntu/i_uploaded_this_file.sh'
 
       aws.upload_file(:server, local_file, remote_file)
+
+      aws.shell_command(:server, "source #{remote_file}")
     end
 
     after :all do

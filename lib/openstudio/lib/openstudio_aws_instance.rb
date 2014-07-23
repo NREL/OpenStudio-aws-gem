@@ -227,7 +227,6 @@ class OpenStudioAwsInstance
     retries = 0
     begin
       Net::SCP.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |scp|
-        puts "uploading"
         scp.upload! local_path, remote_path
       end
     rescue SystemCallError, Timeout::Error => e
@@ -246,10 +245,10 @@ class OpenStudioAwsInstance
   end
 
   # Send a command through SSH Shell to an instance.
-  # Need to pass instance object and the command as a string.
+  # Need to pass  the command as a string.
   def shell_command(command)
     begin
-      @logger.info("ssh_command #{command}")
+      logger.info("ssh_command #{command}")
       Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
         channel = ssh.open_channel do |ch|
           ch.exec "#{command}" do |ch, success|
@@ -258,26 +257,26 @@ class OpenStudioAwsInstance
             # "on_data" is called when the process writes something to stdout
             ch.on_data do |c, data|
               # $stdout.print data
-              @logger.info("#{data.inspect}")
+              logger.info("#{data.inspect}")
             end
 
             # "on_extended_data" is called when the process writes something to stderr
             ch.on_extended_data do |c, type, data|
               # $stderr.print data
-              @logger.info("#{data.inspect}")
+              logger.info("#{data.inspect}")
             end
           end
         end
       end
     rescue Net::SSH::HostKeyMismatch => e
       e.remember_host!
-      @logger.info('key mismatch, retry')
+      logger.info('key mismatch, retry')
       sleep 1
       retry
     rescue SystemCallError, Timeout::Error => e
       # port 22 might not be available immediately after the instance finishes launching
       sleep 1
-      @logger.info('SystemCallError, Waiting for SSH to become available')
+      logger.info('SystemCallError, Waiting for SSH to become available')
       retry
     end
   end
@@ -286,17 +285,17 @@ class OpenStudioAwsInstance
     begin
       flag = 0
       while flag == 0
-        @logger.info("wait_command #{command}")
-        Net::SSH.start(@ip_address, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
+        logger.info("wait_command #{command}")
+        Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
           channel = ssh.open_channel do |ch|
             ch.exec "#{command}" do |ch, success|
               fail "could not execute #{command}" unless success
 
               # "on_data" is called when the process writes something to stdout
               ch.on_data do |c, data|
-                @logger.info("#{data.inspect}")
+                logger.info("#{data.inspect}")
                 if data.chomp == 'true'
-                  @logger.info("wait_command #{command} is true")
+                  logger.info("wait_command #{command} is true")
                   flag = 1
                 else
                   sleep 10
@@ -305,9 +304,9 @@ class OpenStudioAwsInstance
 
               # "on_extended_data" is called when the process writes something to stderr
               ch.on_extended_data do |c, type, data|
-                @logger.info("#{data.inspect}")
+                logger.info("#{data.inspect}")
                 if data == 'true'
-                  @logger.info("wait_command #{command} is true")
+                  logger.info("wait_command #{command} is true")
                   flag = 1
                 else
                   sleep 10
@@ -319,13 +318,13 @@ class OpenStudioAwsInstance
       end
     rescue Net::SSH::HostKeyMismatch => e
       e.remember_host!
-      @logger.info('key mismatch, retry')
+      logger.info('key mismatch, retry')
       sleep 10
       retry
     rescue SystemCallError, Timeout::Error => e
       # port 22 might not be available immediately after the instance finishes launching
       sleep 10
-      @logger.info('Timeout.  Perhaps there is a communication error to EC2?  Will try again')
+      logger.info('Timeout.  Perhaps there is a communication error to EC2?  Will try again')
       retry
     end
   end
@@ -333,7 +332,7 @@ class OpenStudioAwsInstance
   def download_file(remote_path, local_path)
     retries = 0
     begin
-      Net::SCP.start(@ip_address, @user, proxy: get_proxy, key_data: [@private_key]) do |scp|
+      Net::SCP.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |scp|
         scp.download! remote_path, local_path
       end
     rescue SystemCallError, Timeout::Error => e
