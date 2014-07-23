@@ -67,6 +67,8 @@ module OpenStudio
 
         @os_aws = OpenStudioAwsWrapper.new(options)
 
+        @instances_json = nil
+
         # this will grab the default version of openstudio ami versions
         # get the arugments for the AMI lookup
         ami_options = {}
@@ -85,7 +87,7 @@ module OpenStudio
       # end
 
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
-      def create_server(options = {}, server_data_output_json = 'server_data.json')
+      def create_server(options = {}, instances_json = 'server_data.json')
         defaults = {
             instance_type: 'm2.xlarge',
             security_group: 'openstudio-worker-sg-v1',
@@ -125,7 +127,8 @@ module OpenStudio
 
         puts @os_aws.server.to_os_hash.to_json
 
-        File.open(server_data_output_json, 'w') { |f| f << JSON.pretty_generate(@os_aws.server.to_os_hash) }
+        @instances_json = instances_json
+        File.open(@instances_json, 'w') { |f| f << JSON.pretty_generate(@os_aws.server.to_os_hash) }
 
         # Print out some debugging commands (probably work on mac/linux only)
         puts ''
@@ -178,6 +181,11 @@ module OpenStudio
         # File.open("worker_data.json", "w") { |f| f << JSON.pretty_generate(worker_data) }
         #
         ## Print out some debugging commands (probably work on mac/linux only)
+        # Add the worker data to the JSON
+        h = JSON.parse(File.read(@instances_json))
+        h[:workers] = @os_aws.to_os_worker_hash[:workers]
+        File.open(@instances_json, 'w') { |f| f << JSON.pretty_generate(h) }
+
         puts ''
         puts 'Worker SSH Command:'
         @os_aws.workers.each do |worker|
