@@ -246,9 +246,10 @@ class OpenStudioAwsInstance
 
   # Send a command through SSH Shell to an instance.
   # Need to pass  the command as a string.
-  def shell_command(command)
+  def shell_command(command, load_env = true)
     begin
-      logger.info("ssh_command #{command}")
+      logger.info("ssh_command #{command} with load environment #{load_env}")
+      command = "source /etc/profile; source ~/.bash_profile; #{command}" if load_env
       Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
         channel = ssh.open_channel do |ch|
           ch.exec "#{command}" do |ch, success|

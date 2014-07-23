@@ -231,14 +231,14 @@ module OpenStudio
         end
       end
 
-      def shell_command(server_or_workers, command)
+      def shell_command(server_or_workers, command, load_env = true)
         case server_or_workers
           when :server
             fail "Server node is nil" unless @os_aws.server
-            return @os_aws.server.shell_command(command)
+            return @os_aws.server.shell_command(command, load_env)
           when :worker
             fail "Worker list is empty" if @os_aws.workers.empty?
-            return @os_aws.workers.each { |w| w.shell_command(command) }
+            return @os_aws.workers.each { |w| w.shell_command(command, load_env) }
         end
       end
 

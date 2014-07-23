@@ -94,7 +94,7 @@ describe OpenStudio::Aws::Aws do
 
       aws.upload_file(:server, local_file, remote_file)
 
-      aws.shell_command(:server, "source /etc/profile; source ~/.bash_profile && source #{remote_file}")
+      aws.shell_command(:server, "source #{remote_file}")
 
       FileUtils.rm_f 'success.receipt' if File.exist? 'success.receipt'
       aws.download_remote_file(:server, '/home/ubuntu/success.receipt', 'success.receipt')
