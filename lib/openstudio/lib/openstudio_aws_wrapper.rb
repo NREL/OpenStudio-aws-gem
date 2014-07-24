@@ -149,11 +149,11 @@ class OpenStudioAwsWrapper
           if group_uuid && openstudio_instance_type
             # {:key=>"Purpose", :value=>"OpenStudioWorker"}
             if i_h[:tags].any? { |h| (h[:key] == 'Purpose') && (h[:value] == "OpenStudio#{openstudio_instance_type.capitalize}") } &&
-                      i_h[:tags].any? {|h|(h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
-               instance_data << i_h
+                      i_h[:tags].any? { |h|(h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+              instance_data << i_h
             end
           elsif group_uuid
-            if i_h[:tags].any? {|h|(h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+            if i_h[:tags].any? { |h|(h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
               instance_data << i_h
             end
           elsif openstudio_instance_type

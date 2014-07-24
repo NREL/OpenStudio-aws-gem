@@ -95,7 +95,7 @@ class OpenStudioAwsInstance
       user_data: Base64.encode64(user_data),
       instance_type: instance_type,
       placement: {
-          availability_zone: 'us-east-1c'
+        availability_zone: 'us-east-1c'
       },
       min_count: 1,
       max_count: 1
@@ -183,19 +183,15 @@ class OpenStudioAwsInstance
 
   def find_processors(instance)
     lookup = {
-      'm2.2xlarge' => 4,
-      'm2.4xlarge' => 8,
       'm3.medium' => 1,
       'm3.large' => 2,
       'm3.xlarge' => 4,
       'm3.2xlarge' => 8,
       'c3.large' => 2,
-      'c3.xlarge' => 2,
-      'c3.2xlarge' => 4,
-      'c3.4xlarge' => 8,
-      'c3.8xlarge' => 32, # full hyper threaded
-      #'c3.8xlarge' => 24,
-      #'c3.8xlarge' => 16,
+      'c3.xlarge' => 4,
+      'c3.2xlarge' => 8,
+      'c3.4xlarge' => 16,
+      'c3.8xlarge' => 32,
       'r3.large' => 2,
       'r3.xlarge' => 4,
       'r3.2xlarge' => 8,
@@ -203,6 +199,8 @@ class OpenStudioAwsInstance
       'r3.8xlarge' => 32,
       't1.micro' => 1,
       'm1.small' => 1,
+      'm2.2xlarge' => 4,
+      'm2.4xlarge' => 8,
     }
 
     processors = 1
