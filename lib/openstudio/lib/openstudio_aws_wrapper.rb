@@ -146,8 +146,17 @@ class OpenStudioAwsWrapper
       resp.reservations.each do |r|
         r.instances.each do |i|
           i_h = i.to_hash
-          if openstudio_instance_type
+          if group_uuid && openstudio_instance_type
             # {:key=>"Purpose", :value=>"OpenStudioWorker"}
+            if i_h[:tags].any? { |h| (h[:key] == 'Purpose') && (h[:value] == "OpenStudio#{openstudio_instance_type.capitalize}") } &&
+                      i_h[:tags].any? {|h|(h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+               instance_data << i_h
+            end
+          elsif group_uuid
+            if i_h[:tags].any? {|h|(h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+              instance_data << i_h
+            end
+          elsif openstudio_instance_type
             if i_h[:tags].any? { |h| (h[:key] == 'Purpose') && (h[:value] == "OpenStudio#{openstudio_instance_type.capitalize}") }
               instance_data << i_h
             end
@@ -333,10 +342,10 @@ class OpenStudioAwsWrapper
     @workers.each { |worker| worker.upload_file(file.path, '/mnt/openstudio/rails-models/mongoid.yml') }
     file.unlink
 
-    # Does this command crash it?
     @server.shell_command('chmod 664 /mnt/openstudio/rails-models/mongoid.yml')
     @workers.each { |worker| worker.shell_command('chmod 664 /mnt/openstudio/rails-models/mongoid.yml') }
 
+    sleep 60 # wait 60 more seconds for everything -- this is cheesy
     true
   end
 

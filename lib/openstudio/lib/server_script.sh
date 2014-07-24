@@ -83,7 +83,7 @@ service delayed_job start
 
 # Delay 1 minutes to make sure everything had tme to start.
 # This is a hack, sorry.
-sleep 2m
+sleep 1m
 
 #file flag the user_data has completed
 cat /dev/null > /home/ubuntu/user_data_done

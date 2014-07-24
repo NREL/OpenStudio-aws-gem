@@ -134,7 +134,7 @@ module OpenStudio
         puts ''
         puts 'Server SSH Command:'
 
-        puts "ssh -i #{@local_key_file_name} ubuntu@#{@os_aws.server.data[:dns]}"
+        puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{@os_aws.server.data[:dns]}"
       end
 
       def create_workers(number_of_instances, options = {}, _user_id = 'unknown_user')
@@ -189,7 +189,7 @@ module OpenStudio
         puts ''
         puts 'Worker SSH Command:'
         @os_aws.workers.each do |worker|
-          puts "ssh -i #{@local_key_file_name} ubuntu@#{worker.data[:dns]}"
+          puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{worker.data[:dns]}"
         end
 
         puts ''
@@ -208,10 +208,20 @@ module OpenStudio
         resp
       end
 
-      def terminate_instances(group_id, openstudio_instance_type)
+      # @params(ids): array of instances
+      def terminate_instances(ids)
+        puts "Terminating the following instances #{ids}"
+        resp = []
+        resp = @os_aws.terminate_instances(ids).to_hash unless ids.empty?
+        resp
+      end
+
+      # Warning, this appears that it terminates all the instances of the openstudio_instance_type
+      def terminate_instances_by_group_id(group_id, openstudio_instance_type)
         instances = @os_aws.describe_running_instances(group_id, openstudio_instance_type.to_sym)
         ids = instances.map { |k, _| k[:instance_id] }
 
+        puts "Terminating the following instances #{ids}"
         resp = []
         resp = @os_aws.terminate_instances(ids).to_hash unless ids.empty?
         resp

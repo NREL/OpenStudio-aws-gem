@@ -94,6 +94,9 @@ class OpenStudioAwsInstance
       security_groups: [@security_group_name],
       user_data: Base64.encode64(user_data),
       instance_type: instance_type,
+      placement: {
+          availability_zone: 'us-east-1c'
+      },
       min_count: 1,
       max_count: 1
     }
@@ -190,7 +193,9 @@ class OpenStudioAwsInstance
       'c3.xlarge' => 2,
       'c3.2xlarge' => 4,
       'c3.4xlarge' => 8,
-      'c3.8xlarge' => 16,
+      'c3.8xlarge' => 32, # full hyper threaded
+      #'c3.8xlarge' => 24,
+      #'c3.8xlarge' => 16,
       'r3.large' => 2,
       'r3.xlarge' => 4,
       'r3.2xlarge' => 8,
@@ -205,6 +210,14 @@ class OpenStudioAwsInstance
       processors = lookup[instance]
     else
       # logger.warn "Could not find the number of processors for instance type of #{instance}" if logger
+    end
+
+    if @openstudio_instance_type == :server
+      # take out 3 of the processors for doing work with a max of 1 to work
+      # 1 for server
+      # 1 for mongodb
+      # 1 for child processes to download files
+      processors = [processors - 2, 1].max # this is 2 for now because the current server decrements by 1 (which will be removed if 2.0-pre6)
     end
 
     processors
