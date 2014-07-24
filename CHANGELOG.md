@@ -4,6 +4,11 @@ OpenStudio AWS Gem Change Log
 Version 0.2.0
 -------------
 * Unzip mongoid models to a model subdirectory. 
+* Support user specified private keys
+* Force region and availability zone to be the same
+* Update launch scripts for workflow gem bundler
+* Re-enable m2 generation machines because of larger volumes
+* Allow uploading, shelling, and downloading from base OpenStudio::Aws Object
 
 Version 0.1.26
 --------------

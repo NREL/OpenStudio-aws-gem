@@ -125,8 +125,6 @@ module OpenStudio
 
         @os_aws.launch_server(options[:image_id], options[:instance_type], server_options)
 
-        puts @os_aws.server.to_os_hash.to_json
-
         @instances_json = instances_json
         File.open(@instances_json, 'w') { |f| f << JSON.pretty_generate(@os_aws.server.to_os_hash) }
 
