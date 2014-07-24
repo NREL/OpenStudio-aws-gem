@@ -13,7 +13,7 @@ describe OpenStudioAwsInstance do
 
     it 'should return known values for various instances' do
       r = @aws_instance.find_processors('c3.8xlarge')
-      expect(r).to eq(16)
+      expect(r).to eq(32)
     end
   end
 end
