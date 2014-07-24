@@ -18,24 +18,6 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ######################################################################
 
-######################################################################
-# == Synopsis
-#
-#   Uses the aws-sdk gem to communicate with AWS
-#
-# == Usage
-#
-#  ruby aws.rb access_key secret_key us-east-1 EC2 launch_server "{\"instance_type\":\"t1.micro\"}"
-#
-#  ARGV[0] - Access Key
-#  ARGV[1] - Secret Key
-#  ARGV[2] - Region
-#  ARGV[3] - Service (e.g. "EC2" or "CloudWatch")
-#  ARGV[4] - Command (e.g. "launch_server")
-#  ARGV[5] - Optional json with parameters associated with command
-#
-######################################################################
-
 require 'logger'
 
 # module for logging

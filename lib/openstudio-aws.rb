@@ -3,6 +3,7 @@ require 'net/scp'
 require 'net/http'
 require 'yaml'
 require 'logger'
+require 'securerandom'
 require 'semantic'
 require 'semantic/core_ext'
 
@@ -15,6 +16,7 @@ rescue LoadError
   exit
 end
 
+require 'openstudio/lib/openstudio_aws_logger'
 require 'openstudio/aws/aws'
 require 'openstudio/aws/config'
 require 'openstudio/aws/version'
