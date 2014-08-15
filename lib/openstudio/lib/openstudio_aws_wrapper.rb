@@ -53,7 +53,7 @@ class OpenStudioAwsWrapper
   VALID_OPTIONS = [:proxy, :credentials]
 
   def initialize(options = {}, group_uuid = nil)
-    @group_uuid = group_uuid || Time.now.to_i.to_s
+    @group_uuid = group_uuid || (Time.now.to_f * 1000).to_i.to_s
 
     @security_group_name = nil
     @key_pair_name = nil
@@ -216,10 +216,15 @@ class OpenStudioAwsWrapper
   end
 
   def terminate_instances(ids)
-    resp = @aws.terminate_instances(
-        instance_ids: ids,
-    )
-
+    begin
+      resp = @aws.terminate_instances(
+          instance_ids: ids,
+      )
+    rescue Aws::EC2::Errors::InvalidInstanceIDNotFound
+      # Log that the instances couldn't be found?
+      return resp = {error: 'instances could not be found'}
+    end
+      
     resp
   end
 
