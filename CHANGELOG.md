@@ -9,6 +9,8 @@ Version 0.2.0
 * Update launch scripts for workflow gem bundler
 * Re-enable m2 generation machines because of larger volumes
 * Allow uploading, shelling, and downloading from base OpenStudio::Aws Object
+* Timestamp in JSON instance is now an integer (epoch time)
+* GroupUUID is now an actual UUID instead of a timestamp in seconds (removes race condition when spinning up clusters in parallel)
 
 Version 0.1.26
 --------------

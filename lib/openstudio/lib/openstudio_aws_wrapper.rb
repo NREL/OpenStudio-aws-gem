@@ -53,7 +53,7 @@ class OpenStudioAwsWrapper
   VALID_OPTIONS = [:proxy, :credentials]
 
   def initialize(options = {}, group_uuid = nil)
-    @group_uuid = group_uuid || (Time.now.to_f * 1000).to_i.to_s
+    @group_uuid = group_uuid || (SecureRandom.uuid).gsub('-', '')
 
     @security_group_name = nil
     @key_pair_name = nil

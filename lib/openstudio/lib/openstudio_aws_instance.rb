@@ -33,6 +33,7 @@ class OpenStudioAwsInstance
     @key_pair_name = key_pair_name
     @security_group_name = security_group_name
     @group_uuid = group_uuid.to_s
+    @init_timestamp = Time.now  # This is the timestamp and is typically just tracked for the server
     @private_key = private_key
     @private_key_file_name = private_key_file_name
     @proxy = proxy
@@ -159,8 +160,8 @@ class OpenStudioAwsInstance
     if @openstudio_instance_type == :server
       h = {
         group_id: @group_uuid,
-        timestamp: @group_uuid,
-        time_created: Time.at(@group_uuid.to_i),
+        timestamp: @init_timestamp.to_i,
+        time_created: @init_timestamp.to_s,
         # private_key_path: "#{File.expand_path(@private_key_path)}"
         #:private_key => @private_key, # need to stop printing this out
         location: 'AWS',
