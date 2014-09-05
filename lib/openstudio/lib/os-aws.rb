@@ -84,7 +84,7 @@ end
 Aws.config = { access_key_id: ARGV[0], secret_access_key: ARGV[1], region: ARGV[2], ssl_verify_peer: false }
 
 if ARGV[3] == 'EC2'
-  @aws = Aws::EC2.new
+  @aws = Aws::EC2::Client.new
 elsif ARGV[3] == 'CloudWatch'
   @aws = AWS::CloudWatch.new
 else

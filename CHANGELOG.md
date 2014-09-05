@@ -11,6 +11,7 @@ Version 0.2.0
 * Allow uploading, shelling, and downloading from base OpenStudio::Aws Object
 * Timestamp in JSON instance is now an integer (epoch time)
 * GroupUUID is now an actual UUID instead of a timestamp in seconds (removes race condition when spinning up clusters in parallel)
+* Changes to support upcoming aws-sdk-core version 2.0
 
 Version 0.1.26
 --------------
@@ -18,7 +19,7 @@ Version 0.1.26
 
 Version 0.1.23-25
 --------------
-* Delay the starting of MongoDB for 15 seconds on boot because of the preallocation of journals
+* Delay the starting of MongoDB for 15 seconds on boot because of the pre-allocation of journals
 * Code cleanup
 
 Version 0.1.22

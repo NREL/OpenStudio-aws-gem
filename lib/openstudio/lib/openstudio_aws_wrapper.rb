@@ -69,7 +69,7 @@ class OpenStudioAwsWrapper
     @proxy = options[:proxy] ? options[:proxy] : nil
 
     # need to remove the prxoy information here
-    @aws = Aws::EC2.new(options[:credentials])
+    @aws = Aws::EC2::Client.new(options[:credentials])
   end
 
   def create_or_retrieve_security_group(sg_name = nil)
