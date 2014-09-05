@@ -98,7 +98,7 @@ class OpenStudioAmis
     if @options[:openstudio_server_version].to_sym == :default
       # just grab the most recent server
       # need to do a sort to get the most recent because we can't promise that they are in order
-      json[:openstudio].each do |k, v|
+      json[:openstudio].each do |_k, _v|
 
       end
       key, value = json[:openstudio_server].first

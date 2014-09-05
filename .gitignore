@@ -12,3 +12,4 @@ tmp/*
 aws.log
 spec/reports
 ~$*
+*.receipt
