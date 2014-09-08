@@ -1,6 +1,10 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.2.2
+-------------
+* aws-sdk-core-ruby rc15 has bug for windows. Force version rc14
+
 Version 0.2.1
 -------------
 * [BUG FIX] Fix issue with security groups with new AWS accounts
