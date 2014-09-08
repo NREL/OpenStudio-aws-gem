@@ -1,6 +1,8 @@
 OpenStudio AWS Gem
 ==================
 
+[![Dependency Status](https://www.versioneye.com/user/projects/540a30dbccc023fe760002c9/badge.svg?style=flat)](https://www.versioneye.com/user/projects/540a30dbccc023fe760002c9)
+
 OpenStudio AWS uses the OpenStudio AWS ruby class to launch a server and multiple workers for doing 
 OpenStudio/EnergyPlus Analyses using Amazon AWS/EC2
 
