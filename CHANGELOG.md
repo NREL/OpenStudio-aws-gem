@@ -1,6 +1,10 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.2.1
+-------------
+* [BUG FIX] Fix issue with security groups with new AWS accounts
+
 Version 0.2.0
 -------------
 * Unzip mongoid models to a model subdirectory. 

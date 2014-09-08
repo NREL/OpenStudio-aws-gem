@@ -90,7 +90,7 @@ module OpenStudio
       def create_server(options = {}, instances_json = 'server_data.json')
         defaults = {
           instance_type: 'm2.xlarge',
-          security_group: 'openstudio-worker-sg-v1',
+          security_group: 'openstudio-server-sg-v1',
           image_id: @default_amis[:server],
           user_id: 'unknown_user',
 

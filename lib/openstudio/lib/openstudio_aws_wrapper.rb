@@ -231,7 +231,7 @@ class OpenStudioAwsWrapper
   def create_or_retrieve_key_pair(key_pair_name = nil)
     tmp_name = key_pair_name || "os-key-pair-#{@group_uuid}"
 
-    # the describe_key_pairs method will raise an expection if it can't find the keypair, so catch it
+    # the describe_key_pairs method will raise an expectation if it can't find the key pair, so catch it
     resp = nil
     begin
       resp = @aws.describe_key_pairs(key_names: [tmp_name]).data
