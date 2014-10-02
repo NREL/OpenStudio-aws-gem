@@ -1,9 +1,10 @@
-#!/bin/sh
-
-# NOTE: This file is now the main script -- OpenStudio's version is now out of date
+#!/bin/bash
 
 # AWS Server Bootstrap File
 # This script is used to configure the AWS boxes
+
+# Unlock the user account
+sudo passwd -u ubuntu
 
 # Change Host File Entries
 ENTRY="localhost localhost master"
@@ -13,9 +14,6 @@ if grep -q "$ENTRY" $FILE; then
 else
   sh -c "echo $ENTRY >> /etc/hosts"
 fi
-
-rm -rf /mnt
-mkdir /mnt
 
 # copy all the setup scripts to the appropriate home directory
 # the scripts are called by the AWS connector for passwordless ssh config
@@ -27,17 +25,36 @@ chown ubuntu:ubuntu /home/ubuntu/setup*
 service delayed_job stop
 service apache2 stop
 service mongodb stop
+service mongod stop
 
 # remove mongo db & add it back
 mkdir -p /mnt/mongodb/data
 chown mongodb:nogroup /mnt/mongodb/data
 rm -rf /var/lib/mongodb
 
-# restart mongo
+# restart mongo - old images has mongodb as the service. New ones use mongod
 service mongodb start
+service mongod start
+
 # delay the continuation because mongo is a forked process and when it initializes
 # it has to create the preallocated journal files (takes ~ 90 seconds on a slower system)
-sleep 2m
+# Wait until mongo logs that it's ready (or timeout after 120s)
+COUNTER=0
+MONGOLOG=/var/log/mongo/mongod.log
+
+# Clear out the log first
+cat /dev/null > $MONGOLOG
+
+grep -q 'waiting for connections on port' $MONGOLOG
+while [[ $? -ne 0 && $COUNTER -lt 120 ]] ; do
+    sleep 2
+    let COUNTER+=2
+    echo "Waiting for mongo to initialize... ($COUNTER seconds so far)"
+    grep -q 'waiting for connections on port' $MONGOLOG
+done
+
+# Now we know mongo is ready and can continue with other commands
+echo "Mongo is ready. Moving on..."
 
 # restart the rails application
 service apache2 stop
@@ -80,10 +97,6 @@ service Rserve restart
 
 # restart delayed jobs
 service delayed_job start
-
-# Delay 1 minutes to make sure everything had tme to start.
-# This is a hack, sorry.
-sleep 1m
 
 #file flag the user_data has completed
 cat /dev/null > /home/ubuntu/user_data_done

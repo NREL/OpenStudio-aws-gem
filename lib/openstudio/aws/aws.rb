@@ -138,7 +138,7 @@ module OpenStudio
       def create_workers(number_of_instances, options = {}, _user_id = 'unknown_user')
         defaults = {
           instance_type: 'm2.4xlarge',
-          security_group: 'openstudio-worker-sg-v1',
+          security_group: 'openstudio-server-sg-v1',
           image_id: @default_amis[:server],
           user_id: 'unknown_user',
 

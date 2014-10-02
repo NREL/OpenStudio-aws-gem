@@ -1,8 +1,10 @@
-#!/bin/sh
-# NOTE: This file is now the main script to configure AWS workers
+#!/bin/bash
 
 # AWS Worker Bootstrap File
 # File used to configure worker nodes on AWS
+
+# Unlock the user account
+sudo passwd -u ubuntu
 
 # Change Host File Entries
 ENTRY="SERVER_IP SERVER_HOSTNAME SERVER_ALIAS"
