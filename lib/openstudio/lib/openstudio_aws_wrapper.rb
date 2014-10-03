@@ -499,6 +499,7 @@ class OpenStudioAwsWrapper
         a[:tested] = false
       end
 
+      # TODO: in 1.6.0 just stop putting in the cc2workers. 
       if ami[:tags_hash][:openstudio_version].to_version >= '1.5.0'
         if ami[:name] =~ /Server/
           a[:amis][:server] = ami[:image_id]
