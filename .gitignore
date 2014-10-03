@@ -13,3 +13,4 @@ aws.log
 spec/reports
 ~$*
 *.receipt
+rubocop-results.xml
