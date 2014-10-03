@@ -12,4 +12,3 @@ group :ci do
   gem 'rubocop'
   gem 'rubocop-checkstyle_formatter'
 end
-
