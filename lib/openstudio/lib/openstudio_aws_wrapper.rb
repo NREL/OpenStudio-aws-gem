@@ -522,7 +522,7 @@ class OpenStudioAwsWrapper
       next_version = get_next_version('0.0.1', list_of_svs)
       list_of_svs << next_version
 
-      amis[:openstudio_server][next_version.to_sym] = {} unless amis[:openstudio_server][next_version.to_sym]
+      amis[:openstudio_server][next_version.to_sym] ||= {}
       a = amis[:openstudio_server][next_version.to_sym]
       a[:amis] = {} unless a[:amis]
 
@@ -541,10 +541,10 @@ class OpenStudioAwsWrapper
       a = amis[:openstudio_server][key]
       ov = a[:openstudio_version]
 
-      amis[:openstudio][ov] = {} unless amis[:openstudio][ov]
+      amis[:openstudio][ov] ||= {}
       osv = key
-      amis[:openstudio][ov][osv] = {} unless amis[:openstudio][ov][osv]
-      amis[:openstudio][ov][osv][:amis] = {} unless amis[:openstudio][ov][osv][:amis]
+      amis[:openstudio][ov][osv] ||= {}
+      amis[:openstudio][ov][osv][:amis] ||= {}
       amis[:openstudio][ov][osv][:amis][:server] = a[:amis][:server]
       amis[:openstudio][ov][osv][:amis][:worker] = a[:amis][:worker]
       amis[:openstudio][ov][osv][:amis][:cc2worker] = a[:amis][:cc2worker]
