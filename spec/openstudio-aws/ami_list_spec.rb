@@ -9,7 +9,10 @@ describe OpenStudioAmis do
 
       expect(amis[:server]).not_to be_nil
       expect(amis[:worker]).not_to be_nil
+
+      # From OpenStudio Version 1.5.0 expect cc2workers to be the same as the worker
       expect(amis[:cc2worker]).not_to be_nil
+      expect(amis[:worker]).to eq amis[:cc2worker]
     end
 
     it 'should return specific amis if passed a version' do

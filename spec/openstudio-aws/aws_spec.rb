@@ -7,7 +7,7 @@ describe OpenStudio::Aws::Aws do
         region: 'sa-east-1',
         credentials: {
           access_key_id: 'some_random_access_key_id',
-          secret_access_key: 'some_super_secret_access_key',
+          secret_access_key: 'some_super_secret_access_key'
         }
       }
       aws = OpenStudio::Aws::Aws.new(options)
@@ -72,7 +72,7 @@ describe OpenStudio::Aws::Aws do
       options = {
         credentials: {
           access_key_id: 'some_random_access_key_id',
-          secret_access_key: 'some_super_secret_access_key',
+          secret_access_key: 'some_super_secret_access_key'
         }
       }
 
@@ -85,7 +85,7 @@ describe OpenStudio::Aws::Aws do
       options = {
         credentials: {
           access_key_id: 'some_random_access_key_id',
-          secret_access_key: 'some_super_secret_access_key',
+          secret_access_key: 'some_super_secret_access_key'
         },
         proxy: {
           host: '192.168.0.1',
@@ -100,7 +100,7 @@ describe OpenStudio::Aws::Aws do
       options = {
         credentials: {
           access_key_id: 'some_random_access_key_id',
-          secret_access_key: 'some_super_secret_access_key',
+          secret_access_key: 'some_super_secret_access_key'
         },
         proxy: {
           host: '192.168.0.1',

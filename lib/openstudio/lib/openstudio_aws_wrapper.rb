@@ -149,11 +149,11 @@ class OpenStudioAwsWrapper
           if group_uuid && openstudio_instance_type
             # {:key=>"Purpose", :value=>"OpenStudioWorker"}
             if i_h[:tags].any? { |h| (h[:key] == 'Purpose') && (h[:value] == "OpenStudio#{openstudio_instance_type.capitalize}") } &&
-                      i_h[:tags].any? { |h|(h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+                i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
               instance_data << i_h
             end
           elsif group_uuid
-            if i_h[:tags].any? { |h|(h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+            if i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
               instance_data << i_h
             end
           elsif openstudio_instance_type
@@ -218,13 +218,13 @@ class OpenStudioAwsWrapper
   def terminate_instances(ids)
     begin
       resp = @aws.terminate_instances(
-          instance_ids: ids,
+          instance_ids: ids
       )
     rescue Aws::EC2::Errors::InvalidInstanceIDNotFound
       # Log that the instances couldn't be found?
-      return resp = {error: 'instances could not be found'}
+      return resp = { error: 'instances could not be found' }
     end
-      
+
     resp
   end
 
@@ -312,7 +312,7 @@ class OpenStudioAwsWrapper
         worker.launch_instance(image_id, instance_type, user_data, options[:user_id], options[:ebs_volume_size])
       end
     end
-    threads.each { |t| t.join }
+    threads.each(&:join)
 
     # todo: do we need to have a flag if the worker node is successful?
     # todo: do we need to check the current list of running workers?
@@ -499,16 +499,25 @@ class OpenStudioAwsWrapper
         a[:tested] = false
       end
 
-      if ami[:name] =~ /Worker|Cluster/
-        if ami[:virtualization_type] == 'paravirtual'
+      if ami[:tags_hash][:openstudio_version].to_version >= '1.5.0'
+        if ami[:name] =~ /Server/
+          a[:amis][:server] = ami[:image_id]
+        elsif ami[:name] =~ /Worker/
           a[:amis][:worker] = ami[:image_id]
-        elsif ami[:virtualization_type] == 'hvm'
           a[:amis][:cc2worker] = ami[:image_id]
-        else
-          fail "unknown virtualization_type in #{ami[:name]}"
         end
-      elsif ami[:name] =~ /Server/
-        a[:amis][:server] = ami[:image_id]
+      else
+        if ami[:name] =~ /Worker|Cluster/
+          if ami[:virtualization_type] == 'paravirtual'
+            a[:amis][:worker] = ami[:image_id]
+          elsif ami[:virtualization_type] == 'hvm'
+            a[:amis][:cc2worker] = ami[:image_id]
+          else
+            fail "unknown virtualization_type in #{ami[:name]}"
+          end
+        elsif ami[:name] =~ /Server/
+          a[:amis][:server] = ami[:image_id]
+        end
       end
     end
     # puts "Current AMIs: #{JSON.pretty_generate(amis)}"

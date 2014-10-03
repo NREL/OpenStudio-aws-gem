@@ -56,9 +56,8 @@ class OpenStudioAwsInstance
 
     # get the instance information
     test_result = @aws.describe_volumes(volume_ids: [resp[:volume_id]])
-    puts test_result
     begin
-      Timeout.timeout(600) { # 10 minutes
+      Timeout.timeout(600) do # 10 minutes
         while test_result.nil? || test_result.instance_state.name != 'available'
           # refresh the server instance information
 
@@ -66,7 +65,7 @@ class OpenStudioAwsInstance
           test_result = @aws.describe_volumes(volume_ids: [resp[:volume_id]])
           logger.info '... waiting for EBS volume to be available ...'
         end
-      }
+      end
     rescue TimeoutError
       raise "EBS volume was unable to be created due to timeout #{instance_id}"
     end
@@ -122,7 +121,7 @@ class OpenStudioAwsInstance
     # get the instance information
     test_result = @aws.describe_instance_status(instance_ids: [aws_instance.instance_id]).data.instance_statuses.first
     begin
-      Timeout.timeout(600) { # 10 minutes
+      Timeout.timeout(600) do # 10 minutes
         while test_result.nil? || test_result.instance_state.name != 'running'
           # refresh the server instance information
 
@@ -130,7 +129,7 @@ class OpenStudioAwsInstance
           test_result = @aws.describe_instance_status(instance_ids: [aws_instance.instance_id]).data.instance_statuses.first
           logger.info '... waiting for instance to be running ...'
         end
-      }
+      end
     rescue TimeoutError
       raise "Instance was unable to launch due to timeout #{aws_instance.instance_id}"
     end
@@ -201,7 +200,7 @@ class OpenStudioAwsInstance
       't1.micro' => 1,
       'm1.small' => 1,
       'm2.2xlarge' => 4,
-      'm2.4xlarge' => 8,
+      'm2.4xlarge' => 8
     }
 
     processors = 1

@@ -146,9 +146,9 @@ begin
       #  resp = @aws.client.describe_instance_status({:instance_ids => [@params['instance_id']]})
       # end
       output = {}
-      resp.data[:instance_status_set].each { |instance|
+      resp.data[:instance_status_set].each do |instance|
         output[instance[:instance_id]] = instance[:instance_state][:name]
-      }
+      end
       puts output.to_json
     when 'launch_server'
       if ARGV.length < 6
@@ -219,15 +219,13 @@ begin
       @timestamp = server.key_name[9, 10]
 
       instances.push(server)
-      @params['worker_ids'].each { |worker_id|
+      @params['worker_ids'].each do |worker_id|
         worker = @aws.instances[worker_id]
         error(-1, "Worker node #{worker_id} does not exist") unless worker.exists?
         instances.push(worker)
-      }
+      end
 
-      instances.each { |instance|
-        instance.terminate
-      }
+      instances.each(&:terminate)
       sleep 5 while instances.any? { |instance| instance.status != :terminated }
 
       # When session is fully terminated, then delete the key pair
