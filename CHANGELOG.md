@@ -1,6 +1,11 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.2.3
+-------------
+* Allow custom instance tags when starting an instance
+* Allow no workers
+
 Version 0.2.2
 -------------
 * aws-sdk-core-ruby rc15 has bug for windows. Force version rc14

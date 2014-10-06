@@ -6,6 +6,7 @@ require 'logger'
 require 'securerandom'
 require 'semantic'
 require 'semantic/core_ext'
+require 'fileutils'
 
 # AWS SDK CORE
 begin

@@ -14,7 +14,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should create a server' do
-      options = { instance_type: 'm1.small', image_id: 'ami-29faca40' }
+      options = {instance_type: 'm3.medium', image_id: 'ami-3c0fbf54'}
 
       test_pem_file = 'ec2_server_key.pem'
       FileUtils.rm_f test_pem_file if File.exist? test_pem_file
@@ -28,15 +28,14 @@ describe OpenStudio::Aws::Aws do
 
       h = @os_aws.server.to_os_hash
       expect(h[:group_id]).to be_a String
-      expect(h[:group_id]).to match /^\d{10}$/
-      expect(h[:location]).to be 'AWS'
+      expect(h[:group_id]).to match /^[\d\S]{32}$/
+      expect(h[:location]).to eq 'AWS'
 
       @group_id = h[:group_id]
-
     end
 
     it 'should create a 1 worker' do
-      options = { instance_type: 'm1.small', image_id: 'ami-95f9c9fc' }
+      options = {instance_type: 'm3.medium', image_id: 'ami-040ebe6c'}
 
       @aws.create_workers(1, options)
 
@@ -45,7 +44,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should be able to connect a worker to an existing server' do
-      options = { instance_type: 'm1.small', image_id: 'ami-29faca40' }
+      options = {instance_type: 'm3.medium', image_id: 'ami-3c0fbf54'}
 
       # will require a new @aws class--but attached to same group_uuid
       @config = OpenStudio::Aws::Config.new
@@ -70,7 +69,7 @@ describe OpenStudio::Aws::Aws do
       config = OpenStudio::Aws::Config.new
       aws = OpenStudio::Aws::Aws.new
 
-      options = { instance_type: 'm1.small', image_id: 'ami-29faca40' }
+      options = {instance_type: 'm3.medium', image_id: 'ami-3c0fbf54'}
 
       aws.create_server(options)
     end
@@ -118,6 +117,94 @@ describe OpenStudio::Aws::Aws do
 
     it 'should not create any workers' do
       expect { @aws.create_workers(5) }.to raise_error
+    end
+  end
+
+  context 'create aws tags' do
+    before(:all) do
+      @config = OpenStudio::Aws::Config.new
+      @aws = OpenStudio::Aws::Aws.new
+
+      @group_id = nil
+    end
+
+    it 'should create a server with tags' do
+      begin
+        options = {
+            instance_type: 'm3.medium',
+            image_id: 'ami-3c0fbf54',
+            tags: [
+                'ci_tests=true',
+                'nothing=else',
+                'this=is the end    ',
+                'this=   is the beginning   ',
+            ]
+        }
+
+        test_pem_file = 'ec2_server_key.pem'
+        FileUtils.rm_f test_pem_file if File.exist? test_pem_file
+        FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
+
+        @aws.create_server(options)
+
+        expect(File.exist?('ec2_server_key.pem')).to be true
+        expect(File.exist?('server_data.json')).to be true
+        expect(@aws.os_aws.server).not_to be_nil
+
+        h = @aws.os_aws.server.to_os_hash
+        expect(h[:group_id]).to be_a String
+        expect(h[:group_id]).to match /^[\d\S]{32}$/
+        expect(h[:location]).to eq 'AWS'
+
+        puts h.inspect
+
+        @group_id = h[:group_id]
+      ensure
+        @aws.terminate_instances_by_group_id(h[:group_id], :server)
+      end
+
+    end
+  end
+
+  context "server only" do
+    before(:all) do
+      @config = OpenStudio::Aws::Config.new
+      @aws = OpenStudio::Aws::Aws.new
+
+      @group_id = nil
+    end
+
+    it 'should create allow a zero length worker' do
+      begin
+        begin
+          options = {
+              instance_type: 'm3.medium',
+              image_id: 'ami-3c0fbf54', # server AMI
+              tags: [
+                  'ci_tests=true',
+                  'ServerOnly=true'
+              ]
+          }
+
+          expect { @aws.create_workers(0) }.to raise_error "Can't create workers without a server instance running"
+
+          test_pem_file = 'ec2_server_key.pem'
+          FileUtils.rm_f test_pem_file if File.exist? test_pem_file
+          FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
+
+          @aws.create_server(options)
+
+          # Still have to call "create workers" or the configuration won't happen.
+          @aws.create_workers(0, options)
+
+          h = @aws.os_aws.server.to_os_hash
+          expect(h[:group_id]).to be_a String
+          expect(h[:group_id]).to match /^[\d\S]{32}$/
+          expect(h[:location]).to eq 'AWS'
+        ensure
+          @aws.terminate_instances_by_group_id(h[:group_id], :server)
+        end
+      end
     end
   end
 
