@@ -219,9 +219,15 @@ class OpenStudioAwsInstance
       'r3.4xlarge' => 16,
       'r3.8xlarge' => 32,
       't1.micro' => 1,
+      't2.micro' => 1,
       'm1.small' => 1,
       'm2.2xlarge' => 4,
-      'm2.4xlarge' => 8
+      'm2.4xlarge' => 8,
+      'i2.xlarge' => 4,
+      'i2.2xlarge' => 8,
+      'i2.4xlarge' => 16,
+      'i2.8xlarge' => 32,
+      'hs1.8xlarge' => 16
     }
 
     processors = 1
