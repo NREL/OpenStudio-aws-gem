@@ -1,6 +1,10 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.2.5
+-------------
+* Enable i3 instances on AWS for large storage
+
 Version 0.2.4
 -------------
 * Allow custom instance tags when starting an instance
