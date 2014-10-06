@@ -2,8 +2,8 @@
 module OpenStudio
   module Aws
     VALID_OPTIONS = [
-        :proxy, :credentials, :ami_lookup_version, :openstudio_version,
-        :openstudio_server_version, :region, :ssl_verify_peer, :host, :url
+      :proxy, :credentials, :ami_lookup_version, :openstudio_version,
+      :openstudio_server_version, :region, :ssl_verify_peer, :host, :url
     ]
 
     class Aws
@@ -23,11 +23,11 @@ module OpenStudio
 
         # merge in some defaults
         defaults = {
-            ami_lookup_version: 1,
-            region: 'us-east-1',
-            ssl_verify_peer: false,
-            host: 'developer.nrel.gov',
-            url: '/downloads/buildings/openstudio/api'
+          ami_lookup_version: 1,
+          region: 'us-east-1',
+          ssl_verify_peer: false,
+          host: 'developer.nrel.gov',
+          url: '/downloads/buildings/openstudio/api'
         }
         options = defaults.merge(options)
 
@@ -38,10 +38,10 @@ module OpenStudio
           # populate the credentials
           options[:credentials] =
               {
-                  access_key_id: config_file.access_key,
-                  secret_access_key: config_file.secret_key,
-                  region: options[:region],
-                  ssl_verify_peer: options[:ssl_verify_peer]
+                access_key_id: config_file.access_key,
+                secret_access_key: config_file.secret_key,
+                region: options[:region],
+                ssl_verify_peer: options[:ssl_verify_peer]
               }
         else
           options[:credentials][:region] = options[:region]
@@ -89,16 +89,16 @@ module OpenStudio
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
       def create_server(options = {}, instances_json = 'server_data.json')
         defaults = {
-            instance_type: 'm2.xlarge',
-            security_group: 'openstudio-server-sg-v1',
-            image_id: @default_amis[:server],
-            user_id: 'unknown_user',
+          instance_type: 'm2.xlarge',
+          security_group: 'openstudio-server-sg-v1',
+          image_id: @default_amis[:server],
+          user_id: 'unknown_user',
 
-            # optional -- will default later
-            ebs_volume_id: nil,
-            aws_key_pair_name: nil,
-            private_key_file_name: nil, # required if using an existing "aws_key_pair_name"
-            tags: []
+          # optional -- will default later
+          ebs_volume_id: nil,
+          aws_key_pair_name: nil,
+          private_key_file_name: nil, # required if using an existing "aws_key_pair_name"
+          tags: []
         }
         options = defaults.merge(options)
 
@@ -119,7 +119,7 @@ module OpenStudio
           @os_aws.save_private_key('ec2_server_key.pem')
         end
 
-        server_options = {user_id: options[:user_id], tags: options[:tags]}
+        server_options = { user_id: options[:user_id], tags: options[:tags] }
         # if instance_data[:ebs_volume_id]
         #   server_options[:ebs_volume_id] = instance_data[:ebs_volume_id]
         # end
@@ -138,16 +138,16 @@ module OpenStudio
 
       def create_workers(number_of_instances, options = {}, user_id = 'unknown_user')
         defaults = {
-            instance_type: 'm2.4xlarge',
-            security_group: 'openstudio-server-sg-v1',
-            image_id: @default_amis[:server],
-            user_id: user_id,
+          instance_type: 'm2.4xlarge',
+          security_group: 'openstudio-server-sg-v1',
+          image_id: @default_amis[:server],
+          user_id: user_id,
 
-            # optional -- will default later
-            ebs_volume_id: nil,
-            aws_key_pair_name: nil,
-            private_key_file_name: nil, # required if using an existing "aws_key_pair_name",
-            tags: []
+          # optional -- will default later
+          ebs_volume_id: nil,
+          aws_key_pair_name: nil,
+          private_key_file_name: nil, # required if using an existing "aws_key_pair_name",
+          tags: []
         }
         options = defaults.merge(options)
 
@@ -163,10 +163,10 @@ module OpenStudio
         fail "Can't create workers without a server instance running" if @os_aws.server.nil?
 
         if number_of_instances == 0
-          puts ""
-          puts "No workers requested"
+          puts ''
+          puts 'No workers requested'
         else
-          worker_options = {user_id: options[:user_id], tags: options[:tags]}
+          worker_options = { user_id: options[:user_id], tags: options[:tags] }
           # if options[:ebs_volume_size]
           #   worker_options[:ebs_volume_size] = options[:ebs_volume_size]
           # end

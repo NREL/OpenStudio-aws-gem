@@ -108,11 +108,11 @@ class OpenStudioAwsInstance
 
     # create the tag structure
     aws_tags = [
-        { key: 'Name', value: "OpenStudio-#{@openstudio_instance_type.capitalize}" },
-        { key: 'GroupUUID', value: @group_uuid },
-        { key: 'NumberOfProcessors', value: processors.to_s },
-        { key: 'Purpose', value: "OpenStudio#{@openstudio_instance_type.capitalize}" },
-        { key: 'UserID', value: user_id }
+      { key: 'Name', value: "OpenStudio-#{@openstudio_instance_type.capitalize}" },
+      { key: 'GroupUUID', value: @group_uuid },
+      { key: 'NumberOfProcessors', value: processors.to_s },
+      { key: 'Purpose', value: "OpenStudio#{@openstudio_instance_type.capitalize}" },
+      { key: 'UserID', value: user_id }
     ]
 
     # add in any manual tags
@@ -123,13 +123,13 @@ class OpenStudioAwsInstance
         puts "Tag '#{t}' not defined or does not have an equal sign"
         next
       end
-      if ['Name','GroupUUID','NumberOfProcessors','Purpose','UserID'].include? t[0]
+      if %w(Name GroupUUID NumberOfProcessors Purpose UserID).include? t[0]
         logger.error "Tag name '#{t[0]}' is a reserved tag"
         puts "Tag name '#{t[0]}' is a reserved tag"
         next
       end
 
-      aws_tags << { key: t[0].strip, value: t[1].strip}
+      aws_tags << { key: t[0].strip, value: t[1].strip }
     end
 
     # only asked for 1 instance, so therefore it should be the first
