@@ -275,23 +275,24 @@ class OpenStudioAwsWrapper
     end
   end
 
-  def launch_server(image_id, instance_type, options = {})
-    defaults = { user_id: 'unknown_user' }
-    options = defaults.merge(options)
+  def launch_server(image_id, instance_type, launch_options = {})
+    defaults = { user_id: 'unknown_user', tags: [], ebs_volume_size: nil }
+    launch_options = defaults.merge(launch_options)
 
     user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/server_script.sh')
-    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key, @private_key_file_name, @proxy)
+    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key,
+                                        @private_key_file_name, @proxy)
 
     # create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
 
     fail 'image_id is nil' unless image_id
     fail 'instance type is nil' unless instance_type
-    @server.launch_instance(image_id, instance_type, user_data, options[:user_id], options[:ebs_volume_size])
+    @server.launch_instance(image_id, instance_type, user_data, launch_options[:user_id], launch_options)
   end
 
-  def launch_workers(image_id, instance_type, num, options = {})
-    defaults = { user_id: 'unknown_user' }
-    options = defaults.merge(options)
+  def launch_workers(image_id, instance_type, num, launch_options = {})
+    defaults = { user_id: 'unknown_user', tags: [], ebs_volume_size: nil }
+    launch_options = defaults.merge(launch_options)
 
     user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/worker_script.sh.template')
     user_data.gsub!(/SERVER_IP/, @server.data.ip)
@@ -302,14 +303,15 @@ class OpenStudioAwsWrapper
     # thread the launching of the workers
 
     num.times do
-      @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_group_name, @group_uuid, @private_key, @private_key_file_name, @proxy)
+      @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_group_name, @group_uuid,
+                                            @private_key, @private_key_file_name, @proxy)
     end
 
     threads = []
     @workers.each do |worker|
       threads << Thread.new do
         # create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
-        worker.launch_instance(image_id, instance_type, user_data, options[:user_id], options[:ebs_volume_size])
+        worker.launch_instance(image_id, instance_type, user_data, launch_options[:user_id], launch_options)
       end
     end
     threads.each(&:join)
@@ -350,7 +352,8 @@ class OpenStudioAwsWrapper
     @server.shell_command('chmod 664 /mnt/openstudio/rails-models/mongoid.yml')
     @workers.each { |worker| worker.shell_command('chmod 664 /mnt/openstudio/rails-models/mongoid.yml') }
 
-    sleep 60 # wait 60 more seconds for everything -- this is cheesy
+    # I'm removing this as of 10/6/14. This should have been resolved by now.
+    # sleep 60 # wait 60 more seconds for everything -- this is cheesy
     true
   end
 

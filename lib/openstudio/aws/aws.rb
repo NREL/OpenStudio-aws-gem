@@ -98,6 +98,7 @@ module OpenStudio
           ebs_volume_id: nil,
           aws_key_pair_name: nil,
           private_key_file_name: nil, # required if using an existing "aws_key_pair_name"
+          tags: []
         }
         options = defaults.merge(options)
 
@@ -118,7 +119,7 @@ module OpenStudio
           @os_aws.save_private_key('ec2_server_key.pem')
         end
 
-        server_options = { user_id: options[:user_id] }
+        server_options = { user_id: options[:user_id], tags: options[:tags] }
         # if instance_data[:ebs_volume_id]
         #   server_options[:ebs_volume_id] = instance_data[:ebs_volume_id]
         # end
@@ -135,17 +136,18 @@ module OpenStudio
         puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{@os_aws.server.data[:dns]}"
       end
 
-      def create_workers(number_of_instances, options = {}, _user_id = 'unknown_user')
+      def create_workers(number_of_instances, options = {}, user_id = 'unknown_user')
         defaults = {
           instance_type: 'm2.4xlarge',
           security_group: 'openstudio-server-sg-v1',
           image_id: @default_amis[:server],
-          user_id: 'unknown_user',
+          user_id: user_id,
 
           # optional -- will default later
           ebs_volume_id: nil,
           aws_key_pair_name: nil,
-          private_key_file_name: nil, # required if using an existing "aws_key_pair_name"
+          private_key_file_name: nil, # required if using an existing "aws_key_pair_name",
+          tags: []
         }
         options = defaults.merge(options)
 
@@ -160,34 +162,39 @@ module OpenStudio
 
         fail "Can't create workers without a server instance running" if @os_aws.server.nil?
 
-        worker_options = { user_id: options[:user_id] }
-        # if options[:ebs_volume_size]
-        #   worker_options[:ebs_volume_size] = options[:ebs_volume_size]
-        # end
+        if number_of_instances == 0
+          puts ''
+          puts 'No workers requested'
+        else
+          worker_options = { user_id: options[:user_id], tags: options[:tags] }
+          # if options[:ebs_volume_size]
+          #   worker_options[:ebs_volume_size] = options[:ebs_volume_size]
+          # end
 
-        @os_aws.launch_workers(options[:image_id], options[:instance_type], number_of_instances, worker_options)
+          @os_aws.launch_workers(options[:image_id], options[:instance_type], number_of_instances, worker_options)
 
-        ## append the information to the server_data hash that already exists
-        # @server_data[:instance_type] = instance_data[:instance_type]
-        # @server_data[:num] = number_of_instances
-        # server_string = @server_data.to_json.gsub("\"", "\\\\\"")
-        #
-        # start_string = "ruby #{os_aws_file_location} #{@config.access_key} #{@config.secret_key} us-east-1 EC2 launch_workers \"#{server_string}\""
-        # puts "Worker Command: #{start_string}"
-        # worker_data_string = `#{start_string}`
-        # @worker_data = JSON.parse(worker_data_string, :symbolize_names => true)
-        # File.open("worker_data.json", "w") { |f| f << JSON.pretty_generate(worker_data) }
-        #
-        ## Print out some debugging commands (probably work on mac/linux only)
-        # Add the worker data to the JSON
-        h = JSON.parse(File.read(@instances_json))
-        h[:workers] = @os_aws.to_os_worker_hash[:workers]
-        File.open(@instances_json, 'w') { |f| f << JSON.pretty_generate(h) }
+          ## append the information to the server_data hash that already exists
+          # @server_data[:instance_type] = instance_data[:instance_type]
+          # @server_data[:num] = number_of_instances
+          # server_string = @server_data.to_json.gsub("\"", "\\\\\"")
+          #
+          # start_string = "ruby #{os_aws_file_location} #{@config.access_key} #{@config.secret_key} us-east-1 EC2 launch_workers \"#{server_string}\""
+          # puts "Worker Command: #{start_string}"
+          # worker_data_string = `#{start_string}`
+          # @worker_data = JSON.parse(worker_data_string, :symbolize_names => true)
+          # File.open("worker_data.json", "w") { |f| f << JSON.pretty_generate(worker_data) }
+          #
+          ## Print out some debugging commands (probably work on mac/linux only)
+          # Add the worker data to the JSON
+          h = JSON.parse(File.read(@instances_json))
+          h[:workers] = @os_aws.to_os_worker_hash[:workers]
+          File.open(@instances_json, 'w') { |f| f << JSON.pretty_generate(h) }
 
-        puts ''
-        puts 'Worker SSH Command:'
-        @os_aws.workers.each do |worker|
-          puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{worker.data[:dns]}"
+          puts ''
+          puts 'Worker SSH Command:'
+          @os_aws.workers.each do |worker|
+            puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{worker.data[:dns]}"
+          end
         end
 
         puts ''
@@ -206,7 +213,7 @@ module OpenStudio
         resp
       end
 
-      # @params(ids): array of instances
+      # @params(ids): array of instance ids
       def terminate_instances(ids)
         puts "Terminating the following instances #{ids}"
         resp = []

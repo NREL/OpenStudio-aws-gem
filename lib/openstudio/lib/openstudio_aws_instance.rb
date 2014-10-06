@@ -26,7 +26,8 @@ class OpenStudioAwsInstance
   attr_reader :private_key_file_name
   attr_reader :group_uuid
 
-  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, private_key, private_key_file_name, proxy = nil, _options = {})
+  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, private_key,
+                 private_key_file_name, proxy = nil)
     @data = nil # stored information about the instance
     @aws = aws_session
     @openstudio_instance_type = openstudio_instance_type # :server, :worker
@@ -86,7 +87,7 @@ class OpenStudioAwsInstance
     # true?
   end
 
-  def launch_instance(image_id, instance_type, user_data, user_id, ebs_volume_size = nil)
+  def launch_instance(image_id, instance_type, user_data, user_id, options = {})
     # logger.info("user_data #{user_data.inspect}")
     instance = {
       image_id: image_id,
@@ -105,17 +106,37 @@ class OpenStudioAwsInstance
     # determine how many processors are suppose to be in this image (lookup for now?)
     processors = find_processors(instance_type)
 
+    # create the tag structure
+    aws_tags = [
+      { key: 'Name', value: "OpenStudio-#{@openstudio_instance_type.capitalize}" },
+      { key: 'GroupUUID', value: @group_uuid },
+      { key: 'NumberOfProcessors', value: processors.to_s },
+      { key: 'Purpose', value: "OpenStudio#{@openstudio_instance_type.capitalize}" },
+      { key: 'UserID', value: user_id }
+    ]
+
+    # add in any manual tags
+    options[:tags].each do |tag|
+      t = tag.split('=')
+      if t.size != 2
+        logger.error "Tag '#{t}' not defined or does not have an equal sign"
+        puts "Tag '#{t}' not defined or does not have an equal sign"
+        next
+      end
+      if %w(Name GroupUUID NumberOfProcessors Purpose UserID).include? t[0]
+        logger.error "Tag name '#{t[0]}' is a reserved tag"
+        puts "Tag name '#{t[0]}' is a reserved tag"
+        next
+      end
+
+      aws_tags << { key: t[0].strip, value: t[1].strip }
+    end
+
     # only asked for 1 instance, so therefore it should be the first
     aws_instance = result.data.instances.first
     @aws.create_tags(
         resources: [aws_instance.instance_id],
-        tags: [
-          { key: 'Name', value: "OpenStudio-#{@openstudio_instance_type.capitalize}" }, # todo: abstract out the server and version
-          { key: 'GroupUUID', value: @group_uuid },
-          { key: 'NumberOfProcessors', value: processors.to_s },
-          { key: 'Purpose', value: "OpenStudio#{@openstudio_instance_type.capitalize}" },
-          { key: 'UserID', value: user_id }
-        ]
+        tags: aws_tags
     )
 
     # get the instance information
@@ -134,8 +155,8 @@ class OpenStudioAwsInstance
       raise "Instance was unable to launch due to timeout #{aws_instance.instance_id}"
     end
 
-    if ebs_volume_size
-      create_and_attach_volume(ebs_volume_size, aws_instance.instance_id, aws_instance.placement.availability_zone)
+    if options[:ebs_volume_size]
+      create_and_attach_volume(options[:ebs_volume_size], aws_instance.instance_id, aws_instance.placement.availability_zone)
     end
 
     # now grab information about the instance

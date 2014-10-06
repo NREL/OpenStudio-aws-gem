@@ -1,6 +1,15 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.2.4
+-------------
+* Allow custom instance tags when starting an instance
+* Allow no workers
+
+Version 0.2.3
+-------------
+* No longer support cc2 instances. The HVM instances are preferred and don't need a different cluster instance.
+
 Version 0.2.2
 -------------
 * aws-sdk-core-ruby rc15 has bug for windows. Force version rc14
