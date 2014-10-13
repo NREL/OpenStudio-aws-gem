@@ -26,17 +26,6 @@ describe OpenStudioAmis do
       expect(amis[:cc2worker]).to eq('ami-b5eddddc')
     end
 
-    it 'should return 1.8.0 versions correctly' do
-      a = OpenStudioAmis.new(2, openstudio_version: '1.8.0')
-
-      amis = a.get_amis
-
-      expect(amis[:server]).to eq('ami-3c0fbf54')
-      expect(amis[:worker]).to eq('ami-040ebe6c')
-      expect(amis[:cc2worker]).to eq('ami-040ebe6c')
-    end
-
-
     it 'should list all amis' do
       a = OpenStudioAmis.new(1).list
 
@@ -45,8 +34,14 @@ describe OpenStudioAmis do
   end
 
   context 'version 2' do
-    it 'should default the server version' do
+    it 'should return 1.8.0 versions correctly' do
+      a = OpenStudioAmis.new(2, openstudio_version: '1.8.0')
 
+      amis = a.get_amis
+
+      expect(amis[:server]).to eq('ami-3c0fbf54')
+      expect(amis[:worker]).to eq('ami-040ebe6c')
+      expect(amis[:cc2worker]).to eq('ami-040ebe6c')
     end
   end
 end

@@ -140,7 +140,7 @@ module OpenStudio
         defaults = {
           instance_type: 'm2.4xlarge',
           security_group: 'openstudio-server-sg-v1',
-          image_id: @default_amis[:server],
+          image_id: nil, # don't prescribe the image id so that it can determine later
           user_id: user_id,
 
           # optional -- will default later
@@ -153,11 +153,7 @@ module OpenStudio
 
         # Get the right worker AMI ids based on the type of instance
         if options[:image_id].nil?
-          if options[:instance_type] =~ /cc2|c3/
-            options[:image_id] = @default_amis[:cc2worker]
-          else
-            options[:image_id] = @default_amis[:worker]
-          end
+          options[:image_id] = determine_image_type(options[:instance_type])
         end
 
         fail "Can't create workers without a server instance running" if @os_aws.server.nil?
@@ -274,6 +270,17 @@ module OpenStudio
           when :worker
             fail 'Worker file download is not available'
         end
+      end
+
+      def determine_image_type(instance_type)
+        image = nil
+        if instance_type =~ /cc2/
+          image = @default_amis[:cc2worker]
+        else
+          image = @default_amis[:worker]
+        end
+
+        image
       end
 
       private

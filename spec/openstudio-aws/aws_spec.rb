@@ -21,6 +21,17 @@ describe OpenStudio::Aws::Aws do
 
       expect(aws.default_amis).not_to be_nil
     end
+
+    it 'should find the cc2 instances' do
+      options = {
+          ami_lookup_version: 2,
+          openstudio_server_version: '1.5.0'
+      }
+      aws = OpenStudio::Aws::Aws.new(options)
+
+      expect(aws.determine_image_type('cc2.2xlarge')).to eq 'ami-e582948c'
+      expect(aws.determine_image_type('c3.2xlarge')).to eq 'ami-918294f8'
+    end
   end
 
   context 'should error' do
