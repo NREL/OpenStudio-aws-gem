@@ -38,7 +38,6 @@ describe OpenStudioAwsWrapper do
 
         resp = @aws.os_aws.describe_availability_zones_json
         expect(resp).not_to be_nil
-
       end
 
       it 'should list number of instances' do

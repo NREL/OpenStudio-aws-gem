@@ -1,6 +1,10 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.2.6
+-------------
+* Don't pass in a predefined availability zone. Make sure that the workers are placed in the server's zone.
+
 Version 0.2.5
 -------------
 * Enable i3 instances on AWS for large storage

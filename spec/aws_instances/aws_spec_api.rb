@@ -10,7 +10,8 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should create a new instance' do
-      expect(@aws).to be_nil
+      expect(@aws.os_aws.server).to be_nil
+      expect(@aws.os_aws.workers).to be_empty
     end
 
     it 'should create a server' do
@@ -25,6 +26,7 @@ describe OpenStudio::Aws::Aws do
       expect(File.exist?('ec2_server_key.pem')).to be true
       expect(File.exist?('server_data.json')).to be true
       expect(@aws.os_aws.server).not_to be_nil
+      expect(@aws.os_aws.server.data.availability_zone).to match /us-east-../
 
       h = @aws.os_aws.server.to_os_hash
       expect(h[:group_id]).to be_a String
@@ -41,6 +43,7 @@ describe OpenStudio::Aws::Aws do
 
       expect(@aws.os_aws.workers.size).to eq 1
       expect(@aws.os_aws.workers[0].data[:dns]).not_to be_nil
+      expect(@aws.os_aws.server.data.availability_zone).to eq @aws.os_aws.workers[0].data.availability_zone
     end
 
     it 'should be able to connect a worker to an existing server' do

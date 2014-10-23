@@ -291,7 +291,7 @@ class OpenStudioAwsWrapper
   end
 
   def launch_workers(image_id, instance_type, num, launch_options = {})
-    defaults = { user_id: 'unknown_user', tags: [], ebs_volume_size: nil }
+    defaults = { user_id: 'unknown_user', tags: [], ebs_volume_size: nil, availability_zone: @server.data.availability_zone }
     launch_options = defaults.merge(launch_options)
 
     user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/worker_script.sh.template')
