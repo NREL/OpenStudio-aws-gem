@@ -77,10 +77,11 @@ chmod -R 775 /mnt/openstudio
 cp -rf /data/worker-nodes/* /mnt/openstudio/
 
 # install workflow dependencies
-su - ubuntu -c 'cd /mnt/openstudio && rm -f'
 rm -f /mnt/openstudio/Gemfile.lock
 cd /mnt/openstudio && bundle update
-su - ubuntu -c 'cd /mnt/openstudio && bundle update'
+su - ubuntu -c 'cd /mnt/openstudio && bundle'
+# also install as root for now
+cd /mnt/openstudio && bundle
 
 # copy over the models needed for mongo
 cd /mnt/openstudio/rails-models && unzip -o rails-models.zip -d models
@@ -100,5 +101,3 @@ service delayed_job start
 
 #file flag the user_data has completed
 cat /dev/null > /home/ubuntu/user_data_done
-
-
