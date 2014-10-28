@@ -78,10 +78,10 @@ cp -rf /data/worker-nodes/* /mnt/openstudio/
 
 # install workflow dependencies
 rm -f /mnt/openstudio/Gemfile.lock
-cd /mnt/openstudio && bundle update
 su - ubuntu -c 'cd /mnt/openstudio && bundle'
-# also install as root for now
-cd /mnt/openstudio && bundle
+# also install as root for now. Give full path to bundle because sudoers path is
+# not available with cloud-init root
+cd /mnt/openstudio && /opt/rbenv/shims/bundle
 
 # copy over the models needed for mongo
 cd /mnt/openstudio/rails-models && unzip -o rails-models.zip -d models
