@@ -35,7 +35,7 @@ describe OpenStudioAmis do
 
   context 'version 2' do
     it 'should return 1.8.0 versions correctly' do
-      a = OpenStudioAmis.new(2, openstudio_version: '1.8.0')
+      a = OpenStudioAmis.new(2, openstudio_server_version: '1.8.0')
 
       amis = a.get_amis
 
