@@ -26,18 +26,21 @@ class OpenStudioAwsInstance
   attr_reader :private_key_file_name
   attr_reader :group_uuid
 
-  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_group_name, group_uuid, private_key,
-                 private_key_file_name, proxy = nil)
+
+  # param security_groups can be a single instance or an array
+  def initialize(aws_session, openstudio_instance_type, key_pair_name, security_groups, group_uuid, private_key,
+                 private_key_file_name, subnet_id, proxy = nil)
     @data = nil # stored information about the instance
     @aws = aws_session
     @openstudio_instance_type = openstudio_instance_type # :server, :worker
     @key_pair_name = key_pair_name
-    @security_group_name = security_group_name
+    @security_groups = security_groups
     @group_uuid = group_uuid.to_s
     @init_timestamp = Time.now  # This is the timestamp and is typically just tracked for the server
     @private_key = private_key
     @private_key_file_name = private_key_file_name
     @proxy = proxy
+    @subnet_id = subnet_id
 
     # Important System information
     @host = nil
@@ -87,34 +90,38 @@ class OpenStudioAwsInstance
 
   def launch_instance(image_id, instance_type, user_data, user_id, options = {})
     # determine the instance type of the server
-    instance = nil
-    if options[:availability_zone]
-      # use the availability zone from the server
-      # logger.info("user_data #{user_data.inspect}")
-      instance = {
-          image_id: image_id,
-          key_name: @key_pair_name,
-          security_groups: [@security_group_name],
-          user_data: Base64.encode64(user_data),
-          instance_type: instance_type,
-          placement: {
-              availability_zone: options[:availability_zone]
-          },
-          min_count: 1,
-          max_count: 1
-      }
-    else
-      instance = {
+    instance = {
         image_id: image_id,
         key_name: @key_pair_name,
-        security_groups: [@security_group_name],
+        security_group_ids: @security_groups,
+        subnet_id: options[:subnet_id],
         user_data: Base64.encode64(user_data),
         instance_type: instance_type,
         min_count: 1,
         max_count: 1
-      }
+    }
+
+    if options[:availability_zone]
+      # use the availability zone from the server
+      # logger.info("user_data #{user_data.inspect}")
+      instance[:placement] ||= {}
+      instance[:placement][:availability_zone] = options[:availability_zone]
     end
 
+    if options[:associate_public_ip_address]
+      # You have to delete the security group and subnet_id from the instance hash and put into the network interface
+      # otherwise you will get an error on launch with an InvalidParameterCombination error.
+      instance[:network_interfaces] = [
+          {
+              subnet_id: instance.delete(:subnet_id),
+              groups: instance.delete(:security_group_ids),
+              device_index: 0,
+              associate_public_ip_address: true
+          }
+      ]
+    end
+
+    # Documentation for run_instances is here: http://docs.aws.amazon.com/AWSRubySDK/latest/AWS/EC2/Client.html#run_instances-instance_method
     result = @aws.run_instances(instance)
 
     # determine how many processors are suppose to be in this image (lookup for now?)
@@ -202,10 +209,11 @@ class OpenStudioAwsInstance
         availability_zone: @data.availability_zone,
         server: {
           id: @data.id,
-          ip: 'http://' + @data.ip,
+          ip: "http://#{@data.ip}",
           dns: @data.dns,
           procs: @data.procs,
-          private_key_file_name: @private_key_file_name
+          private_key_file_name: @private_key_file_name,
+          private_ip_address: @private_ip_address
         }
       }
     else
@@ -400,11 +408,20 @@ class OpenStudioAwsInstance
   # store some of the data into a custom struct.  The instance is the full description.  The remaining fields are
   # just easier accessors to the data in the raw request except for procs which is a custom request.
   def create_struct(instance, procs)
-    instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs, :availability_zone)
-    s = instance_struct.new(instance, instance[:instance_id], instance[:public_ip_address], instance[:public_dns_name], procs, instance[:placement][:availability_zone])
+    instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs, :availability_zone, :private_ip_address)
+    s = instance_struct.new(
+        instance,
+        instance[:instance_id],
+        instance[:public_ip_address],
+        instance[:public_dns_name],
+        procs,
+        instance[:placement][:availability_zone],
+        instance[:private_ip_address]
+    )
 
     # store some values into the member variables
     @ip_address = instance[:public_ip_address]
+    @private_ip_address = instance[:private_ip_address]
     @instance_id = instance[:instance_id]
 
     s

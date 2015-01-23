@@ -90,11 +90,13 @@ module OpenStudio
       def create_server(options = {}, instances_json = 'server_data.json')
         defaults = {
           instance_type: 'm2.xlarge',
-          security_group: 'openstudio-server-sg-v1',
+          security_groups: [],
           image_id: @default_amis[:server],
           user_id: 'unknown_user',
 
           # optional -- will default later
+          associate_public_ip_address: nil,
+          subnet_id: nil,
           ebs_volume_id: nil,
           aws_key_pair_name: nil,
           private_key_file_name: nil, # required if using an existing "aws_key_pair_name"
@@ -102,12 +104,24 @@ module OpenStudio
         }
         options = defaults.merge(options)
 
+        # for backwards compatibilty, still allow security_group
+        if options[:security_group]
+          warn "Pass security_groups as an array instead of security_group. security_group will be deprecated in 0.4.0"
+          options[:security_groups] = [ options[:security_group] ]
+        end
+
         if options[:aws_key_pair_name]
           fail 'Must pass in the private_key_file_name' unless options[:private_key_file_name]
           fail "Private key was not found: #{options[:private_key_file_name]}" unless File.exist? options[:private_key_file_name]
         end
 
-        @os_aws.create_or_retrieve_security_group options[:security_group]
+        if options[:security_groups].empty?
+          # if the user has not specified any security groups, then create one called: 'openstudio-server-sg-v1'
+          @os_aws.create_or_retrieve_default_security_group
+        else
+          @os_aws.security_groups = options[:security_groups]
+        end
+
         @os_aws.create_or_retrieve_key_pair options[:aws_key_pair_name]
 
         # If using an already_existing key_pair, then you must pass in the private key file name
@@ -119,7 +133,13 @@ module OpenStudio
           @os_aws.save_private_key('ec2_server_key.pem')
         end
 
-        server_options = { user_id: options[:user_id], tags: options[:tags] }
+        server_options = {
+            user_id: options[:user_id],
+            tags: options[:tags],
+            subnet_id: options[:subnet_id],
+            associate_public_ip_address: options[:associate_public_ip_address]
+        }
+
         # if instance_data[:ebs_volume_id]
         #   server_options[:ebs_volume_id] = instance_data[:ebs_volume_id]
         # end
@@ -139,17 +159,26 @@ module OpenStudio
       def create_workers(number_of_instances, options = {}, user_id = 'unknown_user')
         defaults = {
           instance_type: 'm2.4xlarge',
-          security_group: 'openstudio-server-sg-v1',
+          security_groups: [],
           image_id: nil, # don't prescribe the image id so that it can determine later
           user_id: user_id,
 
           # optional -- will default later
+          associate_public_ip_address: nil,
+          subnet_id: nil,
           ebs_volume_id: nil,
           aws_key_pair_name: nil,
           private_key_file_name: nil, # required if using an existing "aws_key_pair_name",
           tags: []
         }
         options = defaults.merge(options)
+
+        # for backwards compatibilty, still allow security_group
+        if options[:security_group]
+          warn "Pass security_groups as an array instead of security_group. security_group will be deprecated in 0.4.0"
+          options[:security_groups] = [ options[:security_group] ]
+        end
+
 
         # Get the right worker AMI ids based on the type of instance
         if options[:image_id].nil?
@@ -162,7 +191,13 @@ module OpenStudio
           puts ''
           puts 'No workers requested'
         else
-          worker_options = { user_id: options[:user_id], tags: options[:tags] }
+          worker_options = {
+              user_id: options[:user_id],
+              tags: options[:tags],
+              subnet_id: options[:subnet_id],
+              associate_public_ip_address: options[:associate_public_ip_address]
+          }
+
           # if options[:ebs_volume_size]
           #   worker_options[:ebs_volume_size] = options[:ebs_volume_size]
           # end

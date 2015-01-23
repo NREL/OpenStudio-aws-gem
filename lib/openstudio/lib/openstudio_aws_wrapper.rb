@@ -42,20 +42,20 @@ class OpenStudioAwsWrapper
   include Logging
 
   attr_reader :group_uuid
-  attr_reader :security_group_name
   attr_reader :key_pair_name
   attr_reader :server
   attr_reader :workers
   attr_reader :proxy
 
   attr_accessor :private_key_file_name
+  attr_accessor :security_groups
 
   VALID_OPTIONS = [:proxy, :credentials]
 
   def initialize(options = {}, group_uuid = nil)
     @group_uuid = group_uuid || (SecureRandom.uuid).gsub('-', '')
 
-    @security_group_name = nil
+    @security_groups = []
     @key_pair_name = nil
     @private_key_file_name = nil
 
@@ -72,8 +72,8 @@ class OpenStudioAwsWrapper
     @aws = Aws::EC2::Client.new(options[:credentials])
   end
 
-  def create_or_retrieve_security_group(sg_name = nil)
-    tmp_name = sg_name || 'openstudio-server-sg-v1'
+  def create_or_retrieve_default_security_group
+    tmp_name = 'openstudio-server-sg-v1'
     group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.length == 0
@@ -96,8 +96,8 @@ class OpenStudioAwsWrapper
       # reload group information
       group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     end
-    @security_group_name = group.data.security_groups.first.group_name
-    logger.info("server_group #{group.data.security_groups.first.group_name}")
+    @security_groups = [group.data.security_groups.first.group_id]
+    logger.info("server_group #{group.data.security_groups.first.group_name}:#{group.data.security_groups.first.group_id}")
   end
 
   def describe_availability_zones
@@ -276,11 +276,15 @@ class OpenStudioAwsWrapper
   end
 
   def launch_server(image_id, instance_type, launch_options = {})
-    defaults = { user_id: 'unknown_user', tags: [], ebs_volume_size: nil }
+    defaults = {
+        user_id: 'unknown_user',
+        tags: [],
+        ebs_volume_size: nil
+    }
     launch_options = defaults.merge(launch_options)
 
     user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/server_script.sh')
-    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key,
+    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_groups, @group_uuid, @private_key,
                                         @private_key_file_name, @proxy)
 
     # create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
@@ -291,11 +295,16 @@ class OpenStudioAwsWrapper
   end
 
   def launch_workers(image_id, instance_type, num, launch_options = {})
-    defaults = { user_id: 'unknown_user', tags: [], ebs_volume_size: nil, availability_zone: @server.data.availability_zone }
+    defaults = {
+        user_id: 'unknown_user',
+        tags: [],
+        ebs_volume_size: nil,
+        availability_zone: @server.data.availability_zone
+    }
     launch_options = defaults.merge(launch_options)
 
     user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/worker_script.sh.template')
-    user_data.gsub!(/SERVER_IP/, @server.data.ip)
+    user_data.gsub!(/SERVER_IP/, @server.data.private_ip_address)
     user_data.gsub!(/SERVER_HOSTNAME/, 'master')
     user_data.gsub!(/SERVER_ALIAS/, '')
     logger.info("worker user_data #{user_data.inspect}")
@@ -303,7 +312,7 @@ class OpenStudioAwsWrapper
     # thread the launching of the workers
 
     num.times do
-      @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_group_name, @group_uuid,
+      @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_groups, @group_uuid,
                                             @private_key, @private_key_file_name, @proxy)
     end
 
@@ -328,8 +337,8 @@ class OpenStudioAwsWrapper
     logger.info('waiting for worker user_data to complete')
     @workers.each { |worker| worker.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"') }
 
-    ips = "master|#{@server.data.ip}|#{@server.data.dns}|#{@server.data.procs}|ubuntu|ubuntu|true\n"
-    @workers.each { |worker| ips << "worker|#{worker.data.ip}|#{worker.data.dns}|#{worker.data.procs}|ubuntu|ubuntu|true\n" }
+    ips = "master|#{@server.data.private_ip_address}|#{@server.data.dns}|#{@server.data.procs}|ubuntu|ubuntu|true\n"
+    @workers.each { |worker| ips << "worker|#{worker.data.private_ip_address}|#{worker.data.dns}|#{worker.data.procs}|ubuntu|ubuntu|true\n" }
     file = Tempfile.new('ip_addresses')
     file.write(ips)
     file.close
@@ -341,7 +350,7 @@ class OpenStudioAwsWrapper
     @server.shell_command('~/setup-ssh-worker-nodes.sh ip_addresses')
 
     mongoid = File.read(File.expand_path(File.dirname(__FILE__)) + '/mongoid.yml.template')
-    mongoid.gsub!(/SERVER_IP/, @server.data.ip)
+    mongoid.gsub!(/SERVER_IP/, @server.data.private_ip_address)
     file = Tempfile.new('mongoid.yml')
     file.write(mongoid)
     file.close

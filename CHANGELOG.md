@@ -1,6 +1,14 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.3.0 (Unrealeased)
+-------------
+* Update aws-sdk-core-ruby to 2.0.20.
+* Add VPC
+* Use private ip addresses for AWS based communication
+* Change single security group to an array
+* Allow multiple security groups to be used
+
 Version 0.2.6
 -------------
 * Don't pass in a predefined availability zone. Make sure that the workers are placed in the server's zone.
