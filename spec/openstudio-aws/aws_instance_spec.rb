@@ -3,7 +3,7 @@ require 'spec_helper'
 describe OpenStudioAwsInstance do
   context 'processors' do
     before :all do
-      @aws_instance = OpenStudioAwsInstance.new(nil, nil, nil, nil, nil, nil, nil)
+      @aws_instance = OpenStudioAwsInstance.new(nil, nil, nil, nil, nil, nil, nil, nil)
     end
 
     it 'should default to 1 with a warning' do
