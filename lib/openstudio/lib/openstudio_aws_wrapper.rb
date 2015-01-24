@@ -446,7 +446,8 @@ class OpenStudioAwsWrapper
           ip: "http://#{worker.data.ip}",
           dns: worker.data.dns,
           procs: worker.data.procs,
-          private_key_file_name: worker.private_key_file_name
+          private_key_file_name: worker.private_key_file_name,
+          private_ip_address: worker.private_ip_address
       )
     end
 

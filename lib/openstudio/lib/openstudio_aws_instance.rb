@@ -24,6 +24,7 @@ class OpenStudioAwsInstance
   attr_reader :openstudio_instance_type
   attr_reader :data
   attr_reader :private_key_file_name
+  attr_reader :private_ip_address
   attr_reader :group_uuid
 
 
