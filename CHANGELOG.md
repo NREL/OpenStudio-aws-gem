@@ -8,6 +8,7 @@ Version 0.3.0 (Unrealeased)
 * Use private ip addresses for AWS based communication
 * Change single security group to an array
 * Allow multiple security groups to be used
+* Add method to save the cluster JSON
 
 Version 0.2.6
 -------------

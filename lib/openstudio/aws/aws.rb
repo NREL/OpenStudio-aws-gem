@@ -147,7 +147,9 @@ module OpenStudio
         @os_aws.launch_server(options[:image_id], options[:instance_type], server_options)
 
         @instances_json = instances_json
-        File.open(@instances_json, 'w') { |f| f << JSON.pretty_generate(@os_aws.server.to_os_hash) }
+        save_cluster_json(@instances_json)
+
+
 
         # Print out some debugging commands (probably work on mac/linux only)
         puts ''
@@ -204,22 +206,8 @@ module OpenStudio
 
           @os_aws.launch_workers(options[:image_id], options[:instance_type], number_of_instances, worker_options)
 
-          ## append the information to the server_data hash that already exists
-          # @server_data[:instance_type] = instance_data[:instance_type]
-          # @server_data[:num] = number_of_instances
-          # server_string = @server_data.to_json.gsub("\"", "\\\\\"")
-          #
-          # start_string = "ruby #{os_aws_file_location} #{@config.access_key} #{@config.secret_key} us-east-1 EC2 launch_workers \"#{server_string}\""
-          # puts "Worker Command: #{start_string}"
-          # worker_data_string = `#{start_string}`
-          # @worker_data = JSON.parse(worker_data_string, :symbolize_names => true)
-          # File.open("worker_data.json", "w") { |f| f << JSON.pretty_generate(worker_data) }
-          #
-          ## Print out some debugging commands (probably work on mac/linux only)
           # Add the worker data to the JSON
-          h = JSON.parse(File.read(@instances_json))
-          h[:workers] = @os_aws.to_os_worker_hash[:workers]
-          File.open(@instances_json, 'w') { |f| f << JSON.pretty_generate(h) }
+          save_cluster_json @instances_json
 
           puts ''
           puts 'Worker SSH Command:'
@@ -232,6 +220,21 @@ module OpenStudio
         puts 'Waiting for server/worker configurations'
 
         @os_aws.configure_server_and_workers
+      end
+
+      # Return information on the cluster instances as a hash. This includes IP addresses, host names, number of processors, etc.
+      # @return [Hash] Data about the configured cluster
+      def cluster_info
+        h = @os_aws.server.to_os_hash
+        h[:workers] = @os_aws.to_os_worker_hash[:workers]
+
+        h
+      end
+
+      # Save a JSON with information about the cluster that was configured.
+      # @param filename [String] Path and filename to save the JSON file
+      def save_cluster_json(filename)
+        File.open(@instances_json, 'w') { |f| f << JSON.pretty_generate(cluster_info) }
       end
 
       # openstudio_instance_type as symbol
