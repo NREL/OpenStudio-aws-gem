@@ -380,26 +380,29 @@ class OpenStudioAwsWrapper
   # if it is found, then it will set the @server member variable.
   # Note that the information around keys and security groups is pulled from the instance information.
   def find_server(server_data_hash)
-    group_uuid = server_data_hash[:group_id] || @group_uuid
+    @group_uuid = server_data_hash[:group_id] || @group_uuid
     load_private_key(server_data_hash[:server][:private_key_file_name])
 
     logger.info "finding the server for groupid of #{group_uuid}"
     fail 'no group uuid defined either in member variable or method argument' if group_uuid.nil?
 
+ 	@server = nil
     resp = describe_running_instances(group_uuid, :server)
     if resp
       fail "more than one server running with group uuid of #{group_uuid} found, expecting only one" if resp.size > 1
       resp = resp.first
       if !@server
-        logger.info "Server found and loading data into object [instance id is #{resp[:instance_id]}]"
-        @server = OpenStudioAwsInstance.new(@aws, :server, resp[:key_name], resp[:security_groups].first[:group_name], group_uuid, @private_key, @private_key_file_name, @proxy)
+      	if resp
+        	logger.info "Server found and loading data into object [instance id is #{resp[:instance_id]}]"
+        	@server = OpenStudioAwsInstance.new(@aws, :server, resp[:key_name], resp[:security_groups].first[:group_name], group_uuid, @private_key, @private_key_file_name, @proxy)
 
-        @server.load_instance_data(resp)
+        	@server.load_instance_data(resp)
+        end
       else
         logger.info "Server instance is already defined with instance #{resp[:instance_id]}"
       end
     else
-      fail 'could not find a running server instance'
+      puts 'could not find a running server instance'
     end
 
     # Really don't need to return anything because this sets the class instance variable

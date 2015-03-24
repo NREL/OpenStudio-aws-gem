@@ -257,15 +257,22 @@ module OpenStudio
         resp
       end
 
-      # Warning, this appears that it terminates all the instances of the openstudio_instance_type
-      def terminate_instances_by_group_id(group_id, openstudio_instance_type)
-        instances = @os_aws.describe_running_instances(group_id, openstudio_instance_type.to_sym)
+      # Warning, this appears that it terminates all the instances
+      def terminate_instances_by_group_id(group_id)
+        instances = @os_aws.describe_running_instances(group_id)
         ids = instances.map { |k, _| k[:instance_id] }
 
         puts "Terminating the following instances #{ids}"
         resp = []
         resp = @os_aws.terminate_instances(ids).to_hash unless ids.empty?
-        resp
+        resp[:terminating_instances].first[:current_state][:name] == 'shutting-down'
+      end
+
+      # Terminate the entire cluster
+      def terminate
+        puts "Terminating any instance with group ID: #{@os_aws.group_uuid}"
+
+        terminate_instances_by_group_id(@os_aws.group_uuid)
       end
 
       def load_instance_info_from_file(filename)
