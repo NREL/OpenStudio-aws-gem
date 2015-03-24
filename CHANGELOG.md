@@ -9,6 +9,8 @@ Version 0.3.0 (Unrealeased)
 * Change single security group to an array
 * Allow multiple security groups to be used
 * Add method to save the cluster JSON
+* Add top level terminate method to delete the machine that belong to the cluster (based on group uuid)
+* Fix setting the group uuid when loading an existing cluster JSON file
 
 Version 0.2.6
 -------------
