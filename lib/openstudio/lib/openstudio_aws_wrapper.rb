@@ -380,7 +380,6 @@ class OpenStudioAwsWrapper
   # if it is found, then it will set the @server member variable.
   # Note that the information around keys and security groups is pulled from the instance information.
   def find_server(server_data_hash)
-    puts server_data_hash[:server][:private_key_file_name]
     group_uuid = server_data_hash[:group_id] || @group_uuid
     load_private_key(server_data_hash[:server][:private_key_file_name])
 

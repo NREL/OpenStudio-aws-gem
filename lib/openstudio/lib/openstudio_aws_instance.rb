@@ -226,6 +226,14 @@ class OpenStudioAwsInstance
     h
   end
 
+  def ip
+    @data.ip
+  end
+
+  def hostname
+    "http://#{@data.ip}"
+  end
+
   def find_processors(instance)
     lookup = {
       'm3.medium' => 1,

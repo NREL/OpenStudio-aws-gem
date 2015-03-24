@@ -80,7 +80,9 @@ module OpenStudio
         @default_amis = OpenStudioAmis.new(options[:ami_lookup_version], ami_options).get_amis
       end
 
-      # def load_data_from_json(json_filename)
+
+
+      # # def load_data_from_json(json_filename)
       #   @os_aws.load_data_from_json
       #
       #
@@ -273,6 +275,10 @@ module OpenStudio
         @os_aws.find_server(h)
 
         # load the worker nodes someday
+      end
+
+      def server
+        @os_aws.server
       end
 
       # Send a file to the server or worker nodes
