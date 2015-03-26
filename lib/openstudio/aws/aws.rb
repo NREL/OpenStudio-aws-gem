@@ -279,9 +279,15 @@ module OpenStudio
         fail 'Could not find instance description JSON file' unless File.exist? filename
 
         h = JSON.parse(File.read(filename), symbolize_names: true)
-        @os_aws.find_server(h)
+        if h[:location] == 'AWS'
+          @os_aws.find_server(h)
+        else
+          puts "Instance file '#{filename}' does not have the location of 'AWS'"
+          return false
+        end
 
         # load the worker nodes someday
+        true
       end
 
       def server
