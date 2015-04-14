@@ -118,7 +118,6 @@ module OpenStudio
         end
 
         if options[:security_groups].empty?
-          # TODO: Security overhaul: lock down the groups to only specific ports
           # if the user has not specified any security groups, then create one called: 'openstudio-server-sg-v1'
           @os_aws.create_or_retrieve_default_security_group
         else

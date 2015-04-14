@@ -3,13 +3,12 @@
 # AWS Server Bootstrap File
 # This script is used to configure the AWS boxes for OpenStudio-server
 
-# Change Host File Entries
-ENTRY="localhost localhost master"
+ENTRY="127.0.0.1 SERVER_HOSTNAME"
 FILE=/etc/hosts
 if grep -q "$ENTRY" $FILE; then
-  echo "entry already exists"
+  echo "Hosts '$SERVER_HOSTNAME' entry already exists"
 else
-  sh -c "echo $ENTRY >> $FILE"
+  sudo sh -c "echo $ENTRY >> /etc/hosts"
 fi
 
 WORKER_PRIVATE_KEY="WORKER_PRIVATE_KEY_TEMPLATE"

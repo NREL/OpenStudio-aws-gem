@@ -4,7 +4,7 @@
 # File used to configure worker nodes on AWS
 
 # Change Host File Entries
-ENTRY="SERVER_IP SERVER_HOSTNAME SERVER_ALIAS"
+ENTRY="SERVER_IP SERVER_HOSTNAME"
 FILE=/etc/hosts
 if grep -q "$ENTRY" $FILE; then
   echo "entry already exists"

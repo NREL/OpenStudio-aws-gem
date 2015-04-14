@@ -12,6 +12,7 @@ Version 0.3.0 (Unrealeased)
 * Add top level terminate method to delete the machine that belong to the cluster (based on group uuid)
 * Fix setting the group uuid when loading an existing cluster JSON file
 * Upload public/private key for worker-node communication
+* Change hosts file to use openstudio.server (not master). This will prevent older AMIs to not work with this gem'
 
 Version 0.2.6
 -------------
