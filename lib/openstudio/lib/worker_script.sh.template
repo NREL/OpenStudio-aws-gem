@@ -25,9 +25,9 @@ chmod 644 /home/$USER/.ssh/authorized_keys
 
 # ec2 instance information
 curl -o /usr/local/bin/ec2-metadata http://s3.amazonaws.com/ec2metadata/ec2-metadata
-chmod 774 /usr/local/bin/ec2-metadata
+chmod 775 /usr/local/bin/ec2-metadata
 mkdir -p /etc/openstudio-server
-ec2-metadata --all > /etc/openstudio-server/instance.yml
+ec2-metadata -a -i -t -h -o -z -p -v > /etc/openstudio-server/instance.yml
 
 
 ## Worker Data Configuration -- On Vagrant this is a separate file
