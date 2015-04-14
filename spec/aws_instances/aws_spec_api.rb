@@ -1,5 +1,8 @@
 require 'spec_helper'
 
+SERVER_AMI = 'ami-7c7e4e14'
+WORKER_AMI = 'ami-aa7d4dc2'
+
 describe OpenStudio::Aws::Aws do
   context 'create a new instance' do
     before(:all) do
@@ -17,7 +20,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should create a server' do
-      options = { instance_type: 'm3.medium', image_id: 'ami-7c7e4e14' }
+      options = { instance_type: 'm3.medium', image_id: SERVER_AMI }
 
       FileUtils.rm_f 'ec2_server_key.pem' if File.exist? 'ec2_server_key.pem'
       FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
@@ -40,7 +43,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should create a 1 worker' do
-      options = { instance_type: 'm3.medium', image_id: 'ami-7c7e4e14' }
+      options = { instance_type: 'm3.medium', image_id: WORKER_AMI }
 
       @aws.create_workers(1, options)
 
@@ -50,7 +53,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should be able to connect a worker to an existing server' do
-      options = { instance_type: 'm3.medium', image_id: 'ami-7c7e4e14' }
+      options = { instance_type: 'm3.medium', image_id: WORKER_AMI }
 
       # will require a new @aws class--but attached to same group_uuid
       @config = OpenStudio::Aws::Config.new
@@ -71,7 +74,7 @@ describe OpenStudio::Aws::Aws do
       config = OpenStudio::Aws::Config.new
       aws = OpenStudio::Aws::Aws.new
 
-      options = { instance_type: 'm3.medium', image_id: 'ami-7c7e4e14' }
+      options = { instance_type: 'm3.medium', image_id: SERVER_AMI }
 
       aws.create_server(options)
     end
@@ -134,7 +137,7 @@ describe OpenStudio::Aws::Aws do
       begin
         options = {
           instance_type: 'm3.medium',
-          image_id: 'ami-7c7e4e14',
+          image_id: SERVER_AMI,
           tags: [
             'ci_tests=true',
             'nothing=else',
@@ -181,7 +184,7 @@ describe OpenStudio::Aws::Aws do
         begin
           options = {
             instance_type: 'm3.medium',
-            image_id: 'ami-7c7e4e14', # server AMI
+            image_id: SERVER_AMI,
             tags: [
               'ci_tests=true',
               'ServerOnly=true'
@@ -209,19 +212,4 @@ describe OpenStudio::Aws::Aws do
       end
     end
   end
-
-  # context 'create ebs storage' do
-  #   before(:all) do
-  #     @aws = OpenStudio::Aws::Aws.new
-  #   end
-  #
-  #   it 'should create an EBS volume' do
-  #     options = {instance_type: 'm1.small', image_id: 'ami-29faca40', ebs_volume_size: 128}
-  #     @aws.create_volume()
-  #     @aws.create_server(options)
-  #     expect(@aws.os_aws.server).not_to be_nil
-  #   end
-  #
-  # end
-
 end
