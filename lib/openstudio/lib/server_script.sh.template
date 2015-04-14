@@ -9,7 +9,7 @@ FILE=/etc/hosts
 if grep -q "$ENTRY" $FILE; then
   echo "entry already exists"
 else
-  sh -c "echo $ENTRY >> /etc/hosts"
+  sh -c "echo $ENTRY >> $FILE"
 fi
 
 WORKER_PRIVATE_KEY="WORKER_PRIVATE_KEY_TEMPLATE"
@@ -17,20 +17,27 @@ WORKER_PUBLIC_KEY="WORKER_PUBLIC_KEY_TEMPLATE"
 
 USER=ubuntu
 
-mkdir -p /home/${USER}/.ssh
-chmod 700 /home/${USER}/.ssh
-echo -e ${WORKER_PRIVATE_KEY} > /home/$USER/.ssh/id_rsa
-echo -e ${WORKER_PUBLIC_KEY} > /home/$USER/.ssh/id_rsa.pub
+mkdir -p /home/$USER/.ssh && chmod 700 /home/$USER/.ssh
+echo -e $WORKER_PRIVATE_KEY > /home/$USER/.ssh/id_rsa
+echo -e $WORKER_PUBLIC_KEY > /home/$USER/.ssh/id_rsa.pub
 chmod 600 /home/$USER/.ssh/id_rsa
 chmod 644 /home/$USER/.ssh/id_rsa.pub
 chown ubuntu.ubuntu /home/$USER/.ssh/id_rsa
 chown ubuntu.ubuntu /home/$USER/.ssh/id_rsa.pub
+
 # Only allow localhost to connect ot itself with this key
-echo "from=\"localhost\" ${WORKER_PUBLIC_KEY}" >> /home/$USER/.ssh/authorized_keys
+ENTRY="from=\"localhost\" $WORKER_PUBLIC_KEY"
+FILE=/home/$USER/.ssh/authorized_keys
+if grep -q "$ENTRY" $FILE; then
+  echo "Key already exists in file"
+else
+  echo $ENTRY >> $FILE
+fi
 chmod 644 /home/$USER/.ssh/authorized_keys
+
+# SSH config
 echo -e "Host *\n\tStrictHostKeyChecking no" > /home/$USER/.ssh/config
-chmod 644 /home/$USER/.ssh/config
-chown ubuntu.ubuntu /home/$USER/.ssh/config
+chmod 644 /home/$USER/.ssh/config && chown ubuntu.ubuntu /home/$USER/.ssh/config
 
 # ec2 instance information
 curl -o /usr/local/bin/ec2-metadata http://s3.amazonaws.com/ec2metadata/ec2-metadata

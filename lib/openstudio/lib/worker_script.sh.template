@@ -9,7 +9,7 @@ FILE=/etc/hosts
 if grep -q "$ENTRY" $FILE; then
   echo "entry already exists"
 else
-  sh -c "echo $ENTRY >> /etc/hosts"
+  sh -c "echo $ENTRY >> $FILE"
 fi
 
 WORKER_PUBLIC_KEY="WORKER_PUBLIC_KEY_TEMPLATE"
@@ -17,10 +17,16 @@ WORKER_PUBLIC_KEY="WORKER_PUBLIC_KEY_TEMPLATE"
 # add the public key to authorized keys
 USER=ubuntu
 
-mkdir -p /home/${USER}/.ssh
-chmod 700 /home/${USER}/.ssh
+mkdir -p /home/$USER/.ssh && chmod 700 /home/$USER/.ssh
+
 # Only access from the server node
-echo "from=\"SERVER_HOSTNAME\" ${WORKER_PUBLIC_KEY}" >> /home/$USER/.ssh/authorized_keys
+ENTRY="from=\"SERVER_HOSTNAME\" $WORKER_PUBLIC_KEY"
+FILE=/home/$USER/.ssh/authorized_keys
+if grep -q "$ENTRY" $FILE; then
+  echo "Key already exists in file"
+else
+  echo $ENTRY >> $FILE
+fi
 chmod 644 /home/$USER/.ssh/authorized_keys
 
 # ec2 instance information
@@ -28,7 +34,6 @@ curl -o /usr/local/bin/ec2-metadata http://s3.amazonaws.com/ec2metadata/ec2-meta
 chmod 775 /usr/local/bin/ec2-metadata
 mkdir -p /etc/openstudio-server
 ec2-metadata -a -i -t -h -o -z -p -v > /etc/openstudio-server/instance.yml
-
 
 ## Worker Data Configuration -- On Vagrant this is a separate file
 
