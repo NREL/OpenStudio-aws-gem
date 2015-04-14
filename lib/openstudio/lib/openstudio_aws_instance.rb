@@ -125,6 +125,7 @@ class OpenStudioAwsInstance
     # Documentation for run_instances is here: http://docs.aws.amazon.com/AWSRubySDK/latest/AWS/EC2/Client.html#run_instances-instance_method
     result = @aws.run_instances(instance)
 
+
     # determine how many processors are suppose to be in this image (lookup for now?)
     processors = find_processors(instance_type)
 
@@ -155,11 +156,18 @@ class OpenStudioAwsInstance
     end
 
     # only asked for 1 instance, so therefore it should be the first
-    aws_instance = result.data.instances.first
-    @aws.create_tags(
-        resources: [aws_instance.instance_id],
-        tags: aws_tags
-    )
+    begin
+      tries ||= 3
+      aws_instance = result.data.instances.first
+      @aws.create_tags(
+          resources: [aws_instance.instance_id],
+          tags: aws_tags
+      )
+    rescue Aws::EC2::Errors::InvalidInstanceIDNotFound
+      sleep 1000
+      retry unless (tries -= 1).zero?
+    end
+
 
     # get the instance information
     test_result = @aws.describe_instance_status(instance_ids: [aws_instance.instance_id]).data.instance_statuses.first

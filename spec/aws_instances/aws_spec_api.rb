@@ -7,6 +7,8 @@ describe OpenStudio::Aws::Aws do
       @aws = OpenStudio::Aws::Aws.new
 
       @group_id = nil
+
+      FileUtils.rm_f 'ec2_server_key.pem' if File.exist? 'ec2_server_key.pem'
     end
 
     it 'should create a new instance' do
@@ -15,16 +17,17 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should create a server' do
-      options = { instance_type: 'm3.medium', image_id: 'ami-3c0fbf54' }
+      options = { instance_type: 'm3.medium', image_id: 'ami-7c7e4e14' }
 
-      test_pem_file = 'ec2_server_key.pem'
-      FileUtils.rm_f test_pem_file if File.exist? test_pem_file
+      FileUtils.rm_f 'ec2_server_key.pem' if File.exist? 'ec2_server_key.pem'
       FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
 
       @aws.create_server(options)
 
       expect(File.exist?('ec2_server_key.pem')).to be true
       expect(File.exist?('server_data.json')).to be true
+      expect(File.exist?('ec2_worker_key.pem')).to be true
+      expect(File.exist?('ec2_worker_key.pub')).to be true
       expect(@aws.os_aws.server).not_to be_nil
       expect(@aws.os_aws.server.data.availability_zone).to match /us-east-../
 
@@ -37,7 +40,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should create a 1 worker' do
-      options = { instance_type: 'm3.medium', image_id: 'ami-040ebe6c' }
+      options = { instance_type: 'm3.medium', image_id: 'ami-7c7e4e14' }
 
       @aws.create_workers(1, options)
 
@@ -47,7 +50,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should be able to connect a worker to an existing server' do
-      options = { instance_type: 'm3.medium', image_id: 'ami-3c0fbf54' }
+      options = { instance_type: 'm3.medium', image_id: 'ami-7c7e4e14' }
 
       # will require a new @aws class--but attached to same group_uuid
       @config = OpenStudio::Aws::Config.new
@@ -61,10 +64,6 @@ describe OpenStudio::Aws::Aws do
     it 'should kill running instances' do
       # how to test this?
     end
-
-    after :all do
-      FileUtils.rm_f 'ec2_server_key.pem' if File.exist? 'ec2_server_key.pem'
-    end
   end
 
   context 'upload data to a server' do
@@ -72,7 +71,7 @@ describe OpenStudio::Aws::Aws do
       config = OpenStudio::Aws::Config.new
       aws = OpenStudio::Aws::Aws.new
 
-      options = { instance_type: 'm3.medium', image_id: 'ami-3c0fbf54' }
+      options = { instance_type: 'm3.medium', image_id: 'ami-7c7e4e14' }
 
       aws.create_server(options)
     end
@@ -135,7 +134,7 @@ describe OpenStudio::Aws::Aws do
       begin
         options = {
           instance_type: 'm3.medium',
-          image_id: 'ami-3c0fbf54',
+          image_id: 'ami-7c7e4e14',
           tags: [
             'ci_tests=true',
             'nothing=else',
@@ -182,7 +181,7 @@ describe OpenStudio::Aws::Aws do
         begin
           options = {
             instance_type: 'm3.medium',
-            image_id: 'ami-3c0fbf54', # server AMI
+            image_id: 'ami-7c7e4e14', # server AMI
             tags: [
               'ci_tests=true',
               'ServerOnly=true'

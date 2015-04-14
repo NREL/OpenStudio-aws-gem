@@ -3,9 +3,6 @@
 # AWS Worker Bootstrap File
 # File used to configure worker nodes on AWS
 
-# Unlock the user account
-sudo passwd -u ubuntu
-
 # Change Host File Entries
 ENTRY="SERVER_IP SERVER_HOSTNAME SERVER_ALIAS"
 FILE=/etc/hosts
@@ -15,10 +12,23 @@ else
   sh -c "echo $ENTRY >> /etc/hosts"
 fi
 
-# copy all the setup scripts to the appropriate home directory
-cp /data/launch-instance/setup* /home/ubuntu/
-chmod 775 /home/ubuntu/setup*
-chown ubuntu:ubuntu /home/ubuntu/setup*
+WORKER_PUBLIC_KEY="WORKER_PUBLIC_KEY_TEMPLATE"
+
+# add the public key to authorized keys
+USER=ubuntu
+
+mkdir -p /home/${USER}/.ssh
+chmod 700 /home/${USER}/.ssh
+# Only access from the server node
+echo "from=\"SERVER_HOSTNAME\" ${WORKER_PUBLIC_KEY}" >> /home/$USER/.ssh/authorized_keys
+chmod 644 /home/$USER/.ssh/authorized_keys
+
+# ec2 instance information
+curl -o /usr/local/bin/ec2-metadata http://s3.amazonaws.com/ec2metadata/ec2-metadata
+chmod 774 /usr/local/bin/ec2-metadata
+mkdir -p /etc/openstudio-server
+ec2-metadata --all > /etc/openstudio-server/instance.yml
+
 
 ## Worker Data Configuration -- On Vagrant this is a separate file
 

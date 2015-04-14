@@ -46,6 +46,7 @@ class OpenStudioAwsWrapper
   attr_reader :server
   attr_reader :workers
   attr_reader :proxy
+  attr_reader :worker_keys
 
   attr_accessor :private_key_file_name
   attr_accessor :security_groups
@@ -58,6 +59,8 @@ class OpenStudioAwsWrapper
     @security_groups = []
     @key_pair_name = nil
     @private_key_file_name = nil
+
+    @worker_keys = SSHKey.generate
 
     @private_key = nil # Private key data
 
@@ -285,6 +288,12 @@ class OpenStudioAwsWrapper
     end
   end
 
+  # save off the worker public/private keys that were created
+  def save_worker_keys(directory='.')
+    File.open("#{directory}/ec2_worker_key.pem", 'w') { |f| f << @worker_keys.private_key}
+    File.open("#{directory}/ec2_worker_key.pub", 'w') { |f| f << @worker_keys.public_key}
+  end
+
   def launch_server(image_id, instance_type, launch_options = {})
     defaults = {
         user_id: 'unknown_user',
@@ -293,11 +302,15 @@ class OpenStudioAwsWrapper
     }
     launch_options = defaults.merge(launch_options)
 
-    user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/server_script.sh')
+    # replace the server_script.sh.template with the keys to add
+    user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/server_script.sh.template')
+    user_data.gsub!(/WORKER_PRIVATE_KEY_TEMPLATE/, worker_keys.private_key.gsub("\n","\\n"))
+    user_data.gsub!(/WORKER_PUBLIC_KEY_TEMPLATE/, worker_keys.ssh_public_key)
+
     @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_groups, @group_uuid, @private_key,
                                         @private_key_file_name, @proxy)
 
-    # create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
+    # TODO: create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
 
     fail 'image_id is nil' unless image_id
     fail 'instance type is nil' unless instance_type
@@ -309,7 +322,8 @@ class OpenStudioAwsWrapper
         user_id: 'unknown_user',
         tags: [],
         ebs_volume_size: nil,
-        availability_zone: @server.data.availability_zone
+        availability_zone: @server.data.availability_zone,
+        worker_public_key: ''
     }
     launch_options = defaults.merge(launch_options)
 
@@ -317,6 +331,7 @@ class OpenStudioAwsWrapper
     user_data.gsub!(/SERVER_IP/, @server.data.private_ip_address)
     user_data.gsub!(/SERVER_HOSTNAME/, 'master')
     user_data.gsub!(/SERVER_ALIAS/, '')
+    user_data.gsub!(/WORKER_PUBLIC_KEY_TEMPLATE/, worker_keys.ssh_public_key)
     logger.info("worker user_data #{user_data.inspect}")
 
     # thread the launching of the workers
@@ -356,15 +371,19 @@ class OpenStudioAwsWrapper
     file.unlink
     logger.info("ips #{ips}")
     @server.shell_command('chmod 664 /home/ubuntu/ip_addresses')
-    @server.shell_command('~/setup-ssh-keys.sh')
-    @server.shell_command('~/setup-ssh-worker-nodes.sh ip_addresses')
+
+    # TODO: Grab a bunch of AWS specific information and save into a file in home directory
+
+
+    # @server.shell_command('~/setup-ssh-keys.sh')
+    # @server.shell_command('~/setup-ssh-worker-nodes.sh ip_addresses')
 
     mongoid = File.read(File.expand_path(File.dirname(__FILE__)) + '/mongoid.yml.template')
     mongoid.gsub!(/SERVER_IP/, @server.data.private_ip_address)
     file = Tempfile.new('mongoid.yml')
     file.write(mongoid)
     file.close
-    @server.upload_file(file.path, '/mnt/openstudio/rails-models/mongoid.yml')
+    @server.upload_file(file.path, '/mnt/openstudio/rails-smodels/mongoid.yml')
     @workers.each { |worker| worker.upload_file(file.path, '/mnt/openstudio/rails-models/mongoid.yml') }
     file.unlink
 
