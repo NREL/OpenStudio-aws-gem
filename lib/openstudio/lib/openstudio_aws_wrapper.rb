@@ -379,7 +379,7 @@ class OpenStudioAwsWrapper
     file = Tempfile.new('mongoid.yml')
     file.write(mongoid)
     file.close
-    @server.upload_file(file.path, '/mnt/openstudio/rails-smodels/mongoid.yml')
+    @server.upload_file(file.path, '/mnt/openstudio/rails-models/mongoid.yml')
     @workers.each { |worker| worker.upload_file(file.path, '/mnt/openstudio/rails-models/mongoid.yml') }
     file.unlink
 
