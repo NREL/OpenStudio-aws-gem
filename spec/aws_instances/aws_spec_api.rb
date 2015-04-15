@@ -1,7 +1,7 @@
 require 'spec_helper'
 
-SERVER_AMI = 'ami-fc6d5694'
-WORKER_AMI = 'ami-e86d5680'
+SERVER_AMI = 'ami-e0b38888'
+WORKER_AMI = 'ami-a8bc87c0'
 
 describe OpenStudio::Aws::Aws do
   context 'create a new instance' do
