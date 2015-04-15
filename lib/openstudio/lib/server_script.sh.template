@@ -24,8 +24,8 @@ chmod 644 /home/$USER/.ssh/id_rsa.pub
 chown ubuntu.ubuntu /home/$USER/.ssh/id_rsa
 chown ubuntu.ubuntu /home/$USER/.ssh/id_rsa.pub
 
-# Only allow localhost to connect ot itself with this key
-ENTRY="from=\"localhost\" $WORKER_PUBLIC_KEY"
+# Only allow localhost (and localhosts IP) to connect ot itself with this key. The IP is used for R cluster
+ENTRY="from=\"localhost,SERVER_IP\" $WORKER_PUBLIC_KEY"
 FILE=/home/$USER/.ssh/authorized_keys
 if grep -q "$ENTRY" $FILE; then
   echo "Key already exists in file"

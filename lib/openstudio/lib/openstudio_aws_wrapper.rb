@@ -304,6 +304,7 @@ class OpenStudioAwsWrapper
 
     # replace the server_script.sh.template with the keys to add
     user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/server_script.sh.template')
+    user_data.gsub!(/SERVER_IP/, @server.data.private_ip_address)
     user_data.gsub!(/SERVER_HOSTNAME/, 'openstudio.server')
     user_data.gsub!(/WORKER_PRIVATE_KEY_TEMPLATE/, worker_keys.private_key.gsub("\n","\\n"))
     user_data.gsub!(/WORKER_PUBLIC_KEY_TEMPLATE/, worker_keys.ssh_public_key)
