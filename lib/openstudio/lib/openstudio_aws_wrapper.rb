@@ -75,8 +75,7 @@ class OpenStudioAwsWrapper
     @aws = Aws::EC2::Client.new(options[:credentials])
   end
 
-  def create_or_retrieve_default_security_group
-    tmp_name = 'openstudio-server-sg-v2'
+  def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.1')
     group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.length == 0
@@ -88,7 +87,7 @@ class OpenStudioAwsWrapper
             { ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0'] }, # Eventually make this only the user's IP address seen by the internet
             { ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
             { ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
-            { ip_protocol: 'tcp', from_port: 11000, to_port: 12000, ip_ranges: [cidr_ip: '0.0.0.0/0'] }, # this is for R, really should just self reference
+            { ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{ group_name: tmp_name}]}, # this is for R, really should just self reference
             { ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
           ]
       )
@@ -101,6 +100,8 @@ class OpenStudioAwsWrapper
 
     @security_groups = [group.data.security_groups.first.group_id]
     logger.info("server_group #{group.data.security_groups.first.group_name}:#{group.data.security_groups.first.group_id}")
+
+    group.data.security_groups.first
   end
 
   def describe_availability_zones
