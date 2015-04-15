@@ -87,7 +87,7 @@ class OpenStudioAwsWrapper
             { ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0'] }, # Eventually make this only the user's IP address seen by the internet
             { ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
             { ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
-            { ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{ group_name: tmp_name}]}, # this is for R, really should just self reference
+            { ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{ group_name: tmp_name}]}, # allow all machines in the security group talk to each other openly
             { ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
           ]
       )
