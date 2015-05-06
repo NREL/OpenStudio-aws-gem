@@ -1,7 +1,7 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
-Version 0.3.0 (Unrealeased)
+Version 0.3.0
 -------------
 * Update aws-sdk-core-ruby to 2.0.20.
 * Add VPC
