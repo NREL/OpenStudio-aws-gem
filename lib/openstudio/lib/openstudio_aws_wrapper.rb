@@ -46,6 +46,7 @@ class OpenStudioAwsWrapper
   attr_reader :server
   attr_reader :workers
   attr_reader :proxy
+  attr_reader :worker_keys
 
   attr_accessor :private_key_file_name
   attr_accessor :security_groups
@@ -58,6 +59,8 @@ class OpenStudioAwsWrapper
     @security_groups = []
     @key_pair_name = nil
     @private_key_file_name = nil
+
+    @worker_keys = SSHKey.generate
 
     @private_key = nil # Private key data
 
@@ -72,32 +75,33 @@ class OpenStudioAwsWrapper
     @aws = Aws::EC2::Client.new(options[:credentials])
   end
 
-  def create_or_retrieve_default_security_group
-    tmp_name = 'openstudio-server-sg-v1'
+  def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.1')
     group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.length == 0
-      logger.info 'server group not found --- will create a new one'
+      logger.info 'security group not found --- will create a new one'
       @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
       @aws.authorize_security_group_ingress(
           group_name: tmp_name,
           ip_permissions: [
-            { ip_protocol: 'tcp', from_port: 1, to_port: 65_535, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
-          ]
-      )
-      @aws.authorize_security_group_ingress(
-          group_name: tmp_name,
-          ip_permissions: [
-            { ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0']
-            }
+            { ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0'] }, # Eventually make this only the user's IP address seen by the internet
+            { ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
+            { ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
+            { ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{ group_name: tmp_name}]}, # allow all machines in the security group talk to each other openly
+            { ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
           ]
       )
 
       # reload group information
       group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
+    else
+      logger.info "Found existing security group"
     end
+
     @security_groups = [group.data.security_groups.first.group_id]
     logger.info("server_group #{group.data.security_groups.first.group_name}:#{group.data.security_groups.first.group_id}")
+
+    group.data.security_groups.first
   end
 
   def describe_availability_zones
@@ -285,6 +289,12 @@ class OpenStudioAwsWrapper
     end
   end
 
+  # save off the worker public/private keys that were created
+  def save_worker_keys(directory='.')
+    File.open("#{directory}/ec2_worker_key.pem", 'w') { |f| f << @worker_keys.private_key}
+    File.open("#{directory}/ec2_worker_key.pub", 'w') { |f| f << @worker_keys.public_key}
+  end
+
   def launch_server(image_id, instance_type, launch_options = {})
     defaults = {
         user_id: 'unknown_user',
@@ -293,11 +303,16 @@ class OpenStudioAwsWrapper
     }
     launch_options = defaults.merge(launch_options)
 
-    user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/server_script.sh')
+    # replace the server_script.sh.template with the keys to add
+    user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/server_script.sh.template')
+    user_data.gsub!(/SERVER_HOSTNAME/, 'openstudio.server')
+    user_data.gsub!(/WORKER_PRIVATE_KEY_TEMPLATE/, worker_keys.private_key.gsub("\n","\\n"))
+    user_data.gsub!(/WORKER_PUBLIC_KEY_TEMPLATE/, worker_keys.ssh_public_key)
+
     @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_groups, @group_uuid, @private_key,
                                         @private_key_file_name, @proxy)
 
-    # create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
+    # TODO: create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
 
     fail 'image_id is nil' unless image_id
     fail 'instance type is nil' unless instance_type
@@ -309,14 +324,15 @@ class OpenStudioAwsWrapper
         user_id: 'unknown_user',
         tags: [],
         ebs_volume_size: nil,
-        availability_zone: @server.data.availability_zone
+        availability_zone: @server.data.availability_zone,
+        worker_public_key: ''
     }
     launch_options = defaults.merge(launch_options)
 
     user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/worker_script.sh.template')
     user_data.gsub!(/SERVER_IP/, @server.data.private_ip_address)
-    user_data.gsub!(/SERVER_HOSTNAME/, 'master')
-    user_data.gsub!(/SERVER_ALIAS/, '')
+    user_data.gsub!(/SERVER_HOSTNAME/, 'openstudio.server')
+    user_data.gsub!(/WORKER_PUBLIC_KEY_TEMPLATE/, worker_keys.ssh_public_key)
     logger.info("worker user_data #{user_data.inspect}")
 
     # thread the launching of the workers
@@ -340,7 +356,9 @@ class OpenStudioAwsWrapper
   end
 
   # blocking method that waits for servers and workers to be fully configured (i.e. execution of user_data has
-  # occured on all nodes)
+  # occured on all nodes). Ideally none of these methods would ever need to exist.
+  #
+  # @return [Boolean] Will return true unless an exception is raised
   def configure_server_and_workers
     logger.info('waiting for server user_data to complete')
     @server.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"')
@@ -356,8 +374,6 @@ class OpenStudioAwsWrapper
     file.unlink
     logger.info("ips #{ips}")
     @server.shell_command('chmod 664 /home/ubuntu/ip_addresses')
-    @server.shell_command('~/setup-ssh-keys.sh')
-    @server.shell_command('~/setup-ssh-worker-nodes.sh ip_addresses')
 
     mongoid = File.read(File.expand_path(File.dirname(__FILE__)) + '/mongoid.yml.template')
     mongoid.gsub!(/SERVER_IP/, @server.data.private_ip_address)
@@ -371,8 +387,6 @@ class OpenStudioAwsWrapper
     @server.shell_command('chmod 664 /mnt/openstudio/rails-models/mongoid.yml')
     @workers.each { |worker| worker.shell_command('chmod 664 /mnt/openstudio/rails-models/mongoid.yml') }
 
-    # I'm removing this as of 10/6/14. This should have been resolved by now.
-    # sleep 60 # wait 60 more seconds for everything -- this is cheesy
     true
   end
 
@@ -526,8 +540,13 @@ class OpenStudioAwsWrapper
         a[:tested] = false
       end
 
-      # TODO: in 1.6.0 just stop putting in the cc2workers.
-      if ami[:tags_hash][:openstudio_version].to_version >= '1.5.0'
+      if ami[:tags_hash][:openstudio_version].to_version >= '1.6.0'
+        if ami[:name] =~ /Server/
+          a[:amis][:server] = ami[:image_id]
+        elsif ami[:name] =~ /Worker/
+          a[:amis][:worker] = ami[:image_id]
+        end
+      elsif ami[:tags_hash][:openstudio_version].to_version >= '1.5.0'
         if ami[:name] =~ /Server/
           a[:amis][:server] = ami[:image_id]
         elsif ami[:name] =~ /Worker/

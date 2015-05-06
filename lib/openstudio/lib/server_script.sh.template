@@ -1,25 +1,48 @@
 #!/bin/bash
 
 # AWS Server Bootstrap File
-# This script is used to configure the AWS boxes
+# This script is used to configure the AWS boxes for OpenStudio-server
 
-# Unlock the user account
-sudo passwd -u ubuntu
-
-# Change Host File Entries
-ENTRY="localhost localhost master"
+ENTRY="127.0.0.1 SERVER_HOSTNAME"
 FILE=/etc/hosts
 if grep -q "$ENTRY" $FILE; then
-  echo "entry already exists"
+  echo "Hosts '$SERVER_HOSTNAME' entry already exists"
 else
-  sh -c "echo $ENTRY >> /etc/hosts"
+  sudo sh -c "echo $ENTRY >> /etc/hosts"
 fi
 
-# copy all the setup scripts to the appropriate home directory
-# the scripts are called by the AWS connector for passwordless ssh config
-cp /data/launch-instance/setup* /home/ubuntu/
-chmod 775 /home/ubuntu/setup*
-chown ubuntu:ubuntu /home/ubuntu/setup*
+WORKER_PRIVATE_KEY="WORKER_PRIVATE_KEY_TEMPLATE"
+WORKER_PUBLIC_KEY="WORKER_PUBLIC_KEY_TEMPLATE"
+
+USER=ubuntu
+
+mkdir -p /home/$USER/.ssh && chmod 700 /home/$USER/.ssh
+echo -e $WORKER_PRIVATE_KEY > /home/$USER/.ssh/id_rsa
+echo -e $WORKER_PUBLIC_KEY > /home/$USER/.ssh/id_rsa.pub
+chmod 600 /home/$USER/.ssh/id_rsa
+chmod 644 /home/$USER/.ssh/id_rsa.pub
+chown ubuntu.ubuntu /home/$USER/.ssh/id_rsa
+chown ubuntu.ubuntu /home/$USER/.ssh/id_rsa.pub
+
+# Only allow localhost (and localhosts IP) to connect ot itself with this key. The IP is used for R cluster
+ENTRY="from=\"localhost,127.0.0.1\" $WORKER_PUBLIC_KEY"
+FILE=/home/$USER/.ssh/authorized_keys
+if grep -q "$ENTRY" $FILE; then
+  echo "Key already exists in file"
+else
+  echo $ENTRY >> $FILE
+fi
+chmod 644 /home/$USER/.ssh/authorized_keys
+
+# SSH config
+echo -e "Host *\n\tStrictHostKeyChecking no" > /home/$USER/.ssh/config
+chmod 644 /home/$USER/.ssh/config && chown ubuntu.ubuntu /home/$USER/.ssh/config
+
+# ec2 instance information
+curl -o /usr/local/bin/ec2-metadata http://s3.amazonaws.com/ec2metadata/ec2-metadata
+chmod 775 /usr/local/bin/ec2-metadata
+mkdir -p /etc/openstudio-server
+ec2-metadata -a -i -t -h -o -z -p -v > /etc/openstudio-server/instance.yml
 
 # stop the various services that use mongo
 service delayed_job stop
@@ -67,20 +90,20 @@ su - ubuntu -c 'cd /var/www/rails/openstudio && bundle exec rake db:mongoid:crea
 
 ## Worker Data Configuration -- On Vagrant this is a separate file
 
-# Force the generation of various directories that are in the EBS mnt
+rm -f /tmp/snow.log
+
+# Force the generation of various directories that are in the EBS mount
 rm -rf /mnt/openstudio
 mkdir -p /mnt/openstudio
 chown -R ubuntu:www-data /mnt/openstudio
 chmod -R 775 /mnt/openstudio
 
 # save application files into the right directory
-cp -rf /data/worker-nodes/* /mnt/openstudio/
+rsync -a --chown ubuntu:www-data --exclude Gemfile.lock /data/worker-nodes/ /mnt/openstudio/
 
 # install workflow dependencies
-rm -f /mnt/openstudio/Gemfile.lock
-su - ubuntu -c 'cd /mnt/openstudio && bundle'
-# also install as root for now. Give full path to bundle because sudoers path is
-# not available with cloud-init root
+# note: vagrant/ubuntu are now members of rbenv but it still doesn't work to not call sudo on bundle
+# Give full path to bundle because sudoers path is not available with cloud-init root
 cd /mnt/openstudio && /opt/rbenv/shims/bundle
 
 # copy over the models needed for mongo

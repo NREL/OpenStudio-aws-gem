@@ -7,7 +7,7 @@ require 'securerandom'
 require 'semantic'
 require 'semantic/core_ext'
 require 'fileutils'
-
+require 'sshkey'
 # AWS SDK CORE
 begin
   require 'aws-sdk-core'

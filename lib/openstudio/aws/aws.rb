@@ -139,8 +139,12 @@ module OpenStudio
             user_id: options[:user_id],
             tags: options[:tags],
             subnet_id: options[:subnet_id],
-            associate_public_ip_address: options[:associate_public_ip_address]
+            associate_public_ip_address: options[:associate_public_ip_address],
         }
+
+        # save the worker pem and public to the directory
+        # presently, this will always overwrite the worker key, is that okay? Is this really needed later?
+        @os_aws.save_worker_keys('.')
 
         # if instance_data[:ebs_volume_id]
         #   server_options[:ebs_volume_id] = instance_data[:ebs_volume_id]
@@ -150,8 +154,6 @@ module OpenStudio
 
         @instances_json = instances_json
         save_cluster_json(@instances_json)
-
-
 
         # Print out some debugging commands (probably work on mac/linux only)
         puts ''
