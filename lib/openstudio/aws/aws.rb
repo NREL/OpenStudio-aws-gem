@@ -288,7 +288,6 @@ module OpenStudio
           return false
         end
 
-        # load the worker nodes someday
         true
       end
 

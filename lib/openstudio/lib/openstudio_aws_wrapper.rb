@@ -400,7 +400,8 @@ class OpenStudioAwsWrapper
     logger.info "finding the server for groupid of #{group_uuid}"
     fail 'no group uuid defined either in member variable or method argument' if group_uuid.nil?
 
- 	@server = nil
+    # This should really just be a single call to describe running instances
+ 	  @server = nil
     resp = describe_running_instances(group_uuid, :server)
     if resp
       fail "more than one server running with group uuid of #{group_uuid} found, expecting only one" if resp.size > 1
@@ -417,6 +418,19 @@ class OpenStudioAwsWrapper
       end
     else
       puts 'could not find a running server instance'
+    end
+
+    # find the workers
+    if @workers.size == 0
+      resp = describe_running_instances(group_uuid, :worker)
+      if resp
+        resp.each do |r|
+          @workers << OpenStudioAwsInstance.new(@aws, :worker, r[:key_name], r[:security_groups].first[:group_name], group_uuid, @private_key, @private_key_file_name, @proxy)
+          @workers.last.load_instance_data(r)
+        end
+      end
+    else
+      logger.info "Worker nodes are already defined"
     end
 
     # Really don't need to return anything because this sets the class instance variable
