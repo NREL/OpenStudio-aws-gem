@@ -1,14 +1,11 @@
 source 'http://rubygems.org'
 gemspec
 
-gem 'rake', '~> 10.4'
+gem 'rake'
 
 group :test do
-  gem 'rspec', '~> 2.14'
-end
-
-group :ci do
-  gem 'ci_reporter', '~> 1.9.2'
-  gem 'rubocop'
-  gem 'rubocop-checkstyle_formatter'
+  gem 'rspec', '~> 3.2.0'
+  gem 'ci_reporter_rspec'
+  gem 'rubocop', '~> 0.31'
+  gem 'rubocop-checkstyle_formatter', '~> 0.2'
 end
