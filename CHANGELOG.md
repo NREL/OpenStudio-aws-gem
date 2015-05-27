@@ -1,6 +1,10 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.3.1 (Unreleased)
+-------------
+* Allow for URL redirections since the developer.nrel.gov is now on aws
+
 Version 0.3.0
 -------------
 * Update aws-sdk-core-ruby to 2.0.20.
