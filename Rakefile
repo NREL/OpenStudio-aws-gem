@@ -37,35 +37,6 @@ end
 
 task default: :spec
 
-desc 'import files from other repos'
-task :import_files do
-  puts 'Importing data from other repos until this repo is self contained'
-  # Copy data from github openstudio source
-
-  # this has been forked at the moment until openstudio team supports the new aws-sdk gem
-  # os_file = "./lib/openstudio/lib/os-aws.rb"
-  # system "curl -S -s -L -o #{os_file} https://raw.github.com/NREL/OpenStudio/develop/openstudiocore/ruby/cloud/aws.rb.in"
-  # if File.exists?(os_file)
-  #  system "ruby -i -pe 'puts \"# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files\" if $.==1' #{os_file}"
-  #  system "sed -i '' 's/\${CMAKE_VERSION_MAJOR}.\${CMAKE_VERSION_MINOR}.\${CMAKE_VERSION_PATCH}/#{OpenStudio::Aws::OPENSTUDIO_VERSION}/g' #{os_file}"
-  # end
-  #
-  os_file = './lib/openstudio/lib/mongoid.yml.template'
-  system "curl -S -s -L -o #{os_file} https://raw.github.com/NREL/OpenStudio/develop/openstudiocore/ruby/cloud/mongoid.yml.template"
-
-  os_file = './lib/openstudio/lib/server_script.sh'
-  system "curl -S -s -L -o #{os_file} https://raw.github.com/NREL/OpenStudio/develop/openstudiocore/ruby/cloud/server_script.sh"
-  if File.exist?(os_file)
-    system "ruby -i -pe 'puts \"# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files\" if $.==2' #{os_file}"
-  end
-
-  os_file = './lib/openstudio/lib/worker_script.sh.template'
-  system "curl -S -s -L -o #{os_file} https://raw.github.com/NREL/OpenStudio/develop/openstudiocore/ruby/cloud/worker_script.sh.template"
-  if File.exist?(os_file)
-    system "ruby -i -pe 'puts \"# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files\" if $.==2' #{os_file}"
-  end
-end
-
 desc 'list out the AMIs for OpenStudio'
 task :list_amis do
   @aws = OpenStudio::Aws::Aws.new
