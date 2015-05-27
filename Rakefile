@@ -28,6 +28,7 @@ RSpec::Core::RakeTask.new('spec:no_auth') do |spec|
 
   file_list = FileList['spec/**/*_spec.rb']
   file_list = file_list.exclude('spec/**/aws_wrapper_spec.rb')
+  file_list = file_list.exclude('spec/**/aws_spec.rb')
 
   spec.pattern = file_list
 end
