@@ -3,6 +3,7 @@
 .idea
 .ruby-version
 *.swp
+build
 Gemfile.lock
 *.pem
 *.gem

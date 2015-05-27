@@ -5,7 +5,7 @@ require 'rake'
 require 'rspec/core/rake_task'
 
 $LOAD_PATH.unshift File.expand_path('../lib', __FILE__)
-require 'openstudio/aws/version'
+require 'openstudio-aws'
 
 task gem: :build
 task :build do
@@ -64,6 +64,22 @@ task :import_files do
   if File.exist?(os_file)
     system "ruby -i -pe 'puts \"# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files\" if $.==2' #{os_file}"
   end
+end
+
+desc 'list out the AMIs for OpenStudio'
+task :list_amis do
+  @aws = OpenStudio::Aws::Aws.new
+
+  dest_root = 'build/server/api'
+  f = "#{dest_root}/v1/amis.json"
+  File.delete(f) if File.exist?(f)
+  FileUtils.mkdir_p File.dirname(f) unless Dir.exist? File.dirname(f)
+  File.open(f, 'w') { |f| f << JSON.pretty_generate(@aws.os_aws.create_new_ami_json(1)) }
+
+  f = "#{dest_root}/v2/amis.json"
+  File.delete(f) if File.exist?(f)
+  FileUtils.mkdir_p File.dirname(f) unless Dir.exist? File.dirname(f)
+  File.open(f, 'w') { |f| f << JSON.pretty_generate(@aws.os_aws.create_new_ami_json(2)) }
 end
 
 desc 'uninstall all openstudio-aws gems'
