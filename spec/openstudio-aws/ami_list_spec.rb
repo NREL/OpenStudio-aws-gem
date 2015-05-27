@@ -1,7 +1,6 @@
 require 'spec_helper'
 
 describe OpenStudioAmis do
-
   context 'version 1' do
     it 'should default to an ami if nothing passed' do
       a = OpenStudioAmis.new

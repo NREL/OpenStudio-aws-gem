@@ -55,12 +55,12 @@ module OpenStudio
           else
             proxy_uri = "https://#{options[:proxy][:host]}:#{options[:proxy][:port]}"
           end
-          # todo: remove this proxy_uri and make a method to format correctly
+          # TODO: remove this proxy_uri and make a method to format correctly
           options[:proxy_uri] = proxy_uri
 
-          # todo: do we need to escape a couple of the argument of username and password
+          # TODO: do we need to escape a couple of the argument of username and password
 
-          # todo: set some environment variables for system based proxy
+          # TODO: set some environment variables for system based proxy
         end
 
         # puts "Final options are: #{options.inspect}"
@@ -79,8 +79,6 @@ module OpenStudio
 
         @default_amis = OpenStudioAmis.new(options[:ami_lookup_version], ami_options).get_amis
       end
-
-
 
       # # def load_data_from_json(json_filename)
       #   @os_aws.load_data_from_json
@@ -108,8 +106,8 @@ module OpenStudio
 
         # for backwards compatibilty, still allow security_group
         if options[:security_group]
-          warn "Pass security_groups as an array instead of security_group. security_group will be deprecated in 0.4.0"
-          options[:security_groups] = [ options[:security_group] ]
+          warn 'Pass security_groups as an array instead of security_group. security_group will be deprecated in 0.4.0'
+          options[:security_groups] = [options[:security_group]]
         end
 
         if options[:aws_key_pair_name]
@@ -136,10 +134,10 @@ module OpenStudio
         end
 
         server_options = {
-            user_id: options[:user_id],
-            tags: options[:tags],
-            subnet_id: options[:subnet_id],
-            associate_public_ip_address: options[:associate_public_ip_address],
+          user_id: options[:user_id],
+          tags: options[:tags],
+          subnet_id: options[:subnet_id],
+          associate_public_ip_address: options[:associate_public_ip_address]
         }
 
         # save the worker pem and public to the directory
@@ -181,10 +179,9 @@ module OpenStudio
 
         # for backwards compatibilty, still allow security_group
         if options[:security_group]
-          warn "Pass security_groups as an array instead of security_group. security_group will be deprecated in 0.4.0"
-          options[:security_groups] = [ options[:security_group] ]
+          warn 'Pass security_groups as an array instead of security_group. security_group will be deprecated in 0.4.0'
+          options[:security_groups] = [options[:security_group]]
         end
-
 
         # Get the right worker AMI ids based on the type of instance
         if options[:image_id].nil?
@@ -198,10 +195,10 @@ module OpenStudio
           puts 'No workers requested'
         else
           worker_options = {
-              user_id: options[:user_id],
-              tags: options[:tags],
-              subnet_id: options[:subnet_id],
-              associate_public_ip_address: options[:associate_public_ip_address]
+            user_id: options[:user_id],
+            tags: options[:tags],
+            subnet_id: options[:subnet_id],
+            associate_public_ip_address: options[:associate_public_ip_address]
           }
 
           # if options[:ebs_volume_size]

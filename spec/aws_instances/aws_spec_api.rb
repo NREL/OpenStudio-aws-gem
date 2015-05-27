@@ -167,7 +167,6 @@ describe OpenStudio::Aws::Aws do
       ensure
         @aws.terminate_instances_by_group_id(h[:group_id], :server)
       end
-
     end
   end
 

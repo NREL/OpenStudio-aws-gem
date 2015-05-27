@@ -27,7 +27,6 @@ class OpenStudioAwsInstance
   attr_reader :private_ip_address
   attr_reader :group_uuid
 
-
   # param security_groups can be a single instance or an array
   def initialize(aws_session, openstudio_instance_type, key_pair_name, security_groups, group_uuid, private_key,
                  private_key_file_name, subnet_id, proxy = nil)
@@ -78,10 +77,10 @@ class OpenStudioAwsInstance
     # need to wait until it is available
 
     @aws.attach_volume(
-          volume_id: resp[:volume_id],
-          instance_id: instance_id,
-          # required
-          device: '/dev/sdh'
+      volume_id: resp[:volume_id],
+      instance_id: instance_id,
+      # required
+      device: '/dev/sdh'
     )
 
     # Wait for the volume to attach
@@ -92,14 +91,14 @@ class OpenStudioAwsInstance
   def launch_instance(image_id, instance_type, user_data, user_id, options = {})
     # determine the instance type of the server
     instance = {
-        image_id: image_id,
-        key_name: @key_pair_name,
-        security_group_ids: @security_groups,
-        subnet_id: options[:subnet_id],
-        user_data: Base64.encode64(user_data),
-        instance_type: instance_type,
-        min_count: 1,
-        max_count: 1
+      image_id: image_id,
+      key_name: @key_pair_name,
+      security_group_ids: @security_groups,
+      subnet_id: options[:subnet_id],
+      user_data: Base64.encode64(user_data),
+      instance_type: instance_type,
+      min_count: 1,
+      max_count: 1
     }
 
     if options[:availability_zone]
@@ -113,18 +112,17 @@ class OpenStudioAwsInstance
       # You have to delete the security group and subnet_id from the instance hash and put into the network interface
       # otherwise you will get an error on launch with an InvalidParameterCombination error.
       instance[:network_interfaces] = [
-          {
-              subnet_id: instance.delete(:subnet_id),
-              groups: instance.delete(:security_group_ids),
-              device_index: 0,
-              associate_public_ip_address: true
-          }
+        {
+          subnet_id: instance.delete(:subnet_id),
+          groups: instance.delete(:security_group_ids),
+          device_index: 0,
+          associate_public_ip_address: true
+        }
       ]
     end
 
     # Documentation for run_instances is here: http://docs.aws.amazon.com/AWSRubySDK/latest/AWS/EC2/Client.html#run_instances-instance_method
     result = @aws.run_instances(instance)
-
 
     # determine how many processors are suppose to be in this image (lookup for now?)
     processors = find_processors(instance_type)
@@ -160,14 +158,13 @@ class OpenStudioAwsInstance
       tries ||= 3
       aws_instance = result.data.instances.first
       @aws.create_tags(
-          resources: [aws_instance.instance_id],
-          tags: aws_tags
+        resources: [aws_instance.instance_id],
+        tags: aws_tags
       )
     rescue Aws::EC2::Errors::InvalidInstanceIDNotFound
       sleep 1000
       retry unless (tries -= 1).zero?
     end
-
 
     # get the instance information
     test_result = @aws.describe_instance_status(instance_ids: [aws_instance.instance_id]).data.instance_statuses.first
@@ -190,7 +187,7 @@ class OpenStudioAwsInstance
     end
 
     # now grab information about the instance
-    # todo: check lengths on all of arrays
+    # TODO: check lengths on all of arrays
     instance_data = @aws.describe_instances(instance_ids: [aws_instance.instance_id]).data.reservations.first.instances.first.to_hash
     logger.info "instance description is: #{instance_data}"
 
@@ -427,13 +424,13 @@ class OpenStudioAwsInstance
   def create_struct(instance, procs)
     instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs, :availability_zone, :private_ip_address)
     s = instance_struct.new(
-        instance,
-        instance[:instance_id],
-        instance[:public_ip_address],
-        instance[:public_dns_name],
-        procs,
-        instance[:placement][:availability_zone],
-        instance[:private_ip_address]
+      instance,
+      instance[:instance_id],
+      instance[:public_ip_address],
+      instance[:public_dns_name],
+      procs,
+      instance[:placement][:availability_zone],
+      instance[:private_ip_address]
     )
 
     # store some values into the member variables

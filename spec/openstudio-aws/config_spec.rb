@@ -7,5 +7,4 @@ describe OpenStudio::Aws::Config do
       expect(@config).not_to be_nil
     end
   end
-
 end

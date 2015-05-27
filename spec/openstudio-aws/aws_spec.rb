@@ -24,8 +24,8 @@ describe OpenStudio::Aws::Aws do
 
     it 'should find the cc2 instances' do
       options = {
-          ami_lookup_version: 2,
-          openstudio_server_version: '1.5.0'
+        ami_lookup_version: 2,
+        openstudio_server_version: '1.5.0'
       }
       aws = OpenStudio::Aws::Aws.new(options)
 

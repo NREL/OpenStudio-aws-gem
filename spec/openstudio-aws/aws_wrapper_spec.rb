@@ -76,7 +76,6 @@ describe OpenStudioAwsWrapper do
         expect(resp[:openstudio_server]['1.3.1'.to_sym][:openstudio_version_sha]).to eq('7a955d780b')
         expect(resp[:openstudio_server]['1.3.5'.to_sym][:tested]).to eq(false)
       end
-
     end
   end
 
@@ -107,5 +106,4 @@ describe OpenStudioAwsWrapper do
       expect(sg).to_not be nil
     end
   end
-
 end
