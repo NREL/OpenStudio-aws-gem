@@ -15,7 +15,11 @@ describe OpenStudio::Aws::Aws do
 
     it 'should allow a different region' do
       options = {
-        ami_lookup_version: 2
+        ami_lookup_version: 2,
+        credentials: {
+          access_key_id: 'some_random_access_key_id',
+          secret_access_key: 'some_super_secret_access_key'
+        }
       }
       aws = OpenStudio::Aws::Aws.new(options)
 

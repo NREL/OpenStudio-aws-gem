@@ -1,3 +1,4 @@
+# This spec file contains the testing of OpenStudio specific tests (for AMI listing) which require an AWS account and authentication
 require 'spec_helper'
 
 describe OpenStudioAwsWrapper do

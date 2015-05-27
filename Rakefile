@@ -35,6 +35,15 @@ RSpec::Core::RakeTask.new('spec:api') do |spec|
   spec.pattern = 'spec/**/*_spec_api.rb'
 end
 
+RSpec::Core::RakeTask.new('spec:no_auth') do |spec|
+  spec.rspec_opts = %w(--format progress --format CI::Reporter::RSpec)
+
+  file_list = FileList['spec/**/*_spec.rb']
+  file_list = file_list.exclude('spec/**/aws_wrapper_spec.rb')
+
+  spec.pattern = file_list
+end
+
 task default: :spec
 
 desc 'list out the AMIs for OpenStudio'
