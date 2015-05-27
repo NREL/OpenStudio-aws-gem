@@ -1,7 +1,7 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
-Version 0.3.1 (Unreleased)
+Version 0.3.1
 -------------
 * Allow for URL redirections since the developer.nrel.gov is now on aws
 
