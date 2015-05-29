@@ -1,6 +1,7 @@
 require 'json'
 require 'net/scp'
 require 'net/http'
+require 'net/ssh/proxy/http'
 require 'yaml'
 require 'logger'
 require 'securerandom'
@@ -8,6 +9,7 @@ require 'semantic'
 require 'semantic/core_ext'
 require 'fileutils'
 require 'sshkey'
+
 # AWS SDK CORE
 begin
   require 'aws-sdk-core'
