@@ -449,7 +449,6 @@ class OpenStudioAwsWrapper
     amis = transform_ami_lists(existing_amis, available_amis)
 
     if version == 1
-      puts 'Creating version 1 of the AMI file'
       version1 = {}
 
       # now grab the good keys - they should be sorted newest to older... so go backwards
@@ -461,20 +460,25 @@ class OpenStudioAwsWrapper
         version1[a[:openstudio_version].to_sym] = a[:amis]
       end
 
-      # create the default version. First sort, then grab the first hash's values
-
-      version1.sort_by
-      default_v = nil
-      version1 = Hash[version1.sort_by { |k, _| k.to_s.to_version }.reverse]
-      default_v = version1.keys[0]
-
-      version1[:default] = version1[default_v]
-      puts "Pretty version 1: #{JSON.pretty_generate(version1)}"
-
       amis = version1
     elsif version == 2
-      # don't need to transform anything right now
-      puts "Pretty version 2: #{JSON.pretty_generate(amis)}"
+      # don't need to transform anything right now, only flag which ones are stable version so that the uploaded ami JSON has the
+      # stable server for OpenStudio PAT to use.
+      stable = JSON.parse File.read(File.join(File.dirname(__FILE__),'ami_stable_version.json')), symbolize_names: true
+      # go through and tag the versions of the openstudio instances that are stable
+
+      stable[:openstudio].each do |k, v|
+        if amis[:openstudio][k.to_s] && amis[:openstudio][k.to_s][v.to_sym]
+          amis[:openstudio][k.to_s][:stable] = v
+        end
+      end
+
+      k, v = stable[:openstudio].first
+      if k && v
+        if amis[:openstudio][k.to_s]
+          amis[:openstudio][:default] = v
+        end
+      end
     end
 
     amis
@@ -624,7 +628,6 @@ class OpenStudioAwsWrapper
     # now sort the openstudio section & determine the defaults
     amis[:openstudio].keys.each do |key|
       amis[:openstudio][key] = Hash[amis[:openstudio][key].sort_by { |k, _| k.to_s.to_version }.reverse]
-      amis[:openstudio][key][:default] = amis[:openstudio][key].keys[0]
     end
     amis[:openstudio] = Hash[amis[:openstudio].sort_by { |k, _| k.to_s.to_version }.reverse]
 

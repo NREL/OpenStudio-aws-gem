@@ -53,7 +53,9 @@ task :list_amis do
   f = "#{dest_root}/v2/amis.json"
   File.delete(f) if File.exist?(f)
   FileUtils.mkdir_p File.dirname(f) unless Dir.exist? File.dirname(f)
-  File.open(f, 'w') { |f| f << JSON.pretty_generate(@aws.os_aws.create_new_ami_json(2)) }
+  h = @aws.os_aws.create_new_ami_json(2)
+  File.open(f, 'w') { |f| f << JSON.pretty_generate(h) }
+  puts JSON.pretty_generate(h)
 end
 
 require 'rubocop/rake_task'
