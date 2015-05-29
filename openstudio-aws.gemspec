@@ -17,10 +17,12 @@ Gem::Specification.new do |s|
   s.required_ruby_version = '>= 1.9.1'
   s.required_rubygems_version = '>= 1.3.6'
 
-  s.add_dependency('net-scp', '~> 1.1')
-  s.add_dependency('aws-sdk-core', '~> 2.0')
-  s.add_dependency('semantic', '~> 1.3')
-  s.add_dependency('sshkey', '~> 1.6')
+  s.add_dependency 'net-scp', '~> 1.1'
+  s.add_dependency 'aws-sdk-core', '~> 2.0'
+  s.add_dependency 'semantic', '~> 1.3'
+  s.add_dependency 'sshkey', '~> 1.6'
+
+  s.add_development_dependency 'rake', '~> 10.4'
 
   s.files = Dir.glob('lib/**/*') + %w(README.md Rakefile)
   s.test_files = Dir.glob('spec/**/*')

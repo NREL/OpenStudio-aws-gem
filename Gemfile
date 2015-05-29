@@ -1,7 +1,6 @@
 source 'http://rubygems.org'
-gemspec
 
-gem 'rake'
+gemspec
 
 group :test do
   gem 'rspec', '~> 3.2.0'
