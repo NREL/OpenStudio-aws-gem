@@ -76,24 +76,24 @@ class OpenStudioAwsWrapper
   end
 
   def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.1')
-    group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
+    group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.length == 0
       logger.info 'security group not found --- will create a new one'
       @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
       @aws.authorize_security_group_ingress(
-          group_name: tmp_name,
-          ip_permissions: [
-              {ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0']}, # Eventually make this only the user's IP address seen by the internet
-              {ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0']},
-              {ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0']},
-              {ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{group_name: tmp_name}]}, # allow all machines in the security group talk to each other openly
-              {ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0']}
-          ]
+        group_name: tmp_name,
+        ip_permissions: [
+          { ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0'] }, # Eventually make this only the user's IP address seen by the internet
+          { ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
+          { ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
+          { ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{ group_name: tmp_name }] }, # allow all machines in the security group talk to each other openly
+          { ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
+        ]
       )
 
       # reload group information
-      group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
+      group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     else
       logger.info 'Found existing security group'
     end
@@ -111,7 +111,7 @@ class OpenStudioAwsWrapper
       map << zn.to_hash
     end
 
-    {availability_zone_info: map}
+    { availability_zone_info: map }
   end
 
   def describe_availability_zones_json
@@ -122,7 +122,7 @@ class OpenStudioAwsWrapper
     resp = @aws.describe_instance_status
 
     region = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : 'no_instances'
-    {total_instances: resp.instance_statuses.length, region: region}
+    { total_instances: resp.instance_statuses.length, region: region }
   end
 
   def describe_total_instances_json
@@ -134,11 +134,11 @@ class OpenStudioAwsWrapper
     resp = nil
     if group_uuid
       resp = @aws.describe_instances(
-          filters: [
-              {name: 'instance-state-code', values: [0.to_s, 16.to_s]}, # running or pending
-              {name: 'tag-key', values: ['GroupUUID']},
-              {name: 'tag-value', values: [group_uuid.to_s]}
-          ]
+        filters: [
+          { name: 'instance-state-code', values: [0.to_s, 16.to_s] }, # running or pending
+          { name: 'tag-key', values: ['GroupUUID'] },
+          { name: 'tag-value', values: [group_uuid.to_s] }
+        ]
       )
     else
       resp = @aws.describe_instances
@@ -153,7 +153,7 @@ class OpenStudioAwsWrapper
           if group_uuid && openstudio_instance_type
             # {:key=>"Purpose", :value=>"OpenStudioWorker"}
             if i_h[:tags].any? { |h| (h[:key] == 'Purpose') && (h[:value] == "OpenStudio#{openstudio_instance_type.capitalize}") } &&
-                i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+               i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
               instance_data << i_h
             end
           elsif group_uuid
@@ -212,8 +212,8 @@ class OpenStudioAwsWrapper
 
   def stop_instances(ids)
     resp = @aws.stop_instances(
-        instance_ids: ids,
-        force: true
+      instance_ids: ids,
+      force: true
     )
 
     resp
@@ -222,11 +222,11 @@ class OpenStudioAwsWrapper
   def terminate_instances(ids)
     begin
       resp = @aws.terminate_instances(
-          instance_ids: ids
+        instance_ids: ids
       )
     rescue Aws::EC2::Errors::InvalidInstanceIDNotFound
       # Log that the instances couldn't be found?
-      return resp = {error: 'instances could not be found'}
+      return resp = { error: 'instances could not be found' }
     end
 
     resp
@@ -297,9 +297,9 @@ class OpenStudioAwsWrapper
 
   def launch_server(image_id, instance_type, launch_options = {})
     defaults = {
-        user_id: 'unknown_user',
-        tags: [],
-        ebs_volume_size: nil
+      user_id: 'unknown_user',
+      tags: [],
+      ebs_volume_size: nil
     }
     launch_options = defaults.merge(launch_options)
 
@@ -321,11 +321,11 @@ class OpenStudioAwsWrapper
 
   def launch_workers(image_id, instance_type, num, launch_options = {})
     defaults = {
-        user_id: 'unknown_user',
-        tags: [],
-        ebs_volume_size: nil,
-        availability_zone: @server.data.availability_zone,
-        worker_public_key: ''
+      user_id: 'unknown_user',
+      tags: [],
+      ebs_volume_size: nil,
+      availability_zone: @server.data.availability_zone,
+      worker_public_key: ''
     }
     launch_options = defaults.merge(launch_options)
 
@@ -495,16 +495,16 @@ class OpenStudioAwsWrapper
     worker_hash = []
     @workers.each do |worker|
       worker_hash.push(
-          id: worker.data.id,
-          ip: "http://#{worker.data.ip}",
-          dns: worker.data.dns,
-          procs: worker.data.procs,
-          private_key_file_name: worker.private_key_file_name,
-          private_ip_address: worker.private_ip_address
+        id: worker.data.id,
+        ip: "http://#{worker.data.ip}",
+        dns: worker.data.dns,
+        procs: worker.data.procs,
+        private_key_file_name: worker.private_key_file_name,
+        private_ip_address: worker.private_ip_address
       )
     end
 
-    out = {workers: worker_hash}
+    out = { workers: worker_hash }
     logger.info out
 
     out
@@ -531,7 +531,7 @@ class OpenStudioAwsWrapper
   # transform the available amis into an easier to read format
   def transform_ami_lists(existing, available)
     # initialize ami hash
-    amis = {openstudio_server: {}, openstudio: {}}
+    amis = { openstudio_server: {}, openstudio: {} }
     list_of_svs = []
 
     available[:images].each do |ami|

@@ -22,7 +22,7 @@
 
 class OpenStudioAmis
   VALID_OPTIONS = [
-      :openstudio_version, :openstudio_server_version, :host, :url, :stable
+    :openstudio_version, :openstudio_server_version, :host, :url, :stable
   ]
 
   # Initializer for listing the AMIs and grabbing the correct version of the AMIs based on the OpenStudio version or
@@ -39,26 +39,25 @@ class OpenStudioAmis
     end
 
     if options[:openstudio_version] && options[:openstudio_server_version]
-      fail "Must pass only an openstudio_version or openstudio_server_version when looking up AMIs"
+      fail 'Must pass only an openstudio_version or openstudio_server_version when looking up AMIs'
     end
 
     # merge in some defaults
     defaults = {
-        openstudio_version: 'default',
-        openstudio_server_version: 'default',
-        #host: 'developer.nrel.gov',
-        #url: '/downloads/buildings/openstudio/api'
-        host: 's3.amazonaws.com',
-        url: '/openstudio-resources/server/api'
+      openstudio_version: 'default',
+      openstudio_server_version: 'default',
+      # host: 'developer.nrel.gov',
+      # url: '/downloads/buildings/openstudio/api'
+      host: 's3.amazonaws.com',
+      url: '/openstudio-resources/server/api'
     }
 
     @version = version
     @options = defaults.merge(options)
-    
-    if @options[:openstudio_version] != 'default' && @options[:openstudio_server_version] != 'default'
-      fail "Must pass either the openstudio_version or openstudio_server_version when looking up AMIs, not both"
-    end
 
+    if @options[:openstudio_version] != 'default' && @options[:openstudio_server_version] != 'default'
+      fail 'Must pass either the openstudio_version or openstudio_server_version when looking up AMIs, not both'
+    end
   end
 
   # List the AMIs based on the version and host. This method does catch old 'developer.nrel.gov' hosts and formats

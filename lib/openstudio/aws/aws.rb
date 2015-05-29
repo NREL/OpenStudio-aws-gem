@@ -3,7 +3,7 @@ module OpenStudio
   module Aws
     VALID_OPTIONS = [
       :proxy, :credentials, :ami_lookup_version, :openstudio_version,
-      :openstudio_server_version, :region, :ssl_verify_peer, :host, :url
+      :openstudio_server_version, :region, :ssl_verify_peer, :host, :url, :stable
     ]
 
     class Aws
@@ -65,7 +65,7 @@ module OpenStudio
 
         @os_aws = OpenStudioAwsWrapper.new(options)
 
-        @instances_json = nil
+        @instances_filename = nil
 
         # this will grab the default version of openstudio ami versions
         # get the arugments for the AMI lookup
@@ -74,6 +74,7 @@ module OpenStudio
         ami_options[:openstudio_version] = options[:openstudio_version] if options[:openstudio_version]
         ami_options[:host] = options[:host] if options[:host]
         ami_options[:url] = options[:url] if options[:url]
+        ami_options[:stable] = options[:stable] if options[:stable]
 
         @default_amis = OpenStudioAmis.new(options[:ami_lookup_version], ami_options).get_amis
       end
@@ -85,7 +86,7 @@ module OpenStudio
       # end
 
       # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
-      def create_server(options = {}, instances_json = 'server_data.json')
+      def create_server(options = {}, instances_filename = 'server_data.json')
         defaults = {
           instance_type: 'm2.xlarge',
           security_groups: [],
@@ -148,8 +149,8 @@ module OpenStudio
 
         @os_aws.launch_server(options[:image_id], options[:instance_type], server_options)
 
-        @instances_json = instances_json
-        save_cluster_json(@instances_json)
+        @instances_file_name = instances_filename
+        save_cluster_json @instances_file_name
 
         # Print out some debugging commands (probably work on mac/linux only)
         puts ''
@@ -206,7 +207,7 @@ module OpenStudio
           @os_aws.launch_workers(options[:image_id], options[:instance_type], number_of_instances, worker_options)
 
           # Add the worker data to the JSON
-          save_cluster_json @instances_json
+          save_cluster_json @instances_filename
 
           puts ''
           puts 'Worker SSH Command:'
@@ -233,9 +234,13 @@ module OpenStudio
       # Save a JSON with information about the cluster that was configured.
       # @param filename [String] Path and filename to save the JSON file
       def save_cluster_json(filename)
-        File.open(@instances_json, 'w') { |f| f << JSON.pretty_generate(cluster_info) }
+        File.open(filename, 'w') { |f| f << JSON.pretty_generate(cluster_info) }
       end
 
+      # Return the availability zones for the AWS region specified in the options hash
+      def describe_availability_zones
+        @os_aws.describe_availability_zones
+      end
       # openstudio_instance_type as symbol
       def stop_instances(group_id, openstudio_instance_type)
         instances = @os_aws.describe_running_instances(group_id, openstudio_instance_type.to_sym)

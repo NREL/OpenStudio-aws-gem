@@ -68,7 +68,7 @@ describe OpenStudio::Aws::Aws do
       }
       aws = OpenStudio::Aws::Aws.new
 
-      expect { aws.create_server(options) }.to raise_error /Private key was not found.*/
+      expect { aws.create_server(options) }.to raise_error(/Private key was not found.*/)
     end
 
     it 'should require a private key' do
@@ -127,6 +127,17 @@ describe OpenStudio::Aws::Aws do
 
       @aws = OpenStudio::Aws::Aws.new(options)
       expect(@aws.os_aws.proxy).to eq(options[:proxy])
+    end
+  end
+
+  context 'availability zones' do
+    it 'should describe the availability zones' do
+      options = {}
+      aws = OpenStudio::Aws::Aws.new(options)
+      az = aws.describe_availability_zones
+
+      expect(az[:availability_zone_info]).to be_an Array
+      expect(az[:availability_zone_info].first[:zone_name]).to eq 'us-east-1a'
     end
   end
 end
