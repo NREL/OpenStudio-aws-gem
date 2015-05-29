@@ -22,7 +22,7 @@
 
 class OpenStudioAmis
   VALID_OPTIONS = [
-      :openstudio_version, :openstudio_server_version, :host, :url
+      :openstudio_version, :openstudio_server_version, :host, :url, :stable
   ]
 
   # Initializer for listing the AMIs and grabbing the correct version of the AMIs based on the OpenStudio version or
@@ -46,14 +46,19 @@ class OpenStudioAmis
     defaults = {
         openstudio_version: 'default',
         openstudio_server_version: 'default',
-        host: 'developer.nrel.gov',
-        url: '/downloads/buildings/openstudio/api'
-        #host: 's3.amazonaws.com',
-        #url: '/openstudio-resources/server/api'
+        #host: 'developer.nrel.gov',
+        #url: '/downloads/buildings/openstudio/api'
+        host: 's3.amazonaws.com',
+        url: '/openstudio-resources/server/api'
     }
 
     @version = version
     @options = defaults.merge(options)
+    
+    if @options[:openstudio_version] != 'default' && @options[:openstudio_server_version] != 'default'
+      fail "Must pass either the openstudio_version or openstudio_server_version when looking up AMIs, not both"
+    end
+
   end
 
   # List the AMIs based on the version and host. This method does catch old 'developer.nrel.gov' hosts and formats
@@ -100,24 +105,25 @@ class OpenStudioAmis
     json = list
 
     amis = nil
-    if @options[:openstudio_server_version].to_sym == :default
-      # just grab the most recent server
-      # need to do a sort to get the most recent because we can't promise that they are in order
+    if @options[:openstudio_version].to_sym == :default && @options[:openstudio_server_version].to_sym == :default
+      # grab the most recent openstudio server version - this is not recommended
       key, value = json[:openstudio_server].first
-
       amis = value[:amis]
-      # puts json.inspect
-    else
-      # check if we are looking for openstudio or openstudio server
-      if @options[:openstudio_version] != 'default'
-        stable = json[:openstudio][:stable]
-        warn "Could not find a stable version for openstudio version #{@options[:openstudio_version]}" unless stable
-        value = json[:openstudio][stable.to_sym]
-      elsif @options[:openstudio_server_version] != 'default'
-        value = json[:openstudio_server][@options[:openstudio_server_version].to_sym]
+    elsif @options[:openstudio_server_version] != 'default'
+      value = json[:openstudio_server][@options[:openstudio_server_version].to_sym]
+      amis = value[:amis]
+    elsif @options[:openstudio_version] != 'default'
+      if @options[:stable]
+        stable = json[:openstudio][@options[:openstudio_version].to_sym][:stable]
+        fail "Could not find a stable version for openstudio version #{@options[:openstudio_version]}" unless stable
+        value = json[:openstudio][@options[:openstudio_version].to_sym][stable.to_sym]
         amis = value[:amis]
       else
-        fail "No openstudio version nor openstudio server version passed"
+        # return the default version (which is the latest)
+        default = json[:openstudio][@options[:openstudio_version].to_sym][:default]
+        fail "Could not find a default version for openstudio version #{@options[:openstudio_version]}" unless default
+        value = json[:openstudio][@options[:openstudio_version].to_sym][default.to_sym]
+        amis = value[:amis]
       end
     end
 
