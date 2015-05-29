@@ -25,9 +25,7 @@ module OpenStudio
         defaults = {
           ami_lookup_version: 1,
           region: 'us-east-1',
-          ssl_verify_peer: false,
-          host: 'developer.nrel.gov',
-          url: '/downloads/buildings/openstudio/api'
+          ssl_verify_peer: false
         }
         options = defaults.merge(options)
 

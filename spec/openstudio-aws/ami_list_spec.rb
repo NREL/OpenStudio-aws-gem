@@ -37,6 +37,7 @@ describe OpenStudioAmis do
       a = OpenStudioAmis.new(2, openstudio_server_version: '1.8.0')
 
       amis = a.get_amis
+      puts amis
 
       expect(amis[:server]).to eq('ami-3c0fbf54')
       expect(amis[:worker]).to eq('ami-040ebe6c')

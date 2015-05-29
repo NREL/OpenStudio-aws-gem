@@ -1,6 +1,10 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.3.2 (Unreleased)
+-------------
+* Add a stable JSON file that can be used to flag which versions of the server are stable (used by OpenStudio PAT).
+
 Version 0.3.1
 -------------
 * Allow for URL redirections since the developer.nrel.gov is now on aws

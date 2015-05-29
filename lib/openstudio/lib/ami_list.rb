@@ -22,38 +22,57 @@
 
 class OpenStudioAmis
   VALID_OPTIONS = [
-    :openstudio_version, :openstudio_server_version, :host, :url
+      :openstudio_version, :openstudio_server_version, :host, :url
   ]
 
+  # Initializer for listing the AMIs and grabbing the correct version of the AMIs based on the OpenStudio version or
+  # OpenStudio Server version.
+  #
+  # @param version [Double] Version of the JSON to return. Currently only version 1 or 2
+  # @param options [Hash] Values to operate on
+  # @option options [String] :openstudio_version Version of OpenStudio to perform the AMI lookup
+  # @option options [String] :openstudio_server_version Version of the OpenStudio to perform the AMI lookup
   def initialize(version = 1, options = {})
     invalid_options = options.keys - VALID_OPTIONS
     if invalid_options.any?
       fail ArgumentError, "invalid option(s): #{invalid_options.join(', ')}"
     end
 
+    if options[:openstudio_version] && options[:openstudio_server_version]
+      fail "Must pass only an openstudio_version or openstudio_server_version when looking up AMIs"
+    end
+
     # merge in some defaults
     defaults = {
-      openstudio_version: 'default',
-      openstudio_server_version: 'default',
-      host: 'developer.nrel.gov',
-      url: '/downloads/buildings/openstudio/api'
+        openstudio_version: 'default',
+        openstudio_server_version: 'default',
+        host: 'developer.nrel.gov',
+        url: '/downloads/buildings/openstudio/api'
+        #host: 's3.amazonaws.com',
+        #url: '/openstudio-resources/server/api'
     }
+
     @version = version
     @options = defaults.merge(options)
   end
 
+  # List the AMIs based on the version and host. This method does catch old 'developer.nrel.gov' hosts and formats
+  # the endpoint using the old '<host>/<url>/amis_#{version}.json' instead of the new, more restful, syntax of
+  # <host>/<url>/v#{version}/amis.json
   def list
-    json = nil
-    command = "list_amis_version_#{@version}"
-    if OpenStudioAmis.method_defined?(command)
-      json = send(command)
+    endpoint = nil
+
+    # for backwards compatibility with developer
+    if @options[:host] =~ /developer.nrel/
+      endpoint = "#{@options[:url]}/amis_v#{@version}.json"
     else
-      fail "Unknown api version command #{command}"
+      endpoint = "#{@options[:url]}/v#{@version}/amis.json"
     end
 
-    json
+    retrieve_json(endpoint)
   end
 
+  # Return the AMIs for the specific openstudio_version or openstudio_server_version
   def get_amis
     amis = nil
     command = "get_ami_version_#{@version}"
@@ -70,29 +89,15 @@ class OpenStudioAmis
 
   protected
 
-  def list_amis_version_1
-    endpoint = "#{@options[:url]}/amis_v1.json"
-    json = retrieve_json(endpoint)
-
-    json
-  end
-
-  def list_amis_version_2
-    endpoint = "#{@options[:url]}/amis_v2.json"
-
-    json = retrieve_json(endpoint)
-    json
-  end
-
   def get_ami_version_1
-    json = list_amis_version_1
+    json = list
     version = json.key?(@options[:openstudio_version].to_sym) ? @options[:openstudio_version].to_sym : 'default'
 
     json[version]
   end
 
   def get_ami_version_2
-    json = list_amis_version_2
+    json = list
 
     amis = nil
     if @options[:openstudio_server_version].to_sym == :default
@@ -103,8 +108,17 @@ class OpenStudioAmis
       amis = value[:amis]
       # puts json.inspect
     else
-      value = json[:openstudio_server][@options[:openstudio_server_version].to_sym]
-      amis = value[:amis]
+      # check if we are looking for openstudio or openstudio server
+      if @options[:openstudio_version] != 'default'
+        stable = json[:openstudio][:stable]
+        warn "Could not find a stable version for openstudio version #{@options[:openstudio_version]}" unless stable
+        value = json[:openstudio][stable.to_sym]
+      elsif @options[:openstudio_server_version] != 'default'
+        value = json[:openstudio_server][@options[:openstudio_server_version].to_sym]
+        amis = value[:amis]
+      else
+        fail "No openstudio version nor openstudio server version passed"
+      end
     end
 
     amis
