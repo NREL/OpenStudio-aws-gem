@@ -241,6 +241,11 @@ module OpenStudio
       def describe_availability_zones
         @os_aws.describe_availability_zones
       end
+
+      # Return the list of all the instances that are running on the account in the availablity zone
+      def total_instances_count
+        @os_aws.total_instances_count
+      end
       # openstudio_instance_type as symbol
       def stop_instances(group_id, openstudio_instance_type)
         instances = @os_aws.describe_running_instances(group_id, openstudio_instance_type.to_sym)

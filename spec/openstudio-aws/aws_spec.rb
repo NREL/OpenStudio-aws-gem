@@ -140,4 +140,15 @@ describe OpenStudio::Aws::Aws do
       expect(az[:availability_zone_info].first[:zone_name]).to eq 'us-east-1a'
     end
   end
+
+  context 'total instances' do
+    it 'should describe the total instances' do
+      options = {}
+      aws = OpenStudio::Aws::Aws.new(options)
+      az = aws.total_instances_count
+
+      expect(az[:total_instances]).to_not be_nil
+      expect(az[:region]).to_not be_nil
+    end
+  end
 end

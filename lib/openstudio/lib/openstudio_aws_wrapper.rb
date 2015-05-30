@@ -118,15 +118,11 @@ class OpenStudioAwsWrapper
     describe_availability_zones.to_json
   end
 
-  def describe_total_instances
+  def total_instances_count
     resp = @aws.describe_instance_status
 
     region = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : 'no_instances'
     { total_instances: resp.instance_statuses.length, region: region }
-  end
-
-  def describe_total_instances_json
-    describe_total_instances.to_json
   end
 
   # return all of the running instances, or filter by the group_uuid & instance type

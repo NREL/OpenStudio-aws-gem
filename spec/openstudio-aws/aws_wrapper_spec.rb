@@ -42,7 +42,7 @@ describe OpenStudioAwsWrapper do
       end
 
       it 'should list number of instances' do
-        resp = @aws.os_aws.describe_total_instances
+        resp = @aws.os_aws.total_instances_count
         expect(resp).not_to be_nil
       end
     end
