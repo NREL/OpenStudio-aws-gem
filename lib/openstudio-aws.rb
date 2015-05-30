@@ -19,6 +19,7 @@ rescue LoadError
   exit
 end
 
+require 'openstudio/core_ext/hash'
 require 'openstudio/lib/openstudio_aws_logger'
 require 'openstudio/aws/aws'
 require 'openstudio/aws/config'
