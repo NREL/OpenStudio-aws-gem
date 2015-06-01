@@ -90,7 +90,6 @@ describe OpenStudio::Aws::Aws do
       aws2.load_instance_info_from_file('server_data.json')
 
       expect(aws2.os_aws.server.group_uuid).to eq j[:group_id]
-      puts aws2.os_aws.server.inspect
 
       local_file = File.expand_path('spec/resources/upload_me.sh')
       remote_file = '/home/ubuntu/i_uploaded_this_file.sh'

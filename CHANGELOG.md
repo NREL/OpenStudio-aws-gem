@@ -6,6 +6,7 @@ Version 0.3.2 (Unreleased)
 * Add a stable JSON file that can be used to flag which versions of the server are stable (used by OpenStudio PAT).
 * Add the method `describe_availability_zones` to the root AWS class
 * Add the method `total_instances_count` to the root AWS class
+* Remove all puts and replace with logger. This is required because OpenStudio PAT reads the result from the command line.
 
 Version 0.3.1
 -------------

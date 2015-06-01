@@ -55,6 +55,7 @@ class OpenStudioAwsWrapper
 
   def initialize(options = {}, group_uuid = nil)
     @group_uuid = group_uuid || (SecureRandom.uuid).gsub('-', '')
+    logger.info "Group ID is #{@group_uuid}"
 
     @security_groups = []
     @key_pair_name = nil
@@ -216,13 +217,14 @@ class OpenStudioAwsWrapper
   end
 
   def terminate_instances(ids)
+    resp = nil
     begin
       resp = @aws.terminate_instances(
         instance_ids: ids
       )
     rescue Aws::EC2::Errors::InvalidInstanceIDNotFound
       # Log that the instances couldn't be found?
-      return resp = { error: 'instances could not be found' }
+      resp = { error: 'instances could not be found' }
     end
 
     resp
@@ -264,7 +266,7 @@ class OpenStudioAwsWrapper
       # check if the file basename exists in your user directory
       filename = File.expand_path("~/.ssh/#{File.basename(filename)}")
       if File.exist? filename
-        puts "Found key of same name in user's home ssh folder #{filename}"
+        logger.info "Found key of same name in user's home ssh folder #{filename}"
         # using the key in your home directory
       else
         fail "Could not find private key #{filename}" unless File.exist? filename
@@ -413,7 +415,7 @@ class OpenStudioAwsWrapper
         logger.info "Server instance is already defined with instance #{resp[:instance_id]}"
       end
     else
-      puts 'could not find a running server instance'
+      logger.info 'could not find a running server instance'
     end
 
     # find the workers
@@ -534,7 +536,7 @@ class OpenStudioAwsWrapper
       sv = ami[:tags_hash][:openstudio_server_version]
 
       if sv.nil? || sv == ''
-        puts 'found nil version, incrementing from 0.0.1'
+        logger.info 'found nil version, incrementing from 0.0.1'
         sv = get_next_version('0.0.1', list_of_svs)
       end
       list_of_svs << sv
@@ -586,10 +588,8 @@ class OpenStudioAwsWrapper
         end
       end
     end
-    # puts "Current AMIs: #{JSON.pretty_generate(amis)}"
 
     # merge in the existing AMIs the existing amis into the 'unknown category, but don't flag them as 'deprecate'
-    # puts "Existing AMIs: #{JSON.pretty_generate(existing)}"
     existing.keys.each do |ami_key|
       next if ami_key == 'default'.to_sym # ignore default
 
@@ -608,7 +608,6 @@ class OpenStudioAwsWrapper
       a[:openstudio_server_version] = next_version.to_s
     end
 
-    # puts "After merge: #{JSON.pretty_generate(amis)}"
     # flip these around for openstudio server section
     amis[:openstudio_server].keys.each do |key|
       next if key.to_s.to_version.satisfies('0.0.*')
@@ -634,8 +633,6 @@ class OpenStudioAwsWrapper
       amis[:openstudio][key][:default] = amis[:openstudio][key].keys[0]
     end
     amis[:openstudio] = Hash[amis[:openstudio].sort_by { |k, _| k.to_s.to_version }.reverse]
-
-    # puts "After sort: #{JSON.pretty_generate(amis)}"
 
     amis
   end

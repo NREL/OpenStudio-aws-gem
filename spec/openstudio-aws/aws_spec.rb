@@ -92,7 +92,6 @@ describe OpenStudio::Aws::Aws do
       }
 
       @aws = OpenStudio::Aws::Aws.new(options)
-      # puts @aws.inspect
       expect(@aws.os_aws).not_to be_nil
     end
 

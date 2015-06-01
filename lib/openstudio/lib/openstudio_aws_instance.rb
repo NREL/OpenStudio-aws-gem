@@ -141,12 +141,12 @@ class OpenStudioAwsInstance
       t = tag.split('=')
       if t.size != 2
         logger.error "Tag '#{t}' not defined or does not have an equal sign"
-        puts "Tag '#{t}' not defined or does not have an equal sign"
+        fail "Tag '#{t}' not defined or does not have an equal sign"
         next
       end
       if %w(Name GroupUUID NumberOfProcessors Purpose UserID).include? t[0]
         logger.error "Tag name '#{t[0]}' is a reserved tag"
-        puts "Tag name '#{t[0]}' is a reserved tag"
+        fail "Tag name '#{t[0]}' is a reserved tag"
         next
       end
 
