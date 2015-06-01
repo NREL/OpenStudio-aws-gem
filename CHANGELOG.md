@@ -10,6 +10,7 @@ Version 0.3.2 (Unreleased)
 * Add method to list status of all instances in the group
 * Add method to `delete_key_pair`
 * Add launch time to the server data struct
+* Add cloud watch class to calculate the cost
 
 Version 0.3.1
 -------------

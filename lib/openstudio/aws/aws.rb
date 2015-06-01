@@ -60,6 +60,7 @@ module OpenStudio
         end
 
         @os_aws = OpenStudioAwsWrapper.new(options)
+        @os_cloudwatch = OpenStudioCloudWatch.new(options)
 
         @instances_filename = nil
 
@@ -285,6 +286,13 @@ module OpenStudio
       def total_instances_count
         @os_aws.total_instances_count
       end
+
+      # Return the estimated cost for EC2 instances
+      def estimated_charges
+        @os_cloudwatch.estimated_charges
+      end
+
+
 
       # Stop running instances
       #
