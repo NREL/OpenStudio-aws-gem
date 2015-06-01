@@ -55,7 +55,7 @@ class OpenStudioAwsWrapper
 
   def initialize(options = {}, group_uuid = nil)
     @group_uuid = group_uuid || (SecureRandom.uuid).gsub('-', '')
-    logger.info "Group ID is #{@group_uuid}"
+    logger.info "GroupUUID is #{@group_uuid}"
 
     @security_groups = []
     @key_pair_name = nil
@@ -124,6 +124,38 @@ class OpenStudioAwsWrapper
 
     region = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : 'no_instances'
     { total_instances: resp.instance_statuses.length, region: region }
+  end
+
+  # describe the instances by group id
+  def describe_instances
+    resp = nil
+    if group_uuid
+      resp = @aws.describe_instances(
+        filters: [
+          # {name: 'instance-state-code', values: [0.to_s, 16.to_s]}, # running or pending -- any state
+          { name: 'tag-key', values: ['GroupUUID'] },
+          { name: 'tag-value', values: [group_uuid.to_s] }
+        ]
+      )
+    else
+      resp = @aws.describe_instances
+    end
+
+    # Any additional filters
+    instance_data = nil
+    if resp
+      instance_data = []
+      resp.reservations.each do |r|
+        r.instances.each do |i|
+          i_h = i.to_hash
+          if i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+            instance_data << i_h
+          end
+        end
+      end
+    end
+
+    instance_data
   end
 
   # return all of the running instances, or filter by the group_uuid & instance type
@@ -261,6 +293,22 @@ class OpenStudioAwsWrapper
     logger.info("create key pair: #{@key_pair_name}")
   end
 
+  # Delete the key pair from aws
+  def delete_key_pair(key_pair_name = nil)
+    tmp_name = key_pair_name || "os-key-pair-#{@group_uuid}"
+    resp = nil
+    begin
+      logger.info "Trying to delete key pair #{tmp_name}"
+      resp = @aws.delete_key_pair(key_name: tmp_name)
+    rescue
+      logger.info "could not delete the key pair '#{tmp_name}'"
+    end
+
+    @logger.info resp
+
+    resp
+  end
+
   def load_private_key(filename)
     unless File.exist? filename
       # check if the file basename exists in your user directory
@@ -395,8 +443,8 @@ class OpenStudioAwsWrapper
     @group_uuid = server_data_hash[:group_id] || @group_uuid
     load_private_key(server_data_hash[:server][:private_key_file_name])
 
-    logger.info "finding the server for groupid of #{group_uuid}"
-    fail 'no group uuid defined either in member variable or method argument' if group_uuid.nil?
+    logger.info "Finding the server for GroupUUID of #{group_uuid}"
+    fail 'no GroupUUID defined either in member variable or method argument' if group_uuid.nil?
 
     # This should really just be a single call to describe running instances
     @server = nil

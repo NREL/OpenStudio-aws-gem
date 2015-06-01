@@ -7,6 +7,8 @@ Version 0.3.2 (Unreleased)
 * Add the method `describe_availability_zones` to the root AWS class
 * Add the method `total_instances_count` to the root AWS class
 * Remove all puts and replace with logger. This is required because OpenStudio PAT reads the result from the command line.
+* Add method to list status of all instances in the group
+* Add method to `delete_key_pair`
 
 Version 0.3.1
 -------------

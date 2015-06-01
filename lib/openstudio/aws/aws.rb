@@ -234,6 +234,53 @@ module OpenStudio
         @os_aws.describe_availability_zones
       end
 
+      # Delete the key pair. Make sure that this happens at the end of whatever you are running, because you
+      # will not be able to connect to the instance after you do this.
+      def delete_key_pair
+        @os_aws.delete_key_pair
+      end
+
+      # Return the description of the instances in the GroupUUID
+      #
+      # @example Return Example
+      #   [{:instance_id=>"i-45f924ac",
+      #     :image_id=>"ami-845a54ec",
+      #     :state=>{:code=>48, :name=>"terminated"},
+      #     :private_dns_name=>"",
+      #     :public_dns_name=>"",
+      #     :state_transition_reason=>"User initiated (2015-06-01 21:50:40 GMT)",
+      #     :key_name=>"os-key-pair-275a3bf436004c04a1a347ff36337f16",
+      #     :ami_launch_index=>0,
+      #     :product_codes=>[],
+      #     :instance_type=>"m3.medium",
+      #     :launch_time=>2015-06-01 21:13:18 UTC,
+      #     :placement=>
+      #         {:availability_zone=>"us-east-1e", :group_name=>"", :tenancy=>"default"},
+      #         :monitoring=>{:state=>"disabled"},
+      #         :state_reason=>
+      #         {:code=>"Client.UserInitiatedShutdown",
+      #          :message=>"Client.UserInitiatedShutdown: User initiated shutdown"},
+      #         :architecture=>"x86_64",
+      #         :root_device_type=>"ebs",
+      #         :root_device_name=>"/dev/sda1",
+      #         :block_device_mappings=>[],
+      #         :virtualization_type=>"hvm",
+      #         :client_token=>"",
+      #         :tags=>
+      #         [{:key=>"Purpose", :value=>"OpenStudioServer"},
+      #          {:key=>"NumberOfProcessors", :value=>"1"},
+      #          {:key=>"GroupUUID", :value=>"275a3bf436004c04a1a347ff36337f16"},
+      #          {:key=>"Name", :value=>"OpenStudio-Server"},
+      #          {:key=>"UserID", :value=>"unknown_user"}],
+      #         :security_groups=>
+      #         [{:group_name=>"openstudio-server-sg-v2.1", :group_id=>"sg-8740f3ea"}],
+      #         :hypervisor=>"xen",
+      #         :network_interfaces=>[],
+      #         :ebs_optimized=>false}]
+      def describe_instances
+        @os_aws.describe_instances
+      end
+
       # Return the list of all the instances that are running on the account in the availablity zone
       def total_instances_count
         @os_aws.total_instances_count
@@ -263,17 +310,19 @@ module OpenStudio
       # Warning, this appears that it terminates all the instances
       def terminate_instances_by_group_id(group_id)
         instances = @os_aws.describe_running_instances(group_id)
+        logger.info instances
         ids = instances.map { |k, _| k[:instance_id] }
 
         logger.info "Terminating the following instances #{ids}"
         resp = []
         resp = @os_aws.terminate_instances(ids).to_hash unless ids.empty?
+
         resp[:terminating_instances].first[:current_state][:name] == 'shutting-down'
       end
 
-      # Terminate the entire cluster
+      # Terminate the entire cluster based on the member variable's group_uuid.
       def terminate
-        logger.info "Terminating any instance with group ID: #{@os_aws.group_uuid}"
+        logger.info "Terminating any instance with GroupUUID: #{@os_aws.group_uuid}"
 
         terminate_instances_by_group_id(@os_aws.group_uuid)
       end
