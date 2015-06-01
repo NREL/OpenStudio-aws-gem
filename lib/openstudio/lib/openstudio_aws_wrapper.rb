@@ -304,8 +304,6 @@ class OpenStudioAwsWrapper
       logger.info "could not delete the key pair '#{tmp_name}'"
     end
 
-    @logger.info resp
-
     resp
   end
 
