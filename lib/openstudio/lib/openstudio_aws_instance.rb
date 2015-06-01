@@ -422,7 +422,7 @@ class OpenStudioAwsInstance
   # store some of the data into a custom struct.  The instance is the full description.  The remaining fields are
   # just easier accessors to the data in the raw request except for procs which is a custom request.
   def create_struct(instance, procs)
-    instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs, :availability_zone, :private_ip_address)
+    instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs, :availability_zone, :private_ip_address, :launch_time)
     s = instance_struct.new(
       instance,
       instance[:instance_id],
@@ -430,7 +430,8 @@ class OpenStudioAwsInstance
       instance[:public_dns_name],
       procs,
       instance[:placement][:availability_zone],
-      instance[:private_ip_address]
+      instance[:private_ip_address],
+      instance[:launch_time]
     )
 
     # store some values into the member variables
