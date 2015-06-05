@@ -320,6 +320,8 @@ module OpenStudio
 
       # Warning, this appears that it terminates all the instances
       def terminate_instances_by_group_id(group_id)
+        fail "Group ID not defined" unless group_id
+
         instances = @os_aws.describe_running_instances(group_id)
         logger.info instances
         ids = instances.map { |k, _| k[:instance_id] }

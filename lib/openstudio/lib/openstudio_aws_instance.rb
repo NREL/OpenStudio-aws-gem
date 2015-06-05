@@ -161,7 +161,7 @@ class OpenStudioAwsInstance
         tags: aws_tags
       )
     rescue Aws::EC2::Errors::InvalidInstanceIDNotFound
-      sleep 1000
+      sleep 5
       retry unless (tries -= 1).zero?
     end
 
@@ -307,13 +307,13 @@ class OpenStudioAwsInstance
       # port 22 might not be available immediately after the instance finishes launching
       return if retries == 5
       retries += 1
-      sleep 1
+      sleep 2
       retry
     rescue
       # Unknown upload error, retry
       return if retries == 5
       retries += 1
-      sleep 1
+      sleep 2
       retry
     end
   end
@@ -343,11 +343,11 @@ class OpenStudioAwsInstance
   rescue Net::SSH::HostKeyMismatch => e
     e.remember_host!
     logger.info('key mismatch, retry')
-    sleep 1
+    sleep 2
     retry
   rescue SystemCallError, Timeout::Error => e
     # port 22 might not be available immediately after the instance finishes launching
-    sleep 1
+    sleep 2
     logger.info('SystemCallError, Waiting for SSH to become available')
     retry
   end
@@ -406,12 +406,12 @@ class OpenStudioAwsInstance
       # port 22 might not be available immediately after the instance finishes launching
       return if retries == 5
       retries += 1
-      sleep 1
+      sleep 2
       retry
     rescue
       return if retries == 5
       retries += 1
-      sleep 1
+      sleep 2
       retry
     end
   end

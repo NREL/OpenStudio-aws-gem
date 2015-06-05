@@ -12,6 +12,7 @@ describe OpenStudio::Aws::Aws do
       @group_id = nil
 
       FileUtils.rm_f 'ec2_server_key.pem' if File.exist? 'ec2_server_key.pem'
+      FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
     end
 
     it 'should create a new instance' do
@@ -26,6 +27,8 @@ describe OpenStudio::Aws::Aws do
       FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
 
       @aws.create_server(options)
+
+      @aws.save_cluster_info 'server_data.json'
 
       expect(File.exist?('ec2_server_key.pem')).to be true
       expect(File.exist?('server_data.json')).to be true
@@ -64,19 +67,38 @@ describe OpenStudio::Aws::Aws do
       expect(@aws.os_aws.server).not_to be_nil
     end
 
-    it 'should kill running instances' do
-      # how to test this?
+    after :all do
+      if File.exist? 'server_data.json'
+      	j = JSON.parse(File.read('server_data.json'), symbolize_names: true)
+
+      	@aws.terminate_instances_by_group_id(j[:group_id])
+      end
     end
   end
 
   context 'upload data to a server' do
-    it 'should create a server' do
+    before :all do
+      @group_id = nil
+
       config = OpenStudio::Aws::Config.new
-      aws = OpenStudio::Aws::Aws.new
+      @aws = OpenStudio::Aws::Aws.new
+    end
 
-      options = { instance_type: 'm3.medium', image_id: SERVER_AMI }
+    it 'should create a server' do
+      options = { 
+      	instance_type: 'm3.medium', 
+      	image_id: SERVER_AMI 
+      }
 
-      aws.create_server(options)
+      @aws.create_server(options)
+      @aws.create_workers(0, options)
+
+      @aws.save_cluster_info 'server_data.json'
+
+      h = @aws.os_aws.server.to_os_hash
+      expect(h[:group_id]).to be_a String
+      expect(h[:group_id]).to match /^[\d\S]{32}$/
+      @group_id = h[:group_id]
     end
 
     it 'should upload a file after loading the existing server' do
@@ -110,7 +132,11 @@ describe OpenStudio::Aws::Aws do
     end
 
     after :all do
-      # FileUtils.rm_f 'ec2_server_key.pem' if File.exist? 'ec2_server_key.pem'
+      if File.exist? 'server_data.json'
+      	j = JSON.parse(File.read('server_data.json'), symbolize_names: true)
+
+      	@aws.terminate_instances_by_group_id(j[:group_id])
+      end
     end
   end
 
@@ -151,6 +177,8 @@ describe OpenStudio::Aws::Aws do
 
         @aws.create_server(options)
 
+        @aws.save_cluster_info 'server_data.json'
+
         expect(File.exist?('ec2_server_key.pem')).to be true
         expect(File.exist?('server_data.json')).to be true
         expect(@aws.os_aws.server).not_to be_nil
@@ -160,11 +188,9 @@ describe OpenStudio::Aws::Aws do
         expect(h[:group_id]).to match /^[\d\S]{32}$/
         expect(h[:location]).to eq 'AWS'
 
-        puts h.inspect
-
         @group_id = h[:group_id]
       ensure
-        @aws.terminate_instances_by_group_id(h[:group_id], :server)
+        @aws.terminate_instances_by_group_id(h[:group_id])
       end
     end
   end
@@ -204,7 +230,7 @@ describe OpenStudio::Aws::Aws do
         expect(h[:group_id]).to match /^[\d\S]{32}$/
         expect(h[:location]).to eq 'AWS'
       ensure
-        @aws.terminate_instances_by_group_id(h[:group_id], :server)
+        @aws.terminate_instances_by_group_id(h[:group_id])
       end
     end
   end
