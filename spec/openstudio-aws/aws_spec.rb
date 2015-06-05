@@ -80,6 +80,18 @@ describe OpenStudio::Aws::Aws do
 
       expect { aws.create_server(options) }.to raise_error /Must pass in the private_key_file_name/
     end
+
+    it 'should create a key in another directory' do
+      options = {}
+      aws = OpenStudio::Aws::Aws.new
+      expect(aws.save_directory).to eq File.expand_path('.')
+
+      options = {
+        save_directory: 'spec/output/save_path'
+      }
+      aws = OpenStudio::Aws::Aws.new(options)
+      expect(aws.save_directory).to eq File.join(File.expand_path('.'), 'spec/output/save_path')
+    end
   end
 
   context 'proxy configuration' do

@@ -39,15 +39,15 @@ class OpenStudioCloudWatch
     end_time = Time.now.utc
     start_time = end_time - 86400
     resp = @aws.get_metric_statistics(
-        dimensions: [
-            {name: 'ServiceName', value: 'AmazonEC2'},
-            {name: 'Currency', value: 'USD'}],
-        metric_name: 'EstimatedCharges',
-        namespace: 'AWS/Billing',
-        start_time: start_time.iso8601,
-        end_time: end_time.iso8601,
-        period: 300,
-        statistics: ['Maximum']
+      dimensions: [
+        { name: 'ServiceName', value: 'AmazonEC2' },
+        { name: 'Currency', value: 'USD' }],
+      metric_name: 'EstimatedCharges',
+      namespace: 'AWS/Billing',
+      start_time: start_time.iso8601,
+      end_time: end_time.iso8601,
+      period: 300,
+      statistics: ['Maximum']
     )
 
     resp.data || []

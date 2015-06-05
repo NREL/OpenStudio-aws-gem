@@ -322,11 +322,13 @@ class OpenStudioAwsWrapper
     @private_key = File.read(filename)
   end
 
-  def save_private_key(filename)
+  def save_private_key(directory = '.', filename = 'ec2_server_key.pem')
     if @private_key
-      @private_key_file_name = File.expand_path filename
-      File.open(filename, 'w') { |f| f << @private_key }
-      File.chmod(0600, filename)
+      @private_key_file_name = File.expand_path "#{directory}/#{filename}"
+      logger.info "Saving server private key in #{@private_key_file_name}"
+      File.open(@private_key_file_name, 'w') { |f| f << @private_key }
+      logger.info 'Setting permissions of server private key to 0600'
+
     else
       fail "No private key found in which to persist with filename #{filename}"
     end
@@ -334,8 +336,15 @@ class OpenStudioAwsWrapper
 
   # save off the worker public/private keys that were created
   def save_worker_keys(directory = '.')
-    File.open("#{directory}/ec2_worker_key.pem", 'w') { |f| f << @worker_keys.private_key }
-    File.open("#{directory}/ec2_worker_key.pub", 'w') { |f| f << @worker_keys.public_key }
+    wk = "#{directory}/ec2_worker_key.pem"
+    logger.info "Saving worker private key in #{wk}"
+    File.open(wk, 'w') { |f| f << @worker_keys.private_key }
+    logger.info 'Setting permissions of worker private key to 0600'
+    File.chmod(0600, wk)
+
+    wk = "#{directory}/ec2_worker_key.pub"
+    logger.info "Saving worker public key in #{wk}"
+    File.open(wk, 'w') { |f| f << @worker_keys.public_key }
   end
 
   def launch_server(image_id, instance_type, launch_options = {})

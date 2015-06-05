@@ -177,37 +177,81 @@ describe OpenStudio::Aws::Aws do
       @group_id = nil
     end
 
-    it 'should create allow a zero length worker' do
+    it 'should allow a zero length worker' do
       begin
-        begin
-          options = {
-            instance_type: 'm3.medium',
-            image_id: SERVER_AMI,
-            tags: [
-              'ci_tests=true',
-              'ServerOnly=true'
-            ]
-          }
+        options = {
+          instance_type: 'm3.medium',
+          image_id: SERVER_AMI,
+          tags: [
+            'ci_tests=true',
+            'ServerOnly=true'
+          ]
+        }
 
-          expect { @aws.create_workers(0) }.to raise_error "Can't create workers without a server instance running"
+        expect { @aws.create_workers(0) }.to raise_error "Can't create workers without a server instance running"
 
-          test_pem_file = 'ec2_server_key.pem'
-          FileUtils.rm_f test_pem_file if File.exist? test_pem_file
-          FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
+        test_pem_file = 'ec2_server_key.pem'
+        FileUtils.rm_f test_pem_file if File.exist? test_pem_file
+        FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
 
-          @aws.create_server(options)
+        @aws.create_server(options)
 
-          # Still have to call "create workers" or the configuration won't happen.
-          @aws.create_workers(0, options)
+        # Still have to call "create workers" or the configuration won't happen.
+        @aws.create_workers(0, options)
 
-          h = @aws.os_aws.server.to_os_hash
-          expect(h[:group_id]).to be_a String
-          expect(h[:group_id]).to match /^[\d\S]{32}$/
-          expect(h[:location]).to eq 'AWS'
-        ensure
-          @aws.terminate_instances_by_group_id(h[:group_id], :server)
-        end
+        h = @aws.os_aws.server.to_os_hash
+        expect(h[:group_id]).to be_a String
+        expect(h[:group_id]).to match /^[\d\S]{32}$/
+        expect(h[:location]).to eq 'AWS'
+      ensure
+        @aws.terminate_instances_by_group_id(h[:group_id], :server)
       end
+    end
+  end
+
+  context 'key locations' do
+    before :all do
+      FileUtils.rm_rf 'spec/output/save_path'
+
+      @config = OpenStudio::Aws::Config.new
+      options = {
+        save_directory: 'spec/output/save_path'
+      }
+      @aws = OpenStudio::Aws::Aws.new(options)
+
+      @group_id = nil
+    end
+
+    it 'should allow a different location for saving aws config files' do
+      begin
+        options = {
+          instance_type: 'm3.medium',
+          image_id: SERVER_AMI
+        }
+
+        expect(@aws.save_directory).to eq File.join(File.expand_path('.'), 'spec/output/save_path')
+
+        @aws.create_server(options)
+
+        @aws.save_cluster_info "#{@aws.save_directory}/server_data.json"
+
+        expect(File.exist?('spec/output/save_path/ec2_server_key.pem')).to be true
+        expect(File.exist?('spec/output/save_path/ec2_worker_key.pem')).to be true
+        expect(File.exist?('spec/output/save_path/ec2_worker_key.pub')).to be true
+        expect(File.exist?('spec/output/save_path/server_data.json')).to be true
+
+        expect(@aws.os_aws.server).not_to be_nil
+        expect(@aws.os_aws.server.data.availability_zone).to match /us-east-../
+
+        h = @aws.os_aws.server.to_os_hash
+        expect(h[:group_id]).to be_a String
+        expect(h[:group_id]).to match /^[\d\S]{32}$/
+        @group_id = h[:group_id]
+      ensure
+        @aws.terminate_instances_by_group_id(@group_id)
+      end
+
+      # verify that the instances are dead -- how?
     end
   end
 end

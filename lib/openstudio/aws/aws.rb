@@ -3,7 +3,8 @@ module OpenStudio
   module Aws
     VALID_OPTIONS = [
       :proxy, :credentials, :ami_lookup_version, :openstudio_version,
-      :openstudio_server_version, :region, :ssl_verify_peer, :host, :url, :stable
+      :openstudio_server_version, :region, :ssl_verify_peer, :host, :url, :stable,
+      :save_directory
     ]
 
     class Aws
@@ -12,6 +13,7 @@ module OpenStudio
       # Deprecate OS_AWS object
       attr_reader :os_aws
       attr_reader :default_amis
+      attr_reader :save_directory
 
       # default constructor to create the AWS class that can spin up server and worker instances.
       # options are optional with the following support:
@@ -27,10 +29,15 @@ module OpenStudio
         defaults = {
           ami_lookup_version: 1,
           region: 'us-east-1',
-          ssl_verify_peer: false
+          ssl_verify_peer: false,
+          save_directory: '.'
         }
         options = defaults.merge(options)
         logger.info "AWS initialized with the options: #{options.except(:credentials)}"
+
+        # set the save path
+        @save_directory = File.expand_path options[:save_directory]
+        FileUtils.mkdir_p @save_directory unless Dir.exist? @save_directory
 
         # read in the config.yml file to get the secret/private key
         if !options[:credentials]
@@ -61,8 +68,6 @@ module OpenStudio
 
         @os_aws = OpenStudioAwsWrapper.new(options)
         @os_cloudwatch = OpenStudioCloudWatch.new(options)
-
-        @instances_filename = nil
 
         # this will grab the default version of openstudio ami versions
         # get the arugments for the AMI lookup
@@ -126,7 +131,7 @@ module OpenStudio
           @os_aws.private_key_file_name = options[:private_key_file_name]
         else
           # Save the private key if you did not pass in an already existing key_pair_name
-          @os_aws.save_private_key('ec2_server_key.pem')
+          @os_aws.save_private_key(@save_directory)
         end
 
         server_options = {
@@ -138,7 +143,7 @@ module OpenStudio
 
         # save the worker pem and public to the directory
         # presently, this will always overwrite the worker key, is that okay? Is this really needed later?
-        @os_aws.save_worker_keys('.')
+        @os_aws.save_worker_keys(@save_directory)
 
         # if instance_data[:ebs_volume_id]
         #   server_options[:ebs_volume_id] = instance_data[:ebs_volume_id]
@@ -147,6 +152,9 @@ module OpenStudio
         @os_aws.launch_server(options[:image_id], options[:instance_type], server_options)
       end
 
+      # Write out to the terminal the connection information for the servers and workers
+      #
+      # @return [nil] Only prints to the screen. No return is expected
       def print_connection_info
         # Print out some debugging commands (probably work on mac/linux only)
         puts ''
@@ -204,9 +212,6 @@ module OpenStudio
           # end
 
           @os_aws.launch_workers(options[:image_id], options[:instance_type], number_of_instances, worker_options)
-
-          # Add the worker data to the JSON
-          save_cluster_json @instances_filename
         end
 
         logger.info 'Waiting for server/worker configurations'
@@ -291,8 +296,6 @@ module OpenStudio
       def estimated_charges
         @os_cloudwatch.estimated_charges
       end
-
-
 
       # Stop running instances
       #
