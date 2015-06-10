@@ -125,7 +125,10 @@ class OpenStudioAmis
                       "Looking up older versions to find the latest stable." unless stable
 
           json[:openstudio].each do |os_version, values|
+            next if os_version == :default
             if values.key? :stable
+              # don't check versions newer than what we are requesting
+              next if os_version.to_s.to_version > @options[:openstudio_version].to_s.to_version
               stable = json[:openstudio][os_version][:stable]
               logger.info "Found a stable version for OpenStudio version #{os_version} with OpenStudio Server version #{stable}"
               value = values[stable.to_sym]
@@ -134,6 +137,8 @@ class OpenStudioAmis
               break
             end
           end
+
+          fail "Could not find a stable version for openstudio version #{@options[:openstudio_version]}" unless amis
         end
       else
         # return the default version (which is the latest)
