@@ -19,8 +19,8 @@ Gem::Specification.new do |s|
 
   s.add_dependency 'net-scp', '~> 1.1'
   s.add_dependency 'aws-sdk-core', '~> 2.0'
-  s.add_dependency 'semantic', '~> 1.3'
-  s.add_dependency 'sshkey', '~> 1.6'
+  s.add_dependency 'semantic', '~> 1.4'
+  s.add_dependency 'sshkey', '~> 1.7'
 
   s.add_development_dependency 'bundler', '~> 1.7'
   s.add_development_dependency 'rake', '~> 10.4'
