@@ -1,7 +1,7 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
-Version 0.3.2 (Unreleased)
+Version 0.4.0.alpha1
 -------------
 * Add a stable JSON file that can be used to flag which versions of the server are stable (used by OpenStudio PAT).
 * Remove all puts and replace with logger. This is required because OpenStudio PAT reads the result from the command line.

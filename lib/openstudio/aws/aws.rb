@@ -19,6 +19,13 @@ module OpenStudio
       # options are optional with the following support:
       #   credentials => {:access_key_id, :secret_access_key, :region, :ssl_verify_peer}
       #   proxy => {:host => "192.168.0.1", :port => "8808", :username => "user", :password => "password"}}
+      # @param options [Hash]
+      # @option options [Boolean] :openstudio_version Version of OpenStudio in which to do the lookup for the server
+      #   AMIs. This cannot be used in conjunction with the :openstudio_server_version.
+      # @option options [Boolean] :openstudio_server_version Version of OpenStudio Server in which to do the lookup for
+      #   the server AMIs. This cannot be used in conjunction with the :openstudio_server_version
+      # @option options [Boolean] :stable (false) Find a stable version less than or equal to the version that is passed in the
+      #   version field
       def initialize(options = {})
         invalid_options = options.keys - VALID_OPTIONS
         if invalid_options.any?

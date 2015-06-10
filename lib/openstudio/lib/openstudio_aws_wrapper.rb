@@ -121,11 +121,12 @@ class OpenStudioAwsWrapper
   def total_instances_count
     resp = @aws.describe_instance_status
 
+    # TODO: make this return the region not the availability zone
     region = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : 'no_instances'
     { total_instances: resp.instance_statuses.length, region: region }
   end
 
-  # describe the instances by group id
+  # describe the instances by group id (this is the default method)
   def describe_instances
     resp = nil
     if group_uuid

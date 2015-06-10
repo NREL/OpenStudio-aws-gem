@@ -21,6 +21,8 @@
 # Class for managing the AMI ids based on the openstudio version and the openstudio-server version
 
 class OpenStudioAmis
+  include Logging
+
   VALID_OPTIONS = [
     :openstudio_version, :openstudio_server_version, :host, :url, :stable
   ]
@@ -100,6 +102,7 @@ class OpenStudioAmis
     json[version]
   end
 
+  # Return the AMIs for the server and worker. Version 2 also does a lookup of the stable version
   def get_ami_version_2
     json = list
 
@@ -114,9 +117,24 @@ class OpenStudioAmis
     elsif @options[:openstudio_version] != 'default'
       if @options[:stable]
         stable = json[:openstudio][@options[:openstudio_version].to_sym][:stable]
-        fail "Could not find a stable version for openstudio version #{@options[:openstudio_version]}" unless stable
-        value = json[:openstudio][@options[:openstudio_version].to_sym][stable.to_sym]
-        amis = value[:amis]
+        if stable
+          value = json[:openstudio][@options[:openstudio_version].to_sym][stable.to_sym]
+          amis = value[:amis]
+        else
+          logger.info "Could not find a stable version for OpenStudio version #{@options[:openstudio_version]}. "\
+                      "Looking up older versions to find the latest stable." unless stable
+
+          json[:openstudio].each do |os_version, values|
+            if values.key? :stable
+              stable = json[:openstudio][os_version][:stable]
+              logger.info "Found a stable version for OpenStudio version #{os_version} with OpenStudio Server version #{stable}"
+              value = values[stable.to_sym]
+              amis = value[:amis]
+
+              break
+            end
+          end
+        end
       else
         # return the default version (which is the latest)
         default = json[:openstudio][@options[:openstudio_version].to_sym][:default]
@@ -125,6 +143,8 @@ class OpenStudioAmis
         amis = value[:amis]
       end
     end
+
+    logger.info "AMI IDs are #{amis}" if amis
 
     amis
   end
@@ -138,6 +158,7 @@ class OpenStudioAmis
 
     url = URI.parse(uri_str)
     req = Net::HTTP::Get.new(url.path)
+    logger.info "Fetching AMI list from #{uri_str}"
     response = Net::HTTP.start(url.host, url.port) { |http| http.request(req) }
     case response
       when Net::HTTPSuccess then
