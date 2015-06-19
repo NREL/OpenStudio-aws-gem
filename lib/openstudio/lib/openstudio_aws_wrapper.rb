@@ -59,8 +59,17 @@ class OpenStudioAwsWrapper
     @security_groups = []
     @key_pair_name = nil
     @private_key_file_name = nil
+    @region = options[:region] || 'unknown-region'
 
-    @worker_keys = SSHKey.generate
+    # If the keys exist in the directory then load those, otherwise create new ones.
+    work_dir = options[:save_directory] || '.'
+    if File.exist?(File.join(work_dir, 'ec2_worker_key.pem')) && File.exist?(File.join(work_dir, 'ec2_worker_key.pub'))
+      logger.info "Worker keys already exist, loading from #{work_dir}"
+      @worker_keys = SSHKey.new(File.read(File.join(work_dir, 'ec2_worker_key.pem')))
+    else
+      logger.info 'Generating new worker keys'
+      @worker_keys = SSHKey.generate
+    end
 
     @private_key = nil # Private key data
 
@@ -121,9 +130,15 @@ class OpenStudioAwsWrapper
   def total_instances_count
     resp = @aws.describe_instance_status
 
-    # TODO: make this return the region not the availability zone
-    region = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : 'no_instances'
-    { total_instances: resp.instance_statuses.length, region: region }
+    availability_zone = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : 'no_instances'
+
+    { total_instances: resp.instance_statuses.length, region: @region, availability_zone: availability_zone }
+  end
+
+  def describe_all_instances
+    resp = @aws.describe_instance_status
+
+    resp
   end
 
   # describe the instances by group id (this is the default method)
@@ -377,8 +392,7 @@ class OpenStudioAwsWrapper
       user_id: 'unknown_user',
       tags: [],
       ebs_volume_size: nil,
-      availability_zone: @server.data.availability_zone,
-      worker_public_key: ''
+      availability_zone: @server.data.availability_zone
     }
     launch_options = defaults.merge(launch_options)
 

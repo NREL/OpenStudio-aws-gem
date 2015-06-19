@@ -269,8 +269,6 @@ class OpenStudioAwsInstance
     processors = 1
     if lookup.key?(instance)
       processors = lookup[instance]
-    else
-      # logger.warn "Could not find the number of processors for instance type of #{instance}" if logger
     end
 
     if @openstudio_instance_type == :server

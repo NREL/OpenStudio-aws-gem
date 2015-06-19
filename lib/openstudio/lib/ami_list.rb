@@ -122,7 +122,7 @@ class OpenStudioAmis
           amis = value[:amis]
         else
           logger.info "Could not find a stable version for OpenStudio version #{@options[:openstudio_version]}. "\
-                      "Looking up older versions to find the latest stable." unless stable
+                      'Looking up older versions to find the latest stable.' unless stable
 
           json[:openstudio].each do |os_version, values|
             next if os_version == :default

@@ -1,6 +1,12 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.4.0.alpha2
+-------------
+* Load worker keys from disk (if they exist) when constructing the OpenStudioAwsWrapper class
+* Have `total_instances_count` return the region and first availability zone
+* Add `describe_all_instances`
+
 Version 0.4.0.alpha1
 -------------
 * Add a stable JSON file that can be used to flag which versions of the server are stable (used by OpenStudio PAT).

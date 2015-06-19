@@ -294,6 +294,11 @@ module OpenStudio
         @os_aws.describe_instances
       end
 
+      # List the description of all instances on AWS in the predefined region
+      def describe_all_instances
+        @os_aws.describe_all_instances
+      end
+
       # Return the list of all the instances that are running on the account in the availablity zone
       def total_instances_count
         @os_aws.total_instances_count
@@ -327,7 +332,7 @@ module OpenStudio
 
       # Warning, this appears that it terminates all the instances
       def terminate_instances_by_group_id(group_id)
-        fail "Group ID not defined" unless group_id
+        fail 'Group ID not defined' unless group_id
 
         instances = @os_aws.describe_running_instances(group_id)
         logger.info instances

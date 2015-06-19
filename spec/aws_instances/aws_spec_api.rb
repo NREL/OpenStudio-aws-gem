@@ -69,9 +69,9 @@ describe OpenStudio::Aws::Aws do
 
     after :all do
       if File.exist? 'server_data.json'
-      	j = JSON.parse(File.read('server_data.json'), symbolize_names: true)
+        j = JSON.parse(File.read('server_data.json'), symbolize_names: true)
 
-      	@aws.terminate_instances_by_group_id(j[:group_id])
+        @aws.terminate_instances_by_group_id(j[:group_id])
       end
     end
   end
@@ -85,9 +85,9 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should create a server' do
-      options = { 
-      	instance_type: 'm3.medium', 
-      	image_id: SERVER_AMI 
+      options = {
+        instance_type: 'm3.medium',
+        image_id: SERVER_AMI
       }
 
       @aws.create_server(options)
@@ -133,9 +133,9 @@ describe OpenStudio::Aws::Aws do
 
     after :all do
       if File.exist? 'server_data.json'
-      	j = JSON.parse(File.read('server_data.json'), symbolize_names: true)
+        j = JSON.parse(File.read('server_data.json'), symbolize_names: true)
 
-      	@aws.terminate_instances_by_group_id(j[:group_id])
+        @aws.terminate_instances_by_group_id(j[:group_id])
       end
     end
   end
@@ -278,6 +278,16 @@ describe OpenStudio::Aws::Aws do
       end
 
       # verify that the instances are dead -- how?
+    end
+
+    it 'should load in the worker keys if exist on disk' do
+      options = {
+        save_directory: 'spec/output/save_path'
+      }
+      @aws_2 = OpenStudio::Aws::Aws.new(options)
+
+      expect(@aws_2.os_aws.worker_keys.private_key).not_to be_nil
+      expect(@aws_2.os_aws.worker_keys.public_key).not_to be_nil
     end
   end
 end

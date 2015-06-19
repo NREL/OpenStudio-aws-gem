@@ -5,7 +5,7 @@ describe OpenStudioAwsWrapper do
   context 'unauthenticated session' do
     it 'should fail to authenticate' do
       options = {
-        credentials:             {
+        credentials: {
           access_key_id: 'some_random_access_key_id',
           secret_access_key: 'some_super_secret_access_key',
           region: 'us-east-1',
