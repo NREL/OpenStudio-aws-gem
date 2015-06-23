@@ -149,8 +149,8 @@ module OpenStudio
 
         @os_aws.launch_server(options[:image_id], options[:instance_type], server_options)
 
-        @instances_file_name = instances_filename
-        save_cluster_json @instances_file_name
+        @instances_filename = instances_filename
+        save_cluster_json @instances_filename
 
         # Print out some debugging commands (probably work on mac/linux only)
         puts ''
