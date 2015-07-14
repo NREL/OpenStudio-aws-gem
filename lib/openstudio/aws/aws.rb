@@ -138,7 +138,7 @@ module OpenStudio
           @os_aws.private_key_file_name = options[:private_key_file_name]
         else
           # Save the private key if you did not pass in an already existing key_pair_name
-          @os_aws.save_private_key(@save_directory)
+          @os_aws.save_private_key @save_directory
         end
 
         server_options = {
@@ -150,32 +150,16 @@ module OpenStudio
 
         # save the worker pem and public to the directory
         # presently, this will always overwrite the worker key, is that okay? Is this really needed later?
-        @os_aws.save_worker_keys(@save_directory)
-
-        # if instance_data[:ebs_volume_id]
-        #   server_options[:ebs_volume_id] = instance_data[:ebs_volume_id]
-        # end
+        @os_aws.save_worker_keys @save_directory
 
         @os_aws.launch_server(options[:image_id], options[:instance_type], server_options)
       end
 
-      # Write out to the terminal the connection information for the servers and workers
+      # create workers after the server has been created.
       #
-      # @return [nil] Only prints to the screen. No return is expected
-      def print_connection_info
-        # Print out some debugging commands (probably work on mac/linux only)
-        puts ''
-        puts 'Server SSH Command:'
-        puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{@os_aws.server.data[:dns]}"
-        if @os_aws.workers.size > 0
-          puts ''
-          puts 'Worker SSH Command:'
-          @os_aws.workers.each do |worker|
-            puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{worker.data[:dns]}"
-          end
-        end
-      end
-
+      # @param number_of_instances [Integer] Number of worker instances to create
+      # @param options [Hash]
+      # @option options [String] :instance_type Type of server to start (e.g. m3.medium, m3.xlarge, etc.)
       def create_workers(number_of_instances, options = {}, user_id = 'unknown_user')
         defaults = {
           instance_type: 'm2.4xlarge',
@@ -224,6 +208,23 @@ module OpenStudio
         logger.info 'Waiting for server/worker configurations'
 
         @os_aws.configure_server_and_workers
+      end
+
+      # Write out to the terminal the connection information for the servers and workers
+      #
+      # @return [nil] Only prints to the screen. No return is expected
+      def print_connection_info
+        # Print out some debugging commands (probably work on mac/linux only)
+        puts ''
+        puts 'Server SSH Command:'
+        puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{@os_aws.server.data[:dns]}"
+        if @os_aws.workers.size > 0
+          puts ''
+          puts 'Worker SSH Command:'
+          @os_aws.workers.each do |worker|
+            puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{worker.data[:dns]}"
+          end
+        end
       end
 
       # Return information on the cluster instances as a hash. This includes IP addresses, host names, number of processors, etc.
