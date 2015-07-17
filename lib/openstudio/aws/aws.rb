@@ -230,10 +230,7 @@ module OpenStudio
       # Return information on the cluster instances as a hash. This includes IP addresses, host names, number of processors, etc.
       # @return [Hash] Data about the configured cluster
       def cluster_info
-        h = @os_aws.server.to_os_hash
-        h[:workers] = @os_aws.to_os_worker_hash[:workers]
-
-        h
+        @os_aws.to_os_hash
       end
 
       # Save a JSON with information about the cluster that was configured.
@@ -415,6 +412,13 @@ module OpenStudio
         end
 
         image
+      end
+
+      # Return the Group UUID as defined in the AWS wrapper
+      #
+      # @return [String] UUID
+      def group_uuid
+        @os_aws.group_uuid
       end
 
       private

@@ -290,4 +290,58 @@ describe OpenStudio::Aws::Aws do
       expect(@aws_2.os_aws.worker_keys.public_key).not_to be_nil
     end
   end
+
+  context 'stateful creation of server and worker' do
+    before(:all) do
+      @config = OpenStudio::Aws::Config.new
+      @aws = OpenStudio::Aws::Aws.new
+    end
+
+    it 'should create the server and save the state' do
+      options = {
+        instance_type: 'm3.medium',
+        image_id: SERVER_AMI,
+        tags: [
+          'ci_tests=true',
+          'ServerOnly=true'
+        ]
+      }
+
+      test_pem_file = 'ec2_server_key.pem'
+      FileUtils.rm_f test_pem_file if File.exist? test_pem_file
+      FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
+
+      @aws.create_server(options)
+      @aws.save_cluster_info 'server_data.json'
+
+      h = @aws.os_aws.server.to_os_hash
+      expect(h[:group_id]).to be_a String
+      expect(h[:group_id]).to match /^[\d\S]{32}$/
+      expect(h[:location]).to eq 'AWS'
+    end
+
+    it 'should load server information from json and launch worker' do
+      aws2 = OpenStudio::Aws::Aws.new
+      aws2.load_instance_info_from_file('server_data.json')
+
+      options = {
+        instance_type: 'm3.medium',
+        image_id: WORKER_AMI
+      }
+
+      aws2.create_workers(1, options)
+      aws2.save_cluster_info 'server_data.json'
+
+      expect(File.exist?('server_data.json')).to eq true
+      # check if file exists
+
+      h = aws2.cluster_info # to make sure that the settings are correct
+      expect(h[:server][:worker_private_key_file_name]).to match /.*ec2_worker_key.pem/
+      expect(h[:workers].size).to eq 1
+    end
+
+    after :all do
+      @aws.terminate
+    end
+  end
 end

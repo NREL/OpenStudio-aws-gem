@@ -1,6 +1,11 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.4.0.alpha3
+-------------
+* Load the key name and security groups from the AWS instance information. 
+* Add method on Aws to get the group_uuid 
+
 Version 0.4.0.alpha2
 -------------
 * Load worker keys from disk (if they exist) when constructing the OpenStudioAwsWrapper class

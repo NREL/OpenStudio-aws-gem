@@ -65,7 +65,7 @@ class OpenStudioAwsWrapper
     work_dir = options[:save_directory] || '.'
     if File.exist?(File.join(work_dir, 'ec2_worker_key.pem')) && File.exist?(File.join(work_dir, 'ec2_worker_key.pub'))
       logger.info "Worker keys already exist, loading from #{work_dir}"
-      @worker_keys = SSHKey.new(File.read(File.join(work_dir, 'ec2_worker_key.pem')))
+      load_worker_key(File.join(work_dir, 'ec2_worker_key.pem'))
     else
       logger.info 'Generating new worker keys'
       @worker_keys = SSHKey.generate
@@ -338,13 +338,24 @@ class OpenStudioAwsWrapper
     @private_key = File.read(filename)
   end
 
+  # Load the worker key for communicating between the server and worker instances on AWS. The public key
+  # will be automatically created when loading the private key
+  #
+  # @param private_key_filename [String] Fully qualified path to the worker private key
+  def load_worker_key(private_key_filename)
+    logger.info "Loading worker keys from #{private_key_filename}"
+    @worker_keys_filename = private_key_filename
+    @worker_keys = SSHKey.new(File.read(@worker_keys_filename))
+  end
+
+  # Save the private key to disk
   def save_private_key(directory = '.', filename = 'ec2_server_key.pem')
     if @private_key
       @private_key_file_name = File.expand_path "#{directory}/#{filename}"
       logger.info "Saving server private key in #{@private_key_file_name}"
       File.open(@private_key_file_name, 'w') { |f| f << @private_key }
       logger.info 'Setting permissions of server private key to 0600'
-
+      File.chmod(0600, @private_key_file_name)
     else
       fail "No private key found in which to persist with filename #{filename}"
     end
@@ -352,11 +363,11 @@ class OpenStudioAwsWrapper
 
   # save off the worker public/private keys that were created
   def save_worker_keys(directory = '.')
-    wk = "#{directory}/ec2_worker_key.pem"
-    logger.info "Saving worker private key in #{wk}"
-    File.open(wk, 'w') { |f| f << @worker_keys.private_key }
+    @worker_keys_filename = "#{directory}/ec2_worker_key.pem"
+    logger.info "Saving worker private key in #{@worker_keys_filename}"
+    File.open(@worker_keys_filename, 'w') { |f| f << @worker_keys.private_key }
     logger.info 'Setting permissions of worker private key to 0600'
-    File.chmod(0600, wk)
+    File.chmod(0600, @worker_keys_filename)
 
     wk = "#{directory}/ec2_worker_key.pub"
     logger.info "Saving worker public key in #{wk}"
@@ -403,7 +414,6 @@ class OpenStudioAwsWrapper
     logger.info("worker user_data #{user_data.inspect}")
 
     # thread the launching of the workers
-
     num.times do
       @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_groups, @group_uuid,
                                             @private_key, @private_key_file_name, @proxy)
@@ -458,14 +468,19 @@ class OpenStudioAwsWrapper
   end
 
   # method to query the amazon api to find the server (if it exists), based on the group id
-  # if it is found, then it will set the @server member variable.
+  # if it is found, then it will set the @server instance variable. The security groups are assigned from the
+  # server node information on AWS if the security groups have not been initialized yet.
+  #
   # Note that the information around keys and security groups is pulled from the instance information.
+  # @param server_data_hash [Hash] Server data
+  # @option server_data_hash [String] :group_id Group ID of the analysis
+  # @option server_data_hash [String] :server.private_key_file_name Name of the private key to communicate to the server
   def find_server(server_data_hash)
     @group_uuid = server_data_hash[:group_id] || @group_uuid
     load_private_key(server_data_hash[:server][:private_key_file_name])
 
     logger.info "Finding the server for GroupUUID of #{group_uuid}"
-    fail 'no GroupUUID defined either in member variable or method argument' if group_uuid.nil?
+    fail 'no GroupUUID defined either in member variable or method argument' if @group_uuid.nil?
 
     # This should really just be a single call to describe running instances
     @server = nil
@@ -476,7 +491,17 @@ class OpenStudioAwsWrapper
       if !@server
         if resp
           logger.info "Server found and loading data into object [instance id is #{resp[:instance_id]}]"
-          @server = OpenStudioAwsInstance.new(@aws, :server, resp[:key_name], resp[:security_groups].first[:group_name], group_uuid, @private_key, @private_key_file_name, @proxy)
+
+          sg = resp[:security_groups].map { |s| s[:group_id] }
+          # Set the security groups of the object if these groups haven't been assigned yet.
+          @security_groups = sg if @security_groups.empty?
+          logger.info "The security groups in aws wrapper are #{@security_groups}"
+
+          # set the key name from AWS if it isn't yet assigned
+          logger.info 'Setting the keyname in the aws wrapper'
+          @key_pair_name = resp[:key_name] unless @key_pair_name
+
+          @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, sg, @group_uuid, @private_key, @private_key_file_name, @proxy)
 
           @server.load_instance_data(resp)
         end
@@ -487,18 +512,22 @@ class OpenStudioAwsWrapper
       logger.info 'could not find a running server instance'
     end
 
-    # find the workers
+    # Find the worker instances.
     if @workers.size == 0
       resp = describe_running_instances(group_uuid, :worker)
       if resp
         resp.each do |r|
-          @workers << OpenStudioAwsInstance.new(@aws, :worker, r[:key_name], r[:security_groups].first[:group_name], group_uuid, @private_key, @private_key_file_name, @proxy)
+          @workers << OpenStudioAwsInstance.new(@aws, :worker, r[:key_name], r[:security_groups].map { |s| s[:group_id] }, @group_uuid, @private_key, @private_key_file_name, @proxy)
           @workers.last.load_instance_data(r)
         end
       end
     else
       logger.info 'Worker nodes are already defined'
     end
+
+    # set the private key from the hash
+    load_private_key server_data_hash[:server][:private_key_file_name]
+    load_worker_key server_data_hash[:server][:worker_private_key_file_name]
 
     # Really don't need to return anything because this sets the class instance variable
     @server
@@ -558,23 +587,23 @@ class OpenStudioAwsWrapper
     amis
   end
 
-  def to_os_worker_hash
-    worker_hash = []
-    @workers.each do |worker|
-      worker_hash.push(
+  # save off the instance configuration and instance information into a JSON file for later use
+  def to_os_hash
+    h = @server.to_os_hash
+
+    h[:server][:worker_private_key_file_name] = @worker_keys_filename
+    h[:workers] = @workers.map do |worker|
+      {
         id: worker.data.id,
         ip: "http://#{worker.data.ip}",
         dns: worker.data.dns,
         procs: worker.data.procs,
         private_key_file_name: worker.private_key_file_name,
         private_ip_address: worker.private_ip_address
-      )
+      }
     end
 
-    out = { workers: worker_hash }
-    logger.info out
-
-    out
+    h
   end
 
   # take the base version and increment the patch until
