@@ -116,7 +116,11 @@ class OpenStudioAmis
       amis = value[:amis]
     elsif @options[:openstudio_version] != 'default'
       if @options[:stable]
-        stable = json[:openstudio][@options[:openstudio_version].to_sym][:stable]
+        stable = nil
+        if json[:openstudio][@options[:openstudio_version].to_sym]
+          stable = json[:openstudio][@options[:openstudio_version].to_sym][:stable]
+        end
+
         if stable
           value = json[:openstudio][@options[:openstudio_version].to_sym][stable.to_sym]
           amis = value[:amis]
