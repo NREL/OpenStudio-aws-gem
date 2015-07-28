@@ -17,26 +17,39 @@
 #  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 ######################################################################
 
-require 'logger'
+require_relative 'openstudio_aws_logger'
 
-# module for logging
-module Logging
-  def logger
-    @logger ||= Logging.logger_for(self.class.name)
+class OpenStudioCloudWatch
+  include Logging
+
+  attr_accessor :private_key_file_name
+  attr_accessor :security_groups
+
+  VALID_OPTIONS = [:proxy, :credentials]
+
+  def initialize(options = {})
+    # store an instance variable with the proxy for passing to instances for use in scp/ssh
+    @proxy = options[:proxy] ? options[:proxy] : nil
+
+    # need to remove the prxoy information here
+    @aws = Aws::CloudWatch::Client.new(options[:credentials])
   end
 
-  # Use a hash class-ivar to cache a unique Logger per class:
-  @loggers = {}
+  def estimated_charges
+    end_time = Time.now.utc
+    start_time = end_time - 86400
+    resp = @aws.get_metric_statistics(
+      dimensions: [
+        { name: 'ServiceName', value: 'AmazonEC2' },
+        { name: 'Currency', value: 'USD' }],
+      metric_name: 'EstimatedCharges',
+      namespace: 'AWS/Billing',
+      start_time: start_time.iso8601,
+      end_time: end_time.iso8601,
+      period: 300,
+      statistics: ['Maximum']
+    )
 
-  class << self
-    def logger_for(classname)
-      @loggers[classname] ||= configure_logger_for(classname)
-    end
-
-    def configure_logger_for(classname)
-      logger = Logger.new(File.expand_path('~/.aws.log'))
-      logger.progname = classname
-      logger
-    end
+    resp.data || []
   end
 end

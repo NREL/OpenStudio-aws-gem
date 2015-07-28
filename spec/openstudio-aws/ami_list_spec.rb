@@ -43,6 +43,15 @@ describe OpenStudioAmis do
   end
 
   context 'version 2' do
+    it 'should return openstudio version 1.7.1 stable & default versions correctly when 1.7.5 is passed' do
+      a = OpenStudioAmis.new(2, openstudio_version: '1.7.5', stable: true)
+
+      amis = a.get_amis
+
+      expect(amis[:server]).to eq('ami-845a54ec')
+      expect(amis[:worker]).to eq('ami-3a5a5452')
+    end
+
     it 'should return openstudio version 1.7.1 stable & default versions correctly' do
       a = OpenStudioAmis.new(2, openstudio_version: '1.7.1')
 
@@ -74,6 +83,14 @@ describe OpenStudioAmis do
       a = OpenStudioAmis.new(2, openstudio_version: '1.5.0', stable: true)
 
       expect { a.get_amis }.to raise_error(/Could not find a stable version for openstudio version 1.5.0/)
+    end
+
+    it 'should return latest version when passing in a future version' do
+      a = OpenStudioAmis.new(2, openstudio_version: '4.8.15', stable: true)
+
+      a = a.get_amis
+
+      expect(a).not_to be nil
     end
   end
 end

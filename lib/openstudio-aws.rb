@@ -16,13 +16,16 @@ begin
 rescue LoadError
   puts 'Failed to load AWS-SDK-CORE gem'
   puts '  try running: gem install aws-sdk-core'
-  exit
+
+  exit 1
 end
 
+require 'openstudio/core_ext/hash'
 require 'openstudio/lib/openstudio_aws_logger'
 require 'openstudio/aws/aws'
 require 'openstudio/aws/config'
 require 'openstudio/aws/version'
 require 'openstudio/lib/openstudio_aws_instance'
 require 'openstudio/lib/openstudio_aws_wrapper'
+require 'openstudio/lib/openstudio_cloud_watch'
 require 'openstudio/lib/ami_list'

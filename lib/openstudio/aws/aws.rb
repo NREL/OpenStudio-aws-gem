@@ -3,18 +3,29 @@ module OpenStudio
   module Aws
     VALID_OPTIONS = [
       :proxy, :credentials, :ami_lookup_version, :openstudio_version,
-      :openstudio_server_version, :region, :ssl_verify_peer, :host, :url, :stable
+      :openstudio_server_version, :region, :ssl_verify_peer, :host, :url, :stable,
+      :save_directory
     ]
 
     class Aws
+      include Logging
+
       # Deprecate OS_AWS object
       attr_reader :os_aws
       attr_reader :default_amis
+      attr_reader :save_directory
 
       # default constructor to create the AWS class that can spin up server and worker instances.
       # options are optional with the following support:
       #   credentials => {:access_key_id, :secret_access_key, :region, :ssl_verify_peer}
       #   proxy => {:host => "192.168.0.1", :port => "8808", :username => "user", :password => "password"}}
+      # @param options [Hash]
+      # @option options [Boolean] :openstudio_version Version of OpenStudio in which to do the lookup for the server
+      #   AMIs. This cannot be used in conjunction with the :openstudio_server_version.
+      # @option options [Boolean] :openstudio_server_version Version of OpenStudio Server in which to do the lookup for
+      #   the server AMIs. This cannot be used in conjunction with the :openstudio_server_version
+      # @option options [Boolean] :stable (false) Find a stable version less than or equal to the version that is passed in the
+      #   version field
       def initialize(options = {})
         invalid_options = options.keys - VALID_OPTIONS
         if invalid_options.any?
@@ -25,9 +36,15 @@ module OpenStudio
         defaults = {
           ami_lookup_version: 1,
           region: 'us-east-1',
-          ssl_verify_peer: false
+          ssl_verify_peer: false,
+          save_directory: '.'
         }
         options = defaults.merge(options)
+        logger.info "AWS initialized with the options: #{options.except(:credentials)}"
+
+        # set the save path
+        @save_directory = File.expand_path options[:save_directory]
+        FileUtils.mkdir_p @save_directory unless Dir.exist? @save_directory
 
         # read in the config.yml file to get the secret/private key
         if !options[:credentials]
@@ -53,19 +70,11 @@ module OpenStudio
           else
             proxy_uri = "https://#{options[:proxy][:host]}:#{options[:proxy][:port]}"
           end
-          # TODO: remove this proxy_uri and make a method to format correctly
           options[:proxy_uri] = proxy_uri
-
-          # TODO: do we need to escape a couple of the argument of username and password
-
-          # TODO: set some environment variables for system based proxy
         end
 
-        # puts "Final options are: #{options.inspect}"
-
         @os_aws = OpenStudioAwsWrapper.new(options)
-
-        @instances_filename = nil
+        @os_cloudwatch = OpenStudioCloudWatch.new(options)
 
         # this will grab the default version of openstudio ami versions
         # get the arugments for the AMI lookup
@@ -85,10 +94,10 @@ module OpenStudio
       #
       # end
 
-      # command line call to create a new instance.  This should be more tightly integrated with teh os-aws.rb gem
-      def create_server(options = {}, instances_filename = 'server_data.json')
+      # command line call to create a new instance.  This should be more tightly integrated with the os-aws.rb gem
+      def create_server(options = {})
         defaults = {
-          instance_type: 'm2.xlarge',
+          instance_type: 'm3.xlarge',
           security_groups: [],
           image_id: @default_amis[:server],
           user_id: 'unknown_user',
@@ -129,7 +138,7 @@ module OpenStudio
           @os_aws.private_key_file_name = options[:private_key_file_name]
         else
           # Save the private key if you did not pass in an already existing key_pair_name
-          @os_aws.save_private_key('ec2_server_key.pem')
+          @os_aws.save_private_key @save_directory
         end
 
         server_options = {
@@ -141,24 +150,16 @@ module OpenStudio
 
         # save the worker pem and public to the directory
         # presently, this will always overwrite the worker key, is that okay? Is this really needed later?
-        @os_aws.save_worker_keys('.')
-
-        # if instance_data[:ebs_volume_id]
-        #   server_options[:ebs_volume_id] = instance_data[:ebs_volume_id]
-        # end
+        @os_aws.save_worker_keys @save_directory
 
         @os_aws.launch_server(options[:image_id], options[:instance_type], server_options)
-
-        @instances_filename = instances_filename
-        save_cluster_json @instances_filename
-
-        # Print out some debugging commands (probably work on mac/linux only)
-        puts ''
-        puts 'Server SSH Command:'
-
-        puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{@os_aws.server.data[:dns]}"
       end
 
+      # create workers after the server has been created.
+      #
+      # @param number_of_instances [Integer] Number of worker instances to create
+      # @param options [Hash]
+      # @option options [String] :instance_type Type of server to start (e.g. m3.medium, m3.xlarge, etc.)
       def create_workers(number_of_instances, options = {}, user_id = 'unknown_user')
         defaults = {
           instance_type: 'm2.4xlarge',
@@ -176,7 +177,7 @@ module OpenStudio
         }
         options = defaults.merge(options)
 
-        # for backwards compatibilty, still allow security_group
+        # for backwards compatibility, still allow security_group
         if options[:security_group]
           warn 'Pass security_groups as an array instead of security_group. security_group will be deprecated in 0.4.0'
           options[:security_groups] = [options[:security_group]]
@@ -189,10 +190,7 @@ module OpenStudio
 
         fail "Can't create workers without a server instance running" if @os_aws.server.nil?
 
-        if number_of_instances == 0
-          puts ''
-          puts 'No workers requested'
-        else
+        unless number_of_instances == 0
           worker_options = {
             user_id: options[:user_id],
             tags: options[:tags],
@@ -205,35 +203,40 @@ module OpenStudio
           # end
 
           @os_aws.launch_workers(options[:image_id], options[:instance_type], number_of_instances, worker_options)
+        end
 
-          # Add the worker data to the JSON
-          save_cluster_json @instances_filename
+        logger.info 'Waiting for server/worker configurations'
 
+        @os_aws.configure_server_and_workers
+      end
+
+      # Write out to the terminal the connection information for the servers and workers
+      #
+      # @return [nil] Only prints to the screen. No return is expected
+      def print_connection_info
+        # Print out some debugging commands (probably work on mac/linux only)
+        puts ''
+        puts 'Server SSH Command:'
+        puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{@os_aws.server.data[:dns]}"
+        if @os_aws.workers.size > 0
           puts ''
           puts 'Worker SSH Command:'
           @os_aws.workers.each do |worker|
             puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{worker.data[:dns]}"
           end
         end
-
-        puts ''
-        puts 'Waiting for server/worker configurations'
-
-        @os_aws.configure_server_and_workers
       end
 
       # Return information on the cluster instances as a hash. This includes IP addresses, host names, number of processors, etc.
       # @return [Hash] Data about the configured cluster
       def cluster_info
-        h = @os_aws.server.to_os_hash
-        h[:workers] = @os_aws.to_os_worker_hash[:workers]
-
-        h
+        @os_aws.to_os_hash
       end
 
       # Save a JSON with information about the cluster that was configured.
+      #
       # @param filename [String] Path and filename to save the JSON file
-      def save_cluster_json(filename)
+      def save_cluster_info(filename)
         File.open(filename, 'w') { |f| f << JSON.pretty_generate(cluster_info) }
       end
 
@@ -241,7 +244,73 @@ module OpenStudio
       def describe_availability_zones
         @os_aws.describe_availability_zones
       end
-      # openstudio_instance_type as symbol
+
+      # Delete the key pair. Make sure that this happens at the end of whatever you are running, because you
+      # will not be able to connect to the instance after you do this.
+      def delete_key_pair
+        @os_aws.delete_key_pair
+      end
+
+      # Return the description of the instances in the GroupUUID
+      #
+      # @example Return Example
+      #   [{:instance_id=>"i-45f924ac",
+      #     :image_id=>"ami-845a54ec",
+      #     :state=>{:code=>48, :name=>"terminated"},
+      #     :private_dns_name=>"",
+      #     :public_dns_name=>"",
+      #     :state_transition_reason=>"User initiated (2015-06-01 21:50:40 GMT)",
+      #     :key_name=>"os-key-pair-275a3bf436004c04a1a347ff36337f16",
+      #     :ami_launch_index=>0,
+      #     :product_codes=>[],
+      #     :instance_type=>"m3.medium",
+      #     :launch_time=>2015-06-01 21:13:18 UTC,
+      #     :placement=>
+      #         {:availability_zone=>"us-east-1e", :group_name=>"", :tenancy=>"default"},
+      #         :monitoring=>{:state=>"disabled"},
+      #         :state_reason=>
+      #         {:code=>"Client.UserInitiatedShutdown",
+      #          :message=>"Client.UserInitiatedShutdown: User initiated shutdown"},
+      #         :architecture=>"x86_64",
+      #         :root_device_type=>"ebs",
+      #         :root_device_name=>"/dev/sda1",
+      #         :block_device_mappings=>[],
+      #         :virtualization_type=>"hvm",
+      #         :client_token=>"",
+      #         :tags=>
+      #         [{:key=>"Purpose", :value=>"OpenStudioServer"},
+      #          {:key=>"NumberOfProcessors", :value=>"1"},
+      #          {:key=>"GroupUUID", :value=>"275a3bf436004c04a1a347ff36337f16"},
+      #          {:key=>"Name", :value=>"OpenStudio-Server"},
+      #          {:key=>"UserID", :value=>"unknown_user"}],
+      #         :security_groups=>
+      #         [{:group_name=>"openstudio-server-sg-v2.1", :group_id=>"sg-8740f3ea"}],
+      #         :hypervisor=>"xen",
+      #         :network_interfaces=>[],
+      #         :ebs_optimized=>false}]
+      def describe_instances
+        @os_aws.describe_instances
+      end
+
+      # List the description of all instances on AWS in the predefined region
+      def describe_all_instances
+        @os_aws.describe_all_instances
+      end
+
+      # Return the list of all the instances that are running on the account in the availablity zone
+      def total_instances_count
+        @os_aws.total_instances_count
+      end
+
+      # Return the estimated cost for EC2 instances
+      def estimated_charges
+        @os_cloudwatch.estimated_charges
+      end
+
+      # Stop running instances
+      #
+      # @param group_id [String] The unique group identifier for the OpenStudio cluster.
+      # @param openstudio_instance_type [Symbol] The type of instance (:server or :worker)
       def stop_instances(group_id, openstudio_instance_type)
         instances = @os_aws.describe_running_instances(group_id, openstudio_instance_type.to_sym)
         ids = instances.map { |k, _| k[:instance_id] }
@@ -253,7 +322,7 @@ module OpenStudio
 
       # @params(ids): array of instance ids
       def terminate_instances(ids)
-        puts "Terminating the following instances #{ids}"
+        logger.info "Terminating the following instances #{ids}"
         resp = []
         resp = @os_aws.terminate_instances(ids).to_hash unless ids.empty?
         resp
@@ -261,18 +330,22 @@ module OpenStudio
 
       # Warning, this appears that it terminates all the instances
       def terminate_instances_by_group_id(group_id)
+        fail 'Group ID not defined' unless group_id
+
         instances = @os_aws.describe_running_instances(group_id)
+        logger.info instances
         ids = instances.map { |k, _| k[:instance_id] }
 
-        puts "Terminating the following instances #{ids}"
+        logger.info "Terminating the following instances #{ids}"
         resp = []
         resp = @os_aws.terminate_instances(ids).to_hash unless ids.empty?
+
         resp[:terminating_instances].first[:current_state][:name] == 'shutting-down'
       end
 
-      # Terminate the entire cluster
+      # Terminate the entire cluster based on the member variable's group_uuid.
       def terminate
-        puts "Terminating any instance with group ID: #{@os_aws.group_uuid}"
+        logger.info "Terminating any instance with GroupUUID: #{@os_aws.group_uuid}"
 
         terminate_instances_by_group_id(@os_aws.group_uuid)
       end
@@ -284,7 +357,7 @@ module OpenStudio
         if h[:location] == 'AWS'
           @os_aws.find_server(h)
         else
-          puts "Instance file '#{filename}' does not have the location of 'AWS'"
+          logger.info "Instance file '#{filename}' does not have the location of 'AWS'"
           return false
         end
 
@@ -339,6 +412,13 @@ module OpenStudio
         end
 
         image
+      end
+
+      # Return the Group UUID as defined in the AWS wrapper
+      #
+      # @return [String] UUID
+      def group_uuid
+        @os_aws.group_uuid
       end
 
       private

@@ -5,7 +5,7 @@ describe OpenStudioAwsWrapper do
   context 'unauthenticated session' do
     it 'should fail to authenticate' do
       options = {
-        credentials:             {
+        credentials: {
           access_key_id: 'some_random_access_key_id',
           secret_access_key: 'some_super_secret_access_key',
           region: 'us-east-1',
@@ -42,7 +42,7 @@ describe OpenStudioAwsWrapper do
       end
 
       it 'should list number of instances' do
-        resp = @aws.os_aws.describe_total_instances
+        resp = @aws.os_aws.total_instances_count
         expect(resp).not_to be_nil
       end
     end
