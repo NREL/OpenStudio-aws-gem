@@ -241,11 +241,31 @@ module OpenStudio
       def describe_availability_zones
         @os_aws.describe_availability_zones
       end
+      
+       # Stop the entire cluster
+      def stop
+        puts "Stoping any instance with group ID: #{@os_aws.group_uuid}"
+
+        stop_instances_by_group_id(@os_aws.group_uuid)
+      end
+
+
       # openstudio_instance_type as symbol
       def stop_instances(group_id, openstudio_instance_type)
         instances = @os_aws.describe_running_instances(group_id, openstudio_instance_type.to_sym)
         ids = instances.map { |k, _| k[:instance_id] }
 
+        resp = []
+        resp = @os_aws.stop_instances(ids).to_hash unless ids.empty?
+        resp
+      end
+
+      # Warning, it appears that this stops all the instances
+      def stop_instances_by_group_id(group_id)
+        instances = @os_aws.describe_running_instances(group_id)
+        ids = instances.map { |k, _| k[:instance_id] }
+
+        puts "Stoping the following instances #{ids}"
         resp = []
         resp = @os_aws.stop_instances(ids).to_hash unless ids.empty?
         resp
@@ -259,7 +279,7 @@ module OpenStudio
         resp
       end
 
-      # Warning, this appears that it terminates all the instances
+      # Warning, it appears that this terminates all the instances
       def terminate_instances_by_group_id(group_id)
         instances = @os_aws.describe_running_instances(group_id)
         ids = instances.map { |k, _| k[:instance_id] }
