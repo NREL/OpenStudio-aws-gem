@@ -267,7 +267,7 @@ module OpenStudio
 
         puts "Stoping the following instances #{ids}"
         resp = []
-        resp = @os_aws.stop_instances.to_hash unless ids.empty?
+        resp = @os_aws.stop_instances(ids).to_hash unless ids.empty?
         resp
       end
 
