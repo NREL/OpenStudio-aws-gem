@@ -7,11 +7,11 @@ module OpenStudio
       attr_accessor :secret_key
 
       def initialize(yml_config_file = nil)
-        # First check if the AWS keys are set in the env variable, if so, then use those keys
+        # If the AWS keys are set in the env variable and the yml_config_file is nil, then use those keys
         @access_key = ENV['AWS_ACCESS_KEY_ID'] if ENV['AWS_ACCESS_KEY_ID']
         @secret_key = ENV['AWS_SECRET_ACCESS_KEY'] if ENV['AWS_SECRET_ACCESS_KEY']
 
-        if @access_key && @secret_key
+        if @access_key && @secret_key && yml_config_file.nil?
           logger.info 'Using AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from environment variables'
         else
           # Otherwise read the file
