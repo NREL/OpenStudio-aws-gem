@@ -5,6 +5,7 @@ Version 0.3.2 (Unreleased)
 -------------
 * Add a stable JSON file that can be used to flag which versions of the server are stable (used by OpenStudio PAT).
 * Add the method `describe_availability_zones` to the root AWS class
+* Prefer use of the access and secret key in the environment variables if defined
 
 Version 0.3.1
 -------------

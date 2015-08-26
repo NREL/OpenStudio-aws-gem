@@ -17,3 +17,4 @@ spec/reports
 rubocop-results.xml
 *.pem
 *.pub
+*.config
