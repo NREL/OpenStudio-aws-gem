@@ -165,7 +165,7 @@ describe OpenStudio::Aws::Aws do
 
         @group_id = h[:group_id]
       ensure
-        @aws.terminate_instances_by_group_id(h[:group_id], :server)
+        @aws.terminate_instances_by_group_id(h[:group_id])
       end
     end
   end
@@ -206,8 +206,49 @@ describe OpenStudio::Aws::Aws do
           expect(h[:group_id]).to match /^[\d\S]{32}$/
           expect(h[:location]).to eq 'AWS'
         ensure
-          @aws.terminate_instances_by_group_id(h[:group_id], :server)
+          @aws.terminate_instances_by_group_id(h[:group_id])
         end
+      end
+    end
+  end
+
+  context 'i2-instances' do
+    before :all do
+      @config = OpenStudio::Aws::Config.new
+      @aws = OpenStudio::Aws::Aws.new
+
+      @group_id = nil
+    end
+
+    it 'should create an i2 instance and mount the storage' do
+      begin
+        options = {
+          instance_type: 'i2.xlarge',
+          image_id: SERVER_AMI,
+          tags: [
+            'ci_tests=true',
+            'ServerOnly=true'
+          ]
+        }
+
+        expect { @aws.create_workers(0) }.to raise_error "Can't create workers without a server instance running"
+
+        test_pem_file = 'ec2_server_key.pem'
+        FileUtils.rm_f test_pem_file if File.exist? test_pem_file
+        FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
+
+        @aws.create_server(options)
+
+        # Still have to call "create workers" or the configuration won't happen.
+        @aws.create_workers(0, options)
+
+        h = @aws.os_aws.server.to_os_hash
+
+        shell = @aws.server.shell_command('df -h | grep /dev/xvdb.*/mnt')
+        expect(shell).not_to be_nil
+        expect(shell).to eq /\/dev\/xvdb.*\/mnt/
+      ensure
+        @aws.terminate_instances_by_group_id(h[:group_id])
       end
     end
   end

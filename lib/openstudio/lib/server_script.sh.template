@@ -50,6 +50,18 @@ service apache2 stop
 service mongodb stop
 service mongod stop
 
+# make sure the the /mnt directory exists if i2 instances.
+# For now this assumes that the volume is xvdb. In the future this
+# should be dynamic
+if ec2-metadata --instance-type | grep -q 'i2.'; then
+  mkfs.ext4 /dev/xvdb
+  mkdir -p /mnt
+  mount -t ext4 /dev/xvdb /mnt
+
+  echo "/dev/xvdb /mnt auto noatime 0 0" | sudo tee -a /etc/fstab
+  mount -a
+fi
+
 # remove mongo db & add it back
 mkdir -p /mnt/mongodb/data
 chown mongodb:nogroup /mnt/mongodb/data
