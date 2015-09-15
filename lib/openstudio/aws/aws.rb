@@ -241,14 +241,13 @@ module OpenStudio
       def describe_availability_zones
         @os_aws.describe_availability_zones
       end
-      
-       # Stop the entire cluster
+
+      # Stop the entire cluster
       def stop
         puts "Stoping any instance with group ID: #{@os_aws.group_uuid}"
 
         stop_instances_by_group_id(@os_aws.group_uuid)
       end
-
 
       # openstudio_instance_type as symbol
       def stop_instances(group_id, openstudio_instance_type)
