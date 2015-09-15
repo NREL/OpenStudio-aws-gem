@@ -35,6 +35,18 @@ chmod 775 /usr/local/bin/ec2-metadata
 mkdir -p /etc/openstudio-server
 ec2-metadata -a -i -t -h -o -z -p -v > /etc/openstudio-server/instance.yml
 
+# make sure the the /mnt directory exists if i2 instances.
+# For now this assumes that the volume is xvdb. In the future this
+# should be dynamic
+if ec2-metadata --instance-type | grep -q 'i2.'; then
+  mkfs.ext4 /dev/xvdb
+  mkdir -p /mnt
+  mount -t ext4 /dev/xvdb /mnt
+
+  echo "/dev/xvdb /mnt auto noatime 0 0" | sudo tee -a /etc/fstab
+  mount -a
+fi
+
 ## Worker Data Configuration -- On Vagrant this is a separate file
 
 rm -f /tmp/snow.log
