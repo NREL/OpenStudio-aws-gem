@@ -46,6 +46,7 @@ ec2-metadata -a -i -t -h -o -z -p -v > /etc/openstudio-server/instance.yml
 
 # stop the various services that use mongo
 service delayed_job stop
+supervisorctl stop delayed_job
 service apache2 stop
 service mongodb stop
 service mongod stop
@@ -132,8 +133,9 @@ find /mnt/openstudio -type f -print0 | xargs -0 chmod 664
 service Rserve restart
 supervisorctl restart Rserve
 
-# restart delayed jobs
+# start delayed jobs
 service delayed_job start
+supervisorctl start delayed_job
 
 #file flag the user_data has completed
 cat /dev/null > /home/ubuntu/user_data_done
