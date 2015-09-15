@@ -75,14 +75,8 @@ find /mnt/openstudio -type f -print0 | xargs -0 chmod 664
 
 ## End Worker Data Configuration
 
-#turn off hyperthreading
-# NL: do not turn off hyperthreading, rather, just limit the number of cores and see if it
-# makes a difference.
-#for cpunum in $(
-#  cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list |
-#  cut -s -d, -f2- | tr ',' '\n' | sort -un); do
-#    echo 0 > /sys/devices/system/cpu/cpu$cpunum/online
-#done
+# Rserve is now on the worker nodes for use by measures
+supervisorctl restart Rserve
 
 #file flag the user_data has completed
 cat /dev/null > /home/ubuntu/user_data_done

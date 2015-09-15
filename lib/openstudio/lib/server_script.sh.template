@@ -130,6 +130,7 @@ find /mnt/openstudio -type f -print0 | xargs -0 chmod 664
 
 # restart rserve
 service Rserve restart
+supervisorctl restart Rserve
 
 # restart delayed jobs
 service delayed_job start
