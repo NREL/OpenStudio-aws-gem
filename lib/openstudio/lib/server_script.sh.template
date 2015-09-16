@@ -44,6 +44,9 @@ chmod 775 /usr/local/bin/ec2-metadata
 mkdir -p /etc/openstudio-server
 ec2-metadata -a -i -t -h -o -z -p -v > /etc/openstudio-server/instance.yml
 
+# make sure supervisor is running
+sudo service supervisor start
+
 # stop the various services that use mongo
 service delayed_job stop
 supervisorctl stop delayed_job
