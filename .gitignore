@@ -18,3 +18,4 @@ rubocop-results.xml
 spec/output
 *.pem
 *.pub
+*.config

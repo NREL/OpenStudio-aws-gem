@@ -307,6 +307,13 @@ module OpenStudio
         @os_cloudwatch.estimated_charges
       end
 
+      # Stop the entire cluster
+      def stop
+        puts "Stoping any instance with group ID: #{@os_aws.group_uuid}"
+
+        stop_instances_by_group_id(@os_aws.group_uuid)
+      end
+
       # Stop running instances
       #
       # @param group_id [String] The unique group identifier for the OpenStudio cluster.
@@ -320,6 +327,17 @@ module OpenStudio
         resp
       end
 
+      # Warning, it appears that this stops all the instances
+      def stop_instances_by_group_id(group_id)
+        instances = @os_aws.describe_running_instances(group_id)
+        ids = instances.map { |k, _| k[:instance_id] }
+
+        puts "Stoping the following instances #{ids}"
+        resp = []
+        resp = @os_aws.stop_instances(ids).to_hash unless ids.empty?
+        resp
+      end
+
       # @params(ids): array of instance ids
       def terminate_instances(ids)
         logger.info "Terminating the following instances #{ids}"
@@ -328,7 +346,7 @@ module OpenStudio
         resp
       end
 
-      # Warning, this appears that it terminates all the instances
+      # Warning, it appears that this terminates all the instances
       def terminate_instances_by_group_id(group_id)
         fail 'Group ID not defined' unless group_id
 

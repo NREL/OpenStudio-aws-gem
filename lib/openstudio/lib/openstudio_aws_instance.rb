@@ -35,7 +35,7 @@ class OpenStudioAwsInstance
     @key_pair_name = key_pair_name
     @security_groups = security_groups
     @group_uuid = group_uuid.to_s
-    @init_timestamp = Time.now  # This is the timestamp and is typically just tracked for the server
+    @init_timestamp = Time.now # This is the timestamp and is typically just tracked for the server
     @private_key = private_key
     @private_key_file_name = private_key_file_name
     @proxy = proxy
@@ -390,7 +390,7 @@ class OpenStudioAwsInstance
   rescue SystemCallError, Timeout::Error => e
     # port 22 might not be available immediately after the instance finishes launching
     sleep 10
-    logger.info('Timeout.  Perhaps there is a communication error to EC2?  Will try again')
+    logger.info('Timeout.  Perhaps there is a communication error to EC2?  Will try again in 10 seconds')
     retry
   end
 

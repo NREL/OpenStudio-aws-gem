@@ -103,7 +103,6 @@ describe OpenStudioAwsWrapper do
 
     it 'should create security group' do
       sg = @aws.os_aws.create_or_retrieve_default_security_group
-      pp sg
       expect(sg).to_not be nil
     end
   end

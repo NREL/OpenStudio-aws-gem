@@ -21,7 +21,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should create a server' do
-      options = { instance_type: 'm3.medium', image_id: SERVER_AMI }
+      options = {instance_type: 'm3.medium', image_id: SERVER_AMI}
 
       FileUtils.rm_f 'ec2_server_key.pem' if File.exist? 'ec2_server_key.pem'
       FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
@@ -46,7 +46,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should create a 1 worker' do
-      options = { instance_type: 'm3.medium', image_id: WORKER_AMI }
+      options = {instance_type: 'm3.medium', image_id: WORKER_AMI}
 
       @aws.create_workers(1, options)
 
@@ -56,7 +56,7 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should be able to connect a worker to an existing server' do
-      options = { instance_type: 'm3.medium', image_id: WORKER_AMI }
+      options = {instance_type: 'm3.medium', image_id: WORKER_AMI}
 
       # will require a new @aws class--but attached to same group_uuid
       @config = OpenStudio::Aws::Config.new
@@ -86,8 +86,8 @@ describe OpenStudio::Aws::Aws do
 
     it 'should create a server' do
       options = {
-        instance_type: 'm3.medium',
-        image_id: SERVER_AMI
+          instance_type: 'm3.medium',
+          image_id: SERVER_AMI
       }
 
       @aws.create_server(options)
@@ -161,14 +161,14 @@ describe OpenStudio::Aws::Aws do
     it 'should create a server with tags' do
       begin
         options = {
-          instance_type: 'm3.medium',
-          image_id: SERVER_AMI,
-          tags: [
-            'ci_tests=true',
-            'nothing=else',
-            'this=is the end    ',
-            'this=   is the beginning   '
-          ]
+            instance_type: 'm3.medium',
+            image_id: SERVER_AMI,
+            tags: [
+                'ci_tests=true',
+                'nothing=else',
+                'this=is the end    ',
+                'this=   is the beginning   '
+            ]
         }
 
         test_pem_file = 'ec2_server_key.pem'
@@ -206,12 +206,12 @@ describe OpenStudio::Aws::Aws do
     it 'should allow a zero length worker' do
       begin
         options = {
-          instance_type: 'm3.medium',
-          image_id: SERVER_AMI,
-          tags: [
-            'ci_tests=true',
-            'ServerOnly=true'
-          ]
+            instance_type: 'm3.medium',
+            image_id: SERVER_AMI,
+            tags: [
+                'ci_tests=true',
+                'ServerOnly=true'
+            ]
         }
 
         expect { @aws.create_workers(0) }.to raise_error "Can't create workers without a server instance running"
@@ -241,7 +241,7 @@ describe OpenStudio::Aws::Aws do
 
       @config = OpenStudio::Aws::Config.new
       options = {
-        save_directory: 'spec/output/save_path'
+          save_directory: 'spec/output/save_path'
       }
       @aws = OpenStudio::Aws::Aws.new(options)
 
@@ -251,8 +251,12 @@ describe OpenStudio::Aws::Aws do
     it 'should allow a different location for saving aws config files' do
       begin
         options = {
-          instance_type: 'm3.medium',
-          image_id: SERVER_AMI
+            instance_type: 'm3.medium',
+            image_id: SERVER_AMI,
+            tags: [
+                'ci_tests=true',
+                'ServerOnly=true'
+            ]
         }
 
         expect(@aws.save_directory).to eq File.join(File.expand_path('.'), 'spec/output/save_path')
@@ -282,7 +286,7 @@ describe OpenStudio::Aws::Aws do
 
     it 'should load in the worker keys if exist on disk' do
       options = {
-        save_directory: 'spec/output/save_path'
+          save_directory: 'spec/output/save_path'
       }
       @aws_2 = OpenStudio::Aws::Aws.new(options)
 
@@ -299,12 +303,12 @@ describe OpenStudio::Aws::Aws do
 
     it 'should create the server and save the state' do
       options = {
-        instance_type: 'm3.medium',
-        image_id: SERVER_AMI,
-        tags: [
-          'ci_tests=true',
-          'ServerOnly=true'
-        ]
+          instance_type: 'm3.medium',
+          image_id: SERVER_AMI,
+          tags: [
+              'ci_tests=true',
+              'ServerOnly=true'
+          ]
       }
 
       test_pem_file = 'ec2_server_key.pem'
@@ -325,8 +329,8 @@ describe OpenStudio::Aws::Aws do
       aws2.load_instance_info_from_file('server_data.json')
 
       options = {
-        instance_type: 'm3.medium',
-        image_id: WORKER_AMI
+          instance_type: 'm3.medium',
+          image_id: WORKER_AMI
       }
 
       aws2.create_workers(1, options)
@@ -342,6 +346,47 @@ describe OpenStudio::Aws::Aws do
 
     after :all do
       @aws.terminate
+    end
+  end
+
+  context 'i2-instances' do
+    before :all do
+      @config = OpenStudio::Aws::Config.new
+      @aws = OpenStudio::Aws::Aws.new
+
+      @group_id = nil
+    end
+
+    it 'should create an i2 instance and mount the storage' do
+      begin
+        options = {
+            instance_type: 'i2.xlarge',
+            image_id: SERVER_AMI,
+            tags: [
+                'ci_tests=true',
+                'ServerOnly=true'
+            ]
+        }
+
+        expect { @aws.create_workers(0) }.to raise_error "Can't create workers without a server instance running"
+
+        test_pem_file = 'ec2_server_key.pem'
+        FileUtils.rm_f test_pem_file if File.exist? test_pem_file
+        FileUtils.rm_f 'server_data.json' if File.exist? 'server_data.json'
+
+        @aws.create_server(options)
+
+        # Still have to call "create workers" or the configuration won't happen.
+        @aws.create_workers(0, options)
+
+        h = @aws.os_aws.server.to_os_hash
+
+        shell = @aws.server.shell_command('df -h | grep /dev/xvdb.*/mnt')
+        expect(shell).not_to be_nil
+        expect(shell).to eq /\/dev\/xvdb.*\/mnt/
+      ensure
+        @aws.terminate_instances_by_group_id(h[:group_id])
+      end
     end
   end
 end
