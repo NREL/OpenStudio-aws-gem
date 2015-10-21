@@ -20,6 +20,7 @@ Version 0.4.0
 * Add save_directory to override the default path to save private keys and server configuration files
 * Remove old AMIs in the AMI List (versions with 0.0.x)
 * Place previous stable AMI version in the list for OpenStudio
+* Remove support for Ruby 1.9. Add support for Ruby 2.1.
 
 Version 0.3.2
 -------------
