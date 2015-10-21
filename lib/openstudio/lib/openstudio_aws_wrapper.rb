@@ -217,22 +217,17 @@ class OpenStudioAwsWrapper
     instance_data
   end
 
-  def describe_amis(filter = nil, image_ids = [], owned_by_me = true)
+  # Describe the list of AMIs adn return the hash.
+  # @param [Array] image_ids: List of image ids to find. If empty, then will find all images.
+  # @param [Boolean] owned_by_me: Find only the images owned by the current user?
+  # @return [Hash]
+  def describe_amis(image_ids = [], owned_by_me = true)
     resp = nil
 
-    # TODO: test the filter.  i don't think that it is exposed in the AWS gem?
     if owned_by_me
-      if filter
-        resp = @aws.describe_images(owners: [:self], filter: filter).data
-      else
-        resp = @aws.describe_images(owners: [:self]).data
-      end
+      resp = @aws.describe_images(owners: [:self]).data
     else
-      if filter
-        resp = @aws.describe_images(filter: filter).data
-      else
-        resp = @aws.describe_images(image_ids: image_ids).data
-      end
+      resp = @aws.describe_images(image_ids: image_ids).data
     end
 
     resp = resp.to_hash
@@ -241,11 +236,15 @@ class OpenStudioAwsWrapper
     resp[:images].each do |image|
       image[:tags_hash] = {}
       image[:tags_hash][:tags] = []
-      image[:tags].each do |tag|
-        if tag[:value]
-          image[:tags_hash][tag[:key].to_sym] = tag[:value]
-        else
-          image[:tags_hash][:tags] << tag[:key]
+
+      # If the image is being created then its tags may be empty
+      if image[:tags]
+        image[:tags].each do |tag|
+          if tag[:value]
+            image[:tags_hash][tag[:key].to_sym] = tag[:value]
+          else
+            image[:tags_hash][:tags] << tag[:key]
+          end
         end
       end
     end
@@ -253,6 +252,8 @@ class OpenStudioAwsWrapper
     resp
   end
 
+  # Stop specific instances based on the instance_ids
+  # @param [Array] ids: Array of ids to stop
   def stop_instances(ids)
     resp = @aws.stop_instances(
       instance_ids: ids,
@@ -548,8 +549,6 @@ class OpenStudioAwsWrapper
 
       # now grab the good keys - they should be sorted newest to older... so go backwards
       amis[:openstudio_server].keys.reverse_each do |key|
-        next if amis[:openstudio_server][key][:deprecate]
-
         a = amis[:openstudio_server][key]
         # this will override any of the old ami/os version
         version1[a[:openstudio_version].to_sym] = a[:amis]
@@ -567,18 +566,31 @@ class OpenStudioAwsWrapper
       # don't need to transform anything right now, only flag which ones are stable version so that the uploaded ami JSON has the
       # stable server for OpenStudio PAT to use.
       stable = JSON.parse File.read(File.join(File.dirname(__FILE__), 'ami_stable_version.json')), symbolize_names: true
-      # go through and tag the versions of the openstudio instances that are stable
 
+      # go through and tag the versions of the openstudio instances that are stable,
       stable[:openstudio].each do |k, v|
         if amis[:openstudio][k.to_s] && amis[:openstudio][k.to_s][v.to_sym]
           amis[:openstudio][k.to_s][:stable] = v
         end
       end
 
+      # I'm not sure what the below code is trying to accomplish. Are we even using the default?
       k, v = stable[:openstudio].first
       if k && v
         if amis[:openstudio][k.to_s]
           amis[:openstudio][:default] = v
+        end
+      end
+
+      # now go through and if the OpenStudio version does not have a stable key, then assign it the most recent
+      # stable AMI. This allows for easy testing so a new version of OpenStudio can use an existing AMI.
+      stable[:openstudio].each do |stable_openstudio, stable_server|
+        amis[:openstudio].each do |k, v|
+          next if k == :default
+
+          if k.to_s.to_version > stable_openstudio.to_s.to_version && v[:stable].nil?
+            amis[:openstudio][k.to_s][:stable] = stable_server.to_s
+          end
         end
       end
     end
@@ -605,7 +617,8 @@ class OpenStudioAwsWrapper
     h
   end
 
-  # take the base version and increment the patch until
+  # take the base version and increment the patch until.
+  # TODO: DEPRECATE
   def get_next_version(base, list_of_svs)
     b = base.to_version
 
@@ -633,8 +646,8 @@ class OpenStudioAwsWrapper
       sv = ami[:tags_hash][:openstudio_server_version]
 
       if sv.nil? || sv == ''
-        logger.info 'found nil version, incrementing from 0.0.1'
-        sv = get_next_version('0.0.1', list_of_svs)
+        logger.info 'found nil Server Version, ignoring'
+        next
       end
       list_of_svs << sv
 
@@ -645,11 +658,9 @@ class OpenStudioAwsWrapper
       a[:amis] = {} unless a[:amis]
 
       # fill in data (this will override data currently)
-      a[:deprecate] = true if sv.to_version.satisfies('0.0.*')
       a[:openstudio_version] = ami[:tags_hash][:openstudio_version] if ami[:tags_hash][:openstudio_version]
       a[:openstudio_version_sha] = ami[:tags_hash][:openstudio_version_sha] if ami[:tags_hash][:openstudio_version_sha]
       a[:user_uuid] = ami[:tags_hash][:user_uuid] if ami[:tags_hash][:user_uuid]
-      a[:deprecate] = ami[:tags_hash][:deprecate] if ami[:tags_hash][:deprecate]
       a[:created_on] = ami[:tags_hash][:created_on] if ami[:tags_hash][:created_on]
       a[:openstudio_server_version] = sv.to_s
       if ami[:tags_hash][:tested]
@@ -686,29 +697,8 @@ class OpenStudioAwsWrapper
       end
     end
 
-    # merge in the existing AMIs the existing amis into the 'unknown category, but don't flag them as 'deprecate'
-    existing.keys.each do |ami_key|
-      next if ami_key == 'default'.to_sym # ignore default
-
-      # get next version
-      next_version = get_next_version('0.0.1', list_of_svs)
-      list_of_svs << next_version
-
-      amis[:openstudio_server][next_version.to_sym] ||= {}
-      a = amis[:openstudio_server][next_version.to_sym]
-      a[:amis] = {} unless a[:amis]
-
-      a[:openstudio_version] = ami_key
-      a[:amis][:server] = existing[ami_key][:server]
-      a[:amis][:worker] = existing[ami_key][:worker]
-      a[:amis][:cc2worker] = existing[ami_key][:cc2worker]
-      a[:openstudio_server_version] = next_version.to_s
-    end
-
     # flip these around for openstudio server section
     amis[:openstudio_server].keys.each do |key|
-      next if key.to_s.to_version.satisfies('0.0.*')
-
       a = amis[:openstudio_server][key]
       ov = a[:openstudio_version]
 

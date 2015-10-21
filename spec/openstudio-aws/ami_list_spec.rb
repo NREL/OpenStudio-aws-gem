@@ -43,7 +43,7 @@ describe OpenStudioAmis do
   end
 
   context 'version 2' do
-    it 'should return openstudio version 1.7.1 stable & default versions correctly when 1.7.5 is passed' do
+    it 'should return openstudio version 1.7.1 when stable is passed to 1.7.5' do
       a = OpenStudioAmis.new(2, openstudio_version: '1.7.5', stable: true)
 
       amis = a.get_amis

@@ -119,6 +119,7 @@ class OpenStudioAmis
         stable = nil
         if json[:openstudio][@options[:openstudio_version].to_sym]
           stable = json[:openstudio][@options[:openstudio_version].to_sym][:stable]
+          @logger.info "The stable version is #{stable}"
         end
 
         if stable

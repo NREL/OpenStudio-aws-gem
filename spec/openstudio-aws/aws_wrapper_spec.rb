@@ -49,12 +49,12 @@ describe OpenStudioAwsWrapper do
 
     context 'create new ami json' do
       it 'should describe existing AMIs' do
-        resp = @aws.os_aws.describe_amis(nil, nil, true)
-        expect(resp[:images].length).to be >= 3
+        resp = @aws.os_aws.describe_amis
+        expect(resp[:images].length).to be >= 10
       end
 
       it 'should describe a specific image' do
-        resp = @aws.os_aws.describe_amis(nil, ['ami-39bb8750'], false)
+        resp = @aws.os_aws.describe_amis(['ami-39bb8750'], false)
         expect(resp[:images].first[:image_id]).to eq('ami-39bb8750')
         expect(resp[:images].first[:tags_hash][:user_uuid]).to eq('jenkins-139LADFJ178')
         expect(resp[:images].first[:tags_hash][:openstudio_server_version]).to eq('1.3.1')
@@ -62,10 +62,10 @@ describe OpenStudioAwsWrapper do
     end
 
     context 'version 1' do
-      it 'should create a new json' do
+      it 'should create a new json and return the right server versions' do
         resp = @aws.os_aws.create_new_ami_json(1)
-        expect(resp['1.1.3'.to_sym][:server]).to eq('ami-fb301292')
         expect(resp['1.2.1'.to_sym][:server]).to eq('ami-89744be0')
+        expect(resp['1.9.0'.to_sym][:server]).to eq('ami-f3611996')
         expect(resp['default'.to_sym][:server]).to_not eq('ami-89744be0')
       end
     end
