@@ -17,7 +17,9 @@ Version 0.4.0
 * Add method to `delete_key_pair`
 * Add launch time to the server data struct
 * Add cloud watch class to calculate the cost
-* Add save_directory to override the default path to save private keys and server configuration files 
+* Add save_directory to override the default path to save private keys and server configuration files
+* Remove old AMIs in the AMI List (versions with 0.0.x)
+* Place previous stable AMI version in the list for OpenStudio
 
 Version 0.3.2
 -------------
