@@ -118,11 +118,11 @@ class OpenStudioAmis
         stable = nil
         if json[:openstudio][@options[:openstudio_version].to_sym]
           stable = json[:openstudio][@options[:openstudio_version].to_sym][:stable]
-          @logger.info "The stable version is #{stable}"
+          logger.info "The stable version in the JSON is #{stable}"
         end
 
         if stable
-          value = json[:openstudio][@options[:openstudio_version].to_sym][stable.to_sym]
+          value = json[:openstudio_server][stable.to_sym]
           amis = value[:amis]
         else
           logger.info "Could not find a stable version for OpenStudio version #{@options[:openstudio_version]}. "\
@@ -130,12 +130,14 @@ class OpenStudioAmis
 
           json[:openstudio].each do |os_version, values|
             next if os_version == :default
+
             if values.key? :stable
               # don't check versions newer than what we are requesting
               next if os_version.to_s.to_version > @options[:openstudio_version].to_s.to_version
+
               stable = json[:openstudio][os_version][:stable]
               logger.info "Found a stable version for OpenStudio version #{os_version} with OpenStudio Server version #{stable}"
-              value = values[stable.to_sym]
+              value = json[:openstudio_server][stable.to_sym]
               amis = value[:amis]
 
               break
