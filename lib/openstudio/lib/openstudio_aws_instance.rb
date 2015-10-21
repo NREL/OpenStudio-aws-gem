@@ -1,6 +1,5 @@
-# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files
 ######################################################################
-#  Copyright (c) 2008-2014, Alliance for Sustainable Energy.
+#  Copyright (c) 2008-2015, Alliance for Sustainable Energy.
 #  All rights reserved.
 #
 #  This library is free software; you can redistribute it and/or
@@ -141,12 +140,12 @@ class OpenStudioAwsInstance
       t = tag.split('=')
       if t.size != 2
         logger.error "Tag '#{t}' not defined or does not have an equal sign"
-        puts "Tag '#{t}' not defined or does not have an equal sign"
+        fail "Tag '#{t}' not defined or does not have an equal sign"
         next
       end
       if %w(Name GroupUUID NumberOfProcessors Purpose UserID).include? t[0]
         logger.error "Tag name '#{t[0]}' is a reserved tag"
-        puts "Tag name '#{t[0]}' is a reserved tag"
+        fail "Tag name '#{t[0]}' is a reserved tag"
         next
       end
 
@@ -162,7 +161,7 @@ class OpenStudioAwsInstance
         tags: aws_tags
       )
     rescue Aws::EC2::Errors::InvalidInstanceIDNotFound
-      sleep 1000
+      sleep 5
       retry unless (tries -= 1).zero?
     end
 
@@ -306,13 +305,13 @@ class OpenStudioAwsInstance
       # port 22 might not be available immediately after the instance finishes launching
       return if retries == 5
       retries += 1
-      sleep 1
+      sleep 2
       retry
     rescue
       # Unknown upload error, retry
       return if retries == 5
       retries += 1
-      sleep 1
+      sleep 2
       retry
     end
   end
@@ -342,11 +341,11 @@ class OpenStudioAwsInstance
   rescue Net::SSH::HostKeyMismatch => e
     e.remember_host!
     logger.info('key mismatch, retry')
-    sleep 1
+    sleep 2
     retry
   rescue SystemCallError, Timeout::Error => e
     # port 22 might not be available immediately after the instance finishes launching
-    sleep 1
+    sleep 2
     logger.info('SystemCallError, Waiting for SSH to become available')
     retry
   end
@@ -405,12 +404,12 @@ class OpenStudioAwsInstance
       # port 22 might not be available immediately after the instance finishes launching
       return if retries == 5
       retries += 1
-      sleep 1
+      sleep 2
       retry
     rescue
       return if retries == 5
       retries += 1
-      sleep 1
+      sleep 2
       retry
     end
   end
@@ -420,7 +419,7 @@ class OpenStudioAwsInstance
   # store some of the data into a custom struct.  The instance is the full description.  The remaining fields are
   # just easier accessors to the data in the raw request except for procs which is a custom request.
   def create_struct(instance, procs)
-    instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs, :availability_zone, :private_ip_address)
+    instance_struct = Struct.new(:instance, :id, :ip, :dns, :procs, :availability_zone, :private_ip_address, :launch_time)
     s = instance_struct.new(
       instance,
       instance[:instance_id],
@@ -428,7 +427,8 @@ class OpenStudioAwsInstance
       instance[:public_dns_name],
       procs,
       instance[:placement][:availability_zone],
-      instance[:private_ip_address]
+      instance[:private_ip_address],
+      instance[:launch_time]
     )
 
     # store some values into the member variables

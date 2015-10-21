@@ -1,10 +1,29 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
-Version 0.3.2 (Unreleased)
+Version 0.4.0
 -------------
+* When listing the AMI, allow future versions of OpenStudio to return the latest stable version 
+* Load the key name and security groups from the AWS instance information.
+* Add method on Aws to get the group_uuid 
+* Load worker keys from disk (if they exist) when constructing the OpenStudioAwsWrapper class
+* Have `total_instances_count` return the region and first availability zone
+* Add `describe_all_instances`
 * Add a stable JSON file that can be used to flag which versions of the server are stable (used by OpenStudio PAT).
+* Remove all puts and replace with logger. This is required because OpenStudio PAT reads the result from the command line.
 * Add the method `describe_availability_zones` to the root AWS class
+* Add the method `total_instances_count` to the root AWS class
+* Add method to list status of all instances in the group
+* Add method to `delete_key_pair`
+* Add launch time to the server data struct
+* Add cloud watch class to calculate the cost
+* Add save_directory to override the default path to save private keys and server configuration files
+* Remove old AMIs in the AMI List (versions with 0.0.x)
+* Place previous stable AMI version in the list for OpenStudio
+* Remove support for Ruby 1.9. Add support for Ruby 2.1.
+
+Version 0.3.2
+-------------
 * Prefer use of the access and secret key in the environment variables if defined
 * Support i2 instance ephemeral storage. These instances will take a bit longer to startup because the volumes are not yet created.
 

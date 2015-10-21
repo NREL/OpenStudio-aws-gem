@@ -15,6 +15,7 @@ spec/reports
 ~$*
 *.receipt
 rubocop-results.xml
+spec/output
 *.pem
 *.pub
 *.config

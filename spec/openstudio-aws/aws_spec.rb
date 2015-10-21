@@ -80,6 +80,18 @@ describe OpenStudio::Aws::Aws do
 
       expect { aws.create_server(options) }.to raise_error /Must pass in the private_key_file_name/
     end
+
+    it 'should create a key in another directory' do
+      options = {}
+      aws = OpenStudio::Aws::Aws.new
+      expect(aws.save_directory).to eq File.expand_path('.')
+
+      options = {
+        save_directory: 'spec/output/save_path'
+      }
+      aws = OpenStudio::Aws::Aws.new(options)
+      expect(aws.save_directory).to eq File.join(File.expand_path('.'), 'spec/output/save_path')
+    end
   end
 
   context 'proxy configuration' do
@@ -92,7 +104,6 @@ describe OpenStudio::Aws::Aws do
       }
 
       @aws = OpenStudio::Aws::Aws.new(options)
-      # puts @aws.inspect
       expect(@aws.os_aws).not_to be_nil
     end
 
@@ -138,6 +149,17 @@ describe OpenStudio::Aws::Aws do
 
       expect(az[:availability_zone_info]).to be_an Array
       expect(az[:availability_zone_info].first[:zone_name]).to eq 'us-east-1a'
+    end
+  end
+
+  context 'total instances' do
+    it 'should describe the total instances' do
+      options = {}
+      aws = OpenStudio::Aws::Aws.new(options)
+      az = aws.total_instances_count
+
+      expect(az[:total_instances]).to_not be_nil
+      expect(az[:region]).to_not be_nil
     end
   end
 end
