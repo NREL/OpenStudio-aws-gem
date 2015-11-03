@@ -14,13 +14,12 @@ describe OpenStudioAmis do
     end
 
     it 'should return specific amis if passed a version' do
-      a = OpenStudioAmis.new(1, openstudio_version: '1.2.0')
-
+      a = OpenStudioAmis.new(1, openstudio_version: '1.2.1')
       amis = a.get_amis
 
-      expect(amis[:server]).to eq('ami-a3edddca')
-      expect(amis[:worker]).to eq('ami-bfedddd6')
-      expect(amis[:cc2worker]).to eq('ami-b5eddddc')
+      expect(amis[:server]).to eq('ami-89744be0')
+      expect(amis[:worker]).to eq('ami-37744b5e')
+      expect(amis[:cc2worker]).to eq('ami-51744b38')
     end
 
     it 'should list all amis' do
