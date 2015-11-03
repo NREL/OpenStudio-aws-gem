@@ -1,6 +1,9 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.4.1
+* Fix the SSH Timeout Exception
+
 Version 0.4.0
 -------------
 * When listing the AMI, allow future versions of OpenStudio to return the latest stable version 

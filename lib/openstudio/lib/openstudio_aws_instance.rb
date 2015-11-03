@@ -317,7 +317,7 @@ class OpenStudioAwsInstance
   end
 
   # Send a command through SSH Shell to an instance.
-  # Need to pass  the command as a string.
+  # Need to pass the command as a string.
   def shell_command(command, load_env = true)
     logger.info("ssh_command #{command} with load environment #{load_env}")
     command = "source /etc/profile; source ~/.bash_profile; #{command}" if load_env
@@ -343,7 +343,7 @@ class OpenStudioAwsInstance
     logger.info('key mismatch, retry')
     sleep 2
     retry
-  rescue SystemCallError, Timeout::Error => e
+  rescue SystemCallError, Net::SSH::ConnectionTimeout, Timeout::Error => e
     # port 22 might not be available immediately after the instance finishes launching
     sleep 2
     logger.info('SystemCallError, Waiting for SSH to become available')
@@ -387,7 +387,7 @@ class OpenStudioAwsInstance
     logger.info('key mismatch, retry')
     sleep 10
     retry
-  rescue SystemCallError, Timeout::Error => e
+  rescue SystemCallError, Net::SSH::ConnectionTimeout, Timeout::Error => e
     # port 22 might not be available immediately after the instance finishes launching
     sleep 10
     logger.info('Timeout.  Perhaps there is a communication error to EC2?  Will try again in 10 seconds')
