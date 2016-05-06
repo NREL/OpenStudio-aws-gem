@@ -1,6 +1,10 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.4.2
+-------------
+* Fix net-ssh to 3.0.1 because newer version caused infinite loop
+
 Version 0.4.1
 -------------
 * Fix the SSH Timeout Exception
