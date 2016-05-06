@@ -3,7 +3,7 @@ OpenStudio AWS Gem Change Log
 
 Version 0.4.2
 -------------
-* Fix net-ssh to 3.0.1 because newer version caused infinite loop
+* Fix net-ssh to 3.0.2 because newer version caused infinite loop
 
 Version 0.4.1
 -------------
