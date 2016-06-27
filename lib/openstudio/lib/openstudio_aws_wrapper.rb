@@ -65,14 +65,21 @@ class OpenStudioAwsWrapper
     @aws = Aws::EC2::Client.new(options[:credentials])
   end
 
-  def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.1')
+  def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.1', vpc_id = nil)
     group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.length == 0
       logger.info 'security group not found --- will create a new one'
-      @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
+      if vpc_id
+        r = @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}",
+                                   vpc_id: vpc_id)
+      else
+        r = @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
+      end
+      group_id = r[:group_id]
       @aws.authorize_security_group_ingress(
         group_name: tmp_name,
+        group_id: group_id,
         ip_permissions: [
           { ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0'] }, # Eventually make this only the user's IP address seen by the internet
           { ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0'] },

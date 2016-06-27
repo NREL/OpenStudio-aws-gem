@@ -4,7 +4,7 @@ module OpenStudio
     VALID_OPTIONS = [
       :proxy, :credentials, :ami_lookup_version, :openstudio_version,
       :openstudio_server_version, :region, :ssl_verify_peer, :host, :url, :stable,
-      :save_directory
+      :save_directory, :subnet_id
     ]
 
     class Aws
@@ -108,7 +108,8 @@ module OpenStudio
           ebs_volume_id: nil,
           aws_key_pair_name: nil,
           private_key_file_name: nil, # required if using an existing "aws_key_pair_name"
-          tags: []
+          tags: [],
+          vpc_id: nil
         }
         options = defaults.merge(options)
 
@@ -125,7 +126,8 @@ module OpenStudio
 
         if options[:security_groups].empty?
           # if the user has not specified any security groups, then create one called: 'openstudio-server-sg-v1'
-          @os_aws.create_or_retrieve_default_security_group
+          @os_aws.create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.1',
+                                                            vpc_id=options[:vpc_id])
         else
           @os_aws.security_groups = options[:security_groups]
         end
