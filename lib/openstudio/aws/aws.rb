@@ -127,7 +127,7 @@ module OpenStudio
         if options[:security_groups].empty?
           # if the user has not specified any security groups, then create one called: 'openstudio-server-sg-v1'
           @os_aws.create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.1',
-                                                            vpc_id=options[vpc_id])
+                                                            vpc_id=options[:vpc_id])
         else
           @os_aws.security_groups = options[:security_groups]
         end
