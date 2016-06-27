@@ -76,8 +76,6 @@ class OpenStudioAwsWrapper
       else
         r = @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
       end
-      puts "r: #{r}"
-      puts "r.inspect: #{r.inspect}"
       group_id = r[:group_id]
       @aws.authorize_security_group_ingress(
         group_name: tmp_name,
