@@ -71,13 +71,17 @@ class OpenStudioAwsWrapper
     if group.data.security_groups.length == 0
       logger.info 'security group not found --- will create a new one'
       if vpc_id
-        @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}",
+        r = @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}",
                                    vpc_id: vpc_id)
       else
-        @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
+        r = @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
       end
+      puts "r: #{r}"
+      puts "r.inspect: #{r.inspect}"
+      group_id = r[:group_id]
       @aws.authorize_security_group_ingress(
         group_name: tmp_name,
+        group_id: group_id,
         ip_permissions: [
           { ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0'] }, # Eventually make this only the user's IP address seen by the internet
           { ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
