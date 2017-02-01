@@ -95,7 +95,7 @@ class OpenStudioAwsInstance
       volume_id: resp[:volume_id],
       instance_id: instance_id,
       # required
-      device: '/dev/sdh'
+      device: '/dev/sdm'
     )
 
     # Wait for the volume to attach
