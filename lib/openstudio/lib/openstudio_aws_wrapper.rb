@@ -472,6 +472,17 @@ class OpenStudioAwsWrapper
     true
   end
 
+  # blocking method that executes required commands for creating and provisioning a docker swarm cluster
+  def configure_swarm_cluster
+    logger.info('Waiting for the server storage device to be configured.')
+    @server.wait_command('[ -e /home/ubuntu/server_provision.sh ] && echo "true"')
+    logger.info('Waiting for the worker storage device(s) to be configured.')
+    @workers.each { |worker| worker.wait_command('[ -e /home/ubuntu/server_provision.sh ] && echo "true"') }
+    logger.info('Successfully re-sized and configured storage devices for all nodes.')
+    puts 'Successfully re-sized and configured storage devices for all nodes.'
+
+  end
+
   # method to query the amazon api to find the server (if it exists), based on the group id
   # if it is found, then it will set the @server instance variable. The security groups are assigned from the
   # server node information on AWS if the security groups have not been initialized yet.
