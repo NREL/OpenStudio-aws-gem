@@ -478,11 +478,11 @@ class OpenStudioAwsWrapper
     @server.wait_command('sudo /home/ubuntu/server_provision.sh && echo "true"')
     logger.info('Downloading the swarm join command.')
     swarm_file = File.join(@work_dir, 'worker_swarm_join.sh')
-    @server.download('/home/ubuntu/swarmjoin.sh', swarm_file)
+    @server.download_file('/home/ubuntu/swarmjoin.sh', swarm_file)
     logger.info('Running the configuration script for the worker(s).')
     @workers.each { |worker| worker.wait_command('sudo /home/ubuntu/worker_provision.sh && echo "true"') }
     logger.info('Successfully re-sized storage devices for all nodes. Joining server nodes to the swarm.')
-    @workers.each { |worker| worker.wait_command(File.read(swarm_file)) }
+    @workers.each { |worker| worker.wait_command("#{File.read(swarm_file)} && echo 'true'") }
     logger.info('All worker nodes have been added to the swarm. Starting the server cluster.')
   end
 
