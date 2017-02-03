@@ -486,7 +486,7 @@ class OpenStudioAwsWrapper
     puts worker_join_cmd
     @workers.each { |worker| worker.wait_command(worker_join_cmd) }
     puts('All worker nodes have been added to the swarm. Starting the server cluster.')
-    @server.wait_command('docker stack deploy --compose-file docker-compose.yml osserver-stack')
+    @server.wait_command('docker stack deploy --compose-file docker-compose.yml osserver-stack && echo \"true\"')
     puts('The OpenStudio Server stack has been started. Scaling worker nodes.')
     total_procs = @server.procs
     @workers.each { |worker| total_procs += worker.procs }

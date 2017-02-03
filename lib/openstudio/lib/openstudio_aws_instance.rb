@@ -385,7 +385,7 @@ class OpenStudioAwsInstance
                 puts("wait_command #{command} is true")
                 flag = 1
               else
-                sleep 10
+                sleep 1
               end
             end
             # "on_extended_data" is called when the process writes some_thi_ng to stderr
@@ -395,7 +395,7 @@ class OpenStudioAwsInstance
                 puts("wait_command #{command} is true")
                 flag = 1
               else
-                sleep 10
+                sleep 1
               end
             end
           end
