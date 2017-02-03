@@ -339,7 +339,7 @@ class OpenStudioAwsInstance
   # Send a command through SSH Shell to an instance.
   # Need to pass the command as a string.
   def shell_command(command, load_env = true)
-    puts("ssh_command #{command} with load environment #{load_env}")
+    logger.info("ssh_command #{command} with load environment #{load_env}")
     command = "source /etc/profile; source ~/.bash_profile; #{command}" if load_env
     Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
       channel = ssh.open_channel do |ch|
@@ -348,41 +348,41 @@ class OpenStudioAwsInstance
           # "on_data" is called when the process wr_ites something to stdout
           ch.on_data do |_c, data|
             # $stdout.print data
-            puts("#{data.inspect}")
+            logger.info("#{data.inspect}")
           end
           # "on_extended_data" is called when the process writes something to s_tde_rr
           ch.on_extended_data do |_c, _type, data|
             # $stderr.print data
-            puts("#{data.inspect}")
+            logger.info("#{data.inspect}")
           end
         end
       end
     end
   rescue Net::SSH::HostKeyMismatch => e
     e.remember_host!
-    puts('key mismatch, retry')
+    logger.info('key mismatch, retry')
     sleep 2
     retry
   rescue SystemCallError, Net::SSH::ConnectionTimeout, Timeout::Error => e
     # port 22 might not be available immediately after the instance finishes launching
     sleep 2
-    puts('SystemCallError, Waiting for SSH to become available')
+    logger.info('SystemCallError, Waiting for SSH to become available')
     retry
   end
 
   def wait_command(command)
     flag = 0
     while flag == 0
-      puts("wait_command #{command}")
+      logger.info("wait_command #{command}")
       Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
         channel = ssh.open_channel do |ch|
           ch.exec "#{command}" do |ch, success|
             fail "could not execute #{command}" unless success
             # "on_data" is called_ when the process writes something to stdout
             ch.on_data do |_c, data|
-              puts("#{data.inspect}")
+              logger.info("#{data.inspect}")
               if data.chomp == 'true'
-                puts("wait_command #{command} is true")
+                logger.info("wait_command #{command} is true")
                 flag = 1
               else
                 sleep 1
@@ -390,9 +390,9 @@ class OpenStudioAwsInstance
             end
             # "on_extended_data" is called when the process writes some_thi_ng to stderr
             ch.on_extended_data do |_c, _type, data|
-              puts("#{data.inspect}")
+              logger.info("#{data.inspect}")
               if data == 'true'
-                puts("wait_command #{command} is true")
+                logger.info("wait_command #{command} is true")
                 flag = 1
               else
                 sleep 1
@@ -404,13 +404,13 @@ class OpenStudioAwsInstance
     end
   rescue Net::SSH::HostKeyMismatch => e
     e.remember_host!
-    puts('key mismatch, retry')
+    logger.info('key mismatch, retry')
     sleep 10
     retry
   rescue SystemCallError, Net::SSH::ConnectionTimeout, Timeout::Error => e
     # port 22 might not be available immediately after the instance finishes launching
     sleep 10
-    puts('Timeout.  Perhaps there is a communication error to EC2?  Will try again in 10 seconds')
+    logger.info('Timeout.  Perhaps there is a communication error to EC2?  Will try again in 10 seconds')
     retry
   end
 

@@ -474,25 +474,24 @@ class OpenStudioAwsWrapper
 
   # blocking method that executes required commands for creating and provisioning a docker swarm cluster
   def configure_swarm_cluster
-    puts('Running the configuration script for the server.')
+    logger.info('Running the configuration script for the server.')
     @server.wait_command('sudo /home/ubuntu/server_provision.sh && echo "true"')
-    puts('Downloading the swarm join command.')
+    logger.info('Downloading the swarm join command.')
     swarm_file = File.join(@work_dir, 'worker_swarm_join.sh')
     @server.download_file('/home/ubuntu/swarmjoin.sh', swarm_file)
-    puts('Running the configuration script for the worker(s).')
+    logger.info('Running the configuration script for the worker(s).')
     @workers.each { |worker| worker.wait_command('sudo /home/ubuntu/worker_provision.sh && echo "true"') }
-    puts('Successfully re-sized storage devices for all nodes. Joining server nodes to the swarm.')
+    logger.info('Successfully re-sized storage devices for all nodes. Joining server nodes to the swarm.')
     worker_join_cmd = "#{File.read('worker_swarm_join.sh').strip} && echo \"true\""
-    puts worker_join_cmd
     @workers.each { |worker| worker.wait_command(worker_join_cmd) }
-    puts('All worker nodes have been added to the swarm. Starting the server cluster.')
+    logger.info('All worker nodes have been added to the swarm. Starting the server cluster.')
     @server.shell_command('docker stack deploy --compose-file docker-compose.yml osserver-stack')
     sleep 10
-    puts('The OpenStudio Server stack has been started. Scaling worker nodes.')
+    logger.info('The OpenStudio Server stack has been started. Scaling worker nodes.')
     total_procs = @server.procs
     @workers.each { |worker| total_procs += worker.procs }
     @server.wait_command("docker service scale osserver-stack_worker=#{total_procs} && echo \"true\"")
-    puts('The OpenStudio Server stack has been configured.')
+    logger.info('The OpenStudio Server stack has been configured.')
   end
 
   # method to query the amazon api to find the server (if it exists), based on the group id
