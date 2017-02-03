@@ -254,6 +254,10 @@ class OpenStudioAwsInstance
     "http://#{@data.ip}"
   end
 
+  def procs
+    @data.procs
+  end
+
   def find_processors(instance)
     lookup = {
       'm3.medium' => 1,
@@ -288,11 +292,11 @@ class OpenStudioAwsInstance
     end
 
     if @openstudio_instance_type == :server
-      # take out 3 of the processors for doing work with a max of 1 to work
+      # take out 4 of the processors for doing work with a max of 1 to work
       # 1 for server
       # 1 for mongodb
       # 1 for child processes to download files
-      processors = [processors - 2, 1].max # this is 2 for now because the current server decrements by 1 (which will be removed if 2.0-pre6)
+      processors = [processors - 4, 1].max # this is 2 for now because the current server decrements by 1 (which will be removed if 2.0-pre6)
     end
 
     processors
