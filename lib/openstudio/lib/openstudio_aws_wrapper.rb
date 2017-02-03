@@ -484,6 +484,8 @@ class OpenStudioAwsWrapper
     logger.info('Successfully re-sized storage devices for all nodes. Joining server nodes to the swarm.')
     @workers.each { |worker| worker.wait_command("#{File.read(swarm_file)} && echo 'true'") }
     logger.info('All worker nodes have been added to the swarm. Starting the server cluster.')
+    @server.wait_command('docker stack deploy --compose-file docker-compose.yml osserver-stack')
+    @logger.info('The OpenStudio Server stack has been started. Scaling worker nodes.')
   end
 
   # method to query the amazon api to find the server (if it exists), based on the group id
