@@ -492,7 +492,7 @@ class OpenStudioAwsWrapper
     @workers.each { |worker| total_procs += worker.procs }
     @server.wait_command("docker service scale osserver-stack_worker=#{total_procs} && echo \"true\"")
     logger.info('The OpenStudio Server stack has been configured. Waiting for the server to start.')
-    sleep 30
+    @server.wait_command("while netstat -lnt | awk '$4 ~ /:80$/ {exit 1}'; do sleep 10; done && echo \"true\"")
     logger.info('The OpenStudio Server stack is booted and ready for analysis submissions.')
   end
 
