@@ -491,7 +491,9 @@ class OpenStudioAwsWrapper
     total_procs = @server.procs
     @workers.each { |worker| total_procs += worker.procs }
     @server.wait_command("docker service scale osserver-stack_worker=#{total_procs} && echo \"true\"")
-    logger.info('The OpenStudio Server stack has been configured.')
+    logger.info('The OpenStudio Server stack has been configured. Waiting for the server to start.')
+    sleep 30
+    logger.info('The OpenStudio Server stack is booted and ready for analysis submissions.')
   end
 
   # method to query the amazon api to find the server (if it exists), based on the group id
