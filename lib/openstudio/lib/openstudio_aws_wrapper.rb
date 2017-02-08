@@ -492,7 +492,7 @@ class OpenStudioAwsWrapper
     @workers.each { |worker| total_procs += worker.procs }
     @server.wait_command("docker service scale osserver-stack_worker=#{total_procs} && echo \"true\"")
     logger.info('The OpenStudio Server stack has been configured. Waiting for the server to start.')
-    @server.wait_command("while netstat -lnt | awk '$4 ~ /:80$/ {exit 1}'; do sleep 10; done && echo \"true\"")
+    @server.wait_command("while ( nc -zv #{@server.ip} 3>&1 1>&2- 2>&3- ) | awk -F \":\" '$3 != \" Connection refused\" {exit 1}'; do sleep 10; done && echo \"true\"")
     logger.info('The OpenStudio Server stack is booted and ready for analysis submissions.')
   end
 
