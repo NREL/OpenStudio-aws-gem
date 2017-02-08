@@ -487,12 +487,12 @@ class OpenStudioAwsWrapper
     logger.info('All worker nodes have been added to the swarm. Starting the server cluster.')
     @server.shell_command('docker stack deploy --compose-file docker-compose.yml osserver-stack')
     sleep 10
-    logger.info('The OpenStudio Server stack has been started. Scaling worker nodes.')
+    logger.info('The OpenStudio Server stack has been started. Waiting for the server to become available.')
+    @server.wait_command("while ( nc -zv #{@server.ip} 80 3>&1 1>&2- 2>&3- ) | awk -F \":\" '$3 != \" Connection refused\" {exit 1}'; do sleep 5; done && echo \"true\"")
+    logger.info('The OpenStudio Server stack has become available. Scaling the worker nodes.')
     total_procs = @server.procs
     @workers.each { |worker| total_procs += worker.procs }
     @server.wait_command("docker service scale osserver-stack_worker=#{total_procs} && echo \"true\"")
-    logger.info('The OpenStudio Server stack has been configured. Waiting for the server to start.')
-    @server.wait_command("while ( nc -zv #{@server.ip} 3>&1 1>&2- 2>&3- ) | awk -F \":\" '$3 != \" Connection refused\" {exit 1}'; do sleep 10; done && echo \"true\"")
     logger.info('The OpenStudio Server stack is booted and ready for analysis submissions.')
   end
 
