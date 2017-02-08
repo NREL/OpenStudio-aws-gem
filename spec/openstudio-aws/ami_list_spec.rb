@@ -17,9 +17,8 @@ describe OpenStudioAmis do
       a = OpenStudioAmis.new(1, openstudio_version: '1.13.2')
       amis = a.get_amis
 
-      expect(amis[:server]).to eq('ami-89744be0')
-      expect(amis[:worker]).to eq('ami-37744b5e')
-      expect(amis[:cc2worker]).to eq('ami-51744b38')
+      expect(amis[:server]).to eq('ami-e7a1bbf0')
+      expect(amis[:worker]).to eq('ami-e0a1bbf7')
     end
 
     it 'should list all amis' do
@@ -37,7 +36,7 @@ describe OpenStudioAmis do
 
       expect(amis[:server]).to eq('ami-43a74255')
       expect(amis[:worker]).to eq('ami-24a04532')
-      expect(amis[:cc2worker]).to eq('null')
+      expect(amis[:cc2worker]).to eq(nil)
     end
   end
 

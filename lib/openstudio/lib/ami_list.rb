@@ -179,14 +179,17 @@ class OpenStudioAmis
   # Return the required docker AMI base box
   def get_ami_version_3
     json = list
-    amis = {}
+    amis = nil
     if @options[:openstudio_version].to_sym == :default && @options[:openstudio_server_version].to_sym == :default
       # grab the most recent openstudio server version - this is not recommended
       key, value = json[:openstudio_server].first
+      amis = {}
       amis[:server] = value[:ami]
       amis[:worker] = value[:ami]
     elsif @options[:openstudio_server_version] != 'default'
       value = json[:openstudio_server][@options[:openstudio_server_version].to_sym]
+      value = json[:openstudio_server].first if value == nil # Default to the most recent version
+      amis = {}
       amis[:server] = value[:ami]
       amis[:worker] = value[:ami]
     elsif @options[:openstudio_version] != 'default'
