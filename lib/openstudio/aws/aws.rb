@@ -246,8 +246,15 @@ module OpenStudio
 
         logger.info 'Waiting for server/worker configurations'
 
-        return @os_aws.configure_server_and_workers unless @dockerized
-        @os_aws.configure_swarm_cluster if @dockerized
+        begin
+          if @dockerized
+            @os_aws.configure_swarm_cluster
+          else
+            @os_aws.configure_server_and_workers
+          end
+        rescue => e
+          fail "Configuring the cluster failed with error `#{e.message}` in:\n#{e.backtrace.join('\n')}"
+        end
       end
 
       # Write out to the terminal the connection information for the servers and workers

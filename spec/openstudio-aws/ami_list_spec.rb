@@ -29,53 +29,6 @@ describe OpenStudioAmis do
   end
 
   context 'version 2' do
-    it 'should return openstudio server version 1.21.14 correctly' do
-      a = OpenStudioAmis.new(2, openstudio_server_version: '1.21.14')
-
-      amis = a.get_amis
-
-      expect(amis[:server]).to eq('ami-43a74255')
-      expect(amis[:worker]).to eq('ami-24a04532')
-      expect(amis[:cc2worker]).to eq(nil)
-    end
-  end
-
-  context 'version 2' do
-    it 'should return openstudio version 1.7.1 when stable is passed to 1.7.5' do
-      a = OpenStudioAmis.new(2, openstudio_version: '1.7.5', stable: true)
-
-      amis = a.get_amis
-
-      expect(amis[:server]).to eq('ami-845a54ec')
-      expect(amis[:worker]).to eq('ami-3a5a5452')
-    end
-
-    it 'should return openstudio version 1.7.1 stable & default versions correctly' do
-      a = OpenStudioAmis.new(2, openstudio_version: '1.7.1')
-
-      amis = a.get_amis
-
-      expect(amis[:server]).to eq('ami-845a54ec')
-      expect(amis[:worker]).to eq('ami-3a5a5452')
-    end
-
-    it 'should return openstudio version 1.7.0 default version correctly' do
-      a = OpenStudioAmis.new(2, openstudio_version: '1.7.0')
-
-      amis = a.get_amis
-
-      expect(amis[:server]).to eq('ami-725b701a')
-      expect(amis[:worker]).to eq('ami-4a446f22')
-    end
-
-    it 'should return openstudio version 1.7.0 stable version correctly' do
-      a = OpenStudioAmis.new(2, openstudio_version: '1.7.0', stable: true)
-
-      amis = a.get_amis
-
-      expect(amis[:server]).to eq('ami-c06b40a8')
-      expect(amis[:worker]).to eq('ami-9a97bff2')
-    end
 
     it 'should fail when trying to find a stable version for older releases' do
       a = OpenStudioAmis.new(2, openstudio_version: '1.5.0', stable: true)
