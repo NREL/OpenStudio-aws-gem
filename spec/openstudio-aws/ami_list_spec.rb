@@ -35,13 +35,5 @@ describe OpenStudioAmis do
 
       expect { a.get_amis }.to raise_error(/Could not find a stable version for openstudio version 1.5.0/)
     end
-
-    it 'should return latest version when passing in a future version' do
-      a = OpenStudioAmis.new(2, openstudio_version: '4.8.15', stable: true)
-
-      a = a.get_amis
-
-      expect(a).not_to be nil
-    end
   end
 end
