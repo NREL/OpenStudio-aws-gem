@@ -111,6 +111,8 @@ module OpenStudio
         @os_aws = OpenStudioAwsWrapper.new(options)
         @os_cloudwatch = OpenStudioCloudWatch.new(options)
 
+        @dockerized = options[:ami_lookup_version] == 3 ? true : false
+
         # this will grab the default version of openstudio ami versions
         # get the arugments for the AMI lookup
         ami_options = {}
@@ -244,7 +246,15 @@ module OpenStudio
 
         logger.info 'Waiting for server/worker configurations'
 
-        @os_aws.configure_server_and_workers
+        begin
+          if @dockerized
+            @os_aws.configure_swarm_cluster
+          else
+            @os_aws.configure_server_and_workers
+          end
+        rescue => e
+          fail "Configuring the cluster failed with error `#{e.message}` in:\n#{e.backtrace.join('\n')}"
+        end
       end
 
       # Write out to the terminal the connection information for the servers and workers

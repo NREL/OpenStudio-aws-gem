@@ -59,10 +59,10 @@ class OpenStudioAwsWrapper
     @region = options[:region] || 'unknown-region'
 
     # If the keys exist in the directory then load those, otherwise create new ones.
-    work_dir = options[:save_directory] || '.'
-    if File.exist?(File.join(work_dir, 'ec2_worker_key.pem')) && File.exist?(File.join(work_dir, 'ec2_worker_key.pub'))
-      logger.info "Worker keys already exist, loading from #{work_dir}"
-      load_worker_key(File.join(work_dir, 'ec2_worker_key.pem'))
+    @work_dir = options[:save_directory] || '.'
+    if File.exist?(File.join(@work_dir, 'ec2_worker_key.pem')) && File.exist?(File.join(@work_dir, 'ec2_worker_key.pub'))
+      logger.info "Worker keys already exist, loading from #{@work_dir}"
+      load_worker_key(File.join(@work_dir, 'ec2_worker_key.pem'))
     else
       logger.info 'Generating new worker keys'
       @worker_keys = SSHKey.generate
@@ -470,6 +470,30 @@ class OpenStudioAwsWrapper
     @workers.each { |worker| worker.shell_command('chmod 664 /mnt/openstudio/rails-models/mongoid.yml') }
 
     true
+  end
+
+  # blocking method that executes required commands for creating and provisioning a docker swarm cluster
+  def configure_swarm_cluster
+    logger.info('Running the configuration script for the server.')
+    @server.wait_command('sudo /home/ubuntu/server_provision.sh && echo "true"')
+    logger.info('Downloading the swarm join command.')
+    swarm_file = File.join(@work_dir, 'worker_swarm_join.sh')
+    @server.download_file('/home/ubuntu/swarmjoin.sh', swarm_file)
+    logger.info('Running the configuration script for the worker(s).')
+    @workers.each { |worker| worker.wait_command('sudo /home/ubuntu/worker_provision.sh && echo "true"') }
+    logger.info('Successfully re-sized storage devices for all nodes. Joining server nodes to the swarm.')
+    worker_join_cmd = "#{File.read('worker_swarm_join.sh').strip} && echo \"true\""
+    @workers.each { |worker| worker.wait_command(worker_join_cmd) }
+    logger.info('All worker nodes have been added to the swarm. Starting the server cluster.')
+    @server.shell_command('docker stack deploy --compose-file docker-compose.yml osserver-stack')
+    sleep 10
+    logger.info('The OpenStudio Server stack has been started. Waiting for the server to become available.')
+    @server.wait_command("while ( nc -zv #{@server.ip} 80 3>&1 1>&2- 2>&3- ) | awk -F \":\" '$3 != \" Connection refused\" {exit 1}'; do sleep 5; done && echo \"true\"")
+    logger.info('The OpenStudio Server stack has become available. Scaling the worker nodes.')
+    total_procs = @server.procs
+    @workers.each { |worker| total_procs += worker.procs }
+    @server.wait_command("docker service scale osserver-stack_worker=#{total_procs} && echo \"true\"")
+    logger.info('The OpenStudio Server stack is booted and ready for analysis submissions.')
   end
 
   # method to query the amazon api to find the server (if it exists), based on the group id

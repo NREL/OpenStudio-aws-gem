@@ -95,7 +95,7 @@ class OpenStudioAwsInstance
       volume_id: resp[:volume_id],
       instance_id: instance_id,
       # required
-      device: '/dev/sdh'
+      device: '/dev/sdm'
     )
 
     # Wait for the volume to attach
@@ -254,6 +254,10 @@ class OpenStudioAwsInstance
     "http://#{@data.ip}"
   end
 
+  def procs
+    @data.procs
+  end
+
   def find_processors(instance)
     lookup = {
       'm3.medium' => 1,
@@ -288,11 +292,11 @@ class OpenStudioAwsInstance
     end
 
     if @openstudio_instance_type == :server
-      # take out 3 of the processors for doing work with a max of 1 to work
+      # take out 4 of the processors for doing work with a max of 1 to work
       # 1 for server
       # 1 for mongodb
       # 1 for child processes to download files
-      processors = [processors - 2, 1].max # this is 2 for now because the current server decrements by 1 (which will be removed if 2.0-pre6)
+      processors = [processors - 4, 1].max # this is 2 for now because the current server decrements by 1 (which will be removed if 2.0-pre6)
     end
 
     processors
@@ -381,7 +385,7 @@ class OpenStudioAwsInstance
                 logger.info("wait_command #{command} is true")
                 flag = 1
               else
-                sleep 10
+                sleep 1
               end
             end
             # "on_extended_data" is called when the process writes some_thi_ng to stderr
@@ -391,7 +395,7 @@ class OpenStudioAwsInstance
                 logger.info("wait_command #{command} is true")
                 flag = 1
               else
-                sleep 10
+                sleep 1
               end
             end
           end

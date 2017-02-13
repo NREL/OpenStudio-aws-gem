@@ -176,6 +176,32 @@ class OpenStudioAmis
     amis
   end
 
+  # Return the required docker AMI base box
+  def get_ami_version_3
+    json = list
+    amis = nil
+    if @options[:openstudio_version].to_sym == :default && @options[:openstudio_server_version].to_sym == :default
+      # grab the most recent openstudio server version - this is not recommended
+      key, value = json[:builds].first
+      amis = {}
+      amis[:server] = value[:ami]
+      amis[:worker] = value[:ami]
+    elsif @options[:openstudio_server_version] != 'default'
+      hash_array = json[:builds]
+      hash = hash_array.select { |hash| hash[:name] == @options[:openstudio_server_version] }
+      fail "Multiple | no entries found matching name key `#{@options[:openstudio_server_version]}`" unless hash.length == 1
+      amis = {}
+      amis[:server] = hash.first[:ami]
+      amis[:worker] = hash.first[:ami]
+    elsif @options[:openstudio_version] != 'default'
+      fail 'Currently the openstudio_version lookup is not supported in v3.'
+    end
+    fail 'The requested AMI key is NULL.' if amis[:server] == nil
+    logger.info "AMI IDs are #{amis}" if amis
+
+    amis
+  end
+
   private
 
   # fetch the URL with redirects

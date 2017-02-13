@@ -25,17 +25,6 @@ describe OpenStudio::Aws::Aws do
 
       expect(aws.default_amis).not_to be_nil
     end
-
-    it 'should find the cc2 instances' do
-      options = {
-        ami_lookup_version: 2,
-        openstudio_server_version: '1.5.0'
-      }
-      aws = OpenStudio::Aws::Aws.new(options)
-
-      expect(aws.determine_image_type('cc2.2xlarge')).to eq 'ami-e582948c'
-      expect(aws.determine_image_type('c3.2xlarge')).to eq 'ami-918294f8'
-    end
   end
 
   context 'should error' do
@@ -49,14 +38,14 @@ describe OpenStudio::Aws::Aws do
   end
 
   context 'version testing' do
-    it 'version 2: should find the right AMIs Server 1.3.1' do
+    it 'version 2: should find the right AMIs Server 1.21.15' do
       options = {
         ami_lookup_version: 2,
-        openstudio_server_version: '1.3.1'
+        openstudio_server_version: '1.21.15'
       }
       aws = OpenStudio::Aws::Aws.new(options)
-      expect(aws.default_amis[:worker]).to eq('ami-39bb8750')
-      expect(aws.default_amis[:server]).to eq('ami-a9bb87c0')
+      expect(aws.default_amis[:worker]).to eq('ami-ccb35ada')
+      expect(aws.default_amis[:server]).to eq('ami-54b45d42')
     end
   end
 
