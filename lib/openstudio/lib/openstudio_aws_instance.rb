@@ -170,7 +170,7 @@ class OpenStudioAwsInstance
 
     # only asked for 1 instance, so therefore it should be the first
     begin
-      tries ||= 3
+      tries ||= 5
       aws_instance = result.data.instances.first
       @aws.create_tags(
         resources: [aws_instance.instance_id],
