@@ -182,7 +182,7 @@ class OpenStudioAmis
     amis = nil
     if @options[:openstudio_version].to_sym == :default && @options[:openstudio_server_version].to_sym == :default
       # grab the most recent openstudio server version - this is not recommended
-      key, value = json[:builds].first
+      value = json[:builds].first
       amis = {}
       amis[:server] = value[:ami]
       amis[:worker] = value[:ami]
