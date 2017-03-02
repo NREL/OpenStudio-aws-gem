@@ -248,7 +248,7 @@ module OpenStudio
 
         begin
           if @dockerized
-            @os_aws.configure_swarm_cluster
+            @os_aws.configure_swarm_cluster(@save_directory)
           else
             @os_aws.configure_server_and_workers
           end

@@ -473,11 +473,11 @@ class OpenStudioAwsWrapper
   end
 
   # blocking method that executes required commands for creating and provisioning a docker swarm cluster
-  def configure_swarm_cluster
+  def configure_swarm_cluster(save_directory)
     logger.info('Running the configuration script for the server.')
     @server.wait_command('sudo /home/ubuntu/server_provision.sh && echo "true"')
     logger.info('Downloading the swarm join command.')
-    swarm_file = File.join(@save_directory, 'worker_swarm_join.sh')
+    swarm_file = File.join(save_directory, 'worker_swarm_join.sh')
     @server.download_file('/home/ubuntu/swarmjoin.sh', swarm_file)
     logger.info('Running the configuration script for the worker(s).')
     @workers.each { |worker| worker.wait_command('sudo /home/ubuntu/worker_provision.sh && echo "true"') }
