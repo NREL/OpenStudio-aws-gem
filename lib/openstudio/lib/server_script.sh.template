@@ -120,6 +120,7 @@ rsync -a --chown ubuntu:www-data --exclude Gemfile.lock /data/worker-nodes/ /mnt
 # install workflow dependencies
 # note: vagrant/ubuntu are now members of rbenv but it still doesn't work to not call sudo on bundle
 # Give full path to bundle because sudoers path is not available with cloud-init root
+echo "gem 'nokogiri', '1.6.8'" | tee -a /mnt/openstudio/Gemfile
 cd /mnt/openstudio && /opt/rbenv/shims/bundle
 
 # copy over the models needed for mongo
