@@ -79,7 +79,7 @@ sudo mount /dev/desperation/desperation /mnt/openstudio
 
 # remove mongo db & add it back
 mkdir -p /mnt/mongodb/data
-chown mongodb:nogroup /mnt/mongodb/data`
+chown mongodb:nogroup /mnt/mongodb/data
 rm -rf /var/lib/mongodb
 
 # restart mongo - old images has mongodb as the service. New ones use mongod
