@@ -443,9 +443,9 @@ class OpenStudioAwsWrapper
   # @return [Boolean] Will return true unless an exception is raised
   def configure_server_and_workers
     logger.info('waiting for server user_data to complete')
-    @server.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"')
+    @server.wait_command('[ /home/ubuntu/user_data_done ] && echo "true"')
     logger.info('waiting for worker user_data to complete')
-    @workers.each { |worker| worker.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"') }
+    @workers.each { |worker| worker.wait_command('[ /home/ubuntu/user_data_done ] && echo "true"') }
 
     ips = "master|#{@server.data.private_ip_address}|#{@server.data.dns}|#{@server.data.procs}|ubuntu|ubuntu|true\n"
     @workers.each { |worker| ips << "worker|#{worker.data.private_ip_address}|#{worker.data.dns}|#{worker.data.procs}|ubuntu|ubuntu|true\n" }

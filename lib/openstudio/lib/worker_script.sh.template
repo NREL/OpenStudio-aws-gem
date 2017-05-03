@@ -38,21 +38,31 @@ ec2-metadata -a -i -t -h -o -z -p -v > /etc/openstudio-server/instance.yml
 # make sure the the /mnt directory exists if i2 instances.
 # For now this assumes that the volume is xvdb. In the future this
 # should be dynamic
-if ec2-metadata --instance-type | grep -q 'i2.'; then
-  mkfs.ext4 /dev/xvdb
-  mkdir -p /mnt
-  mount -t ext4 /dev/xvdb /mnt
-
-  echo "/dev/xvdb /mnt auto noatime 0 0" | sudo tee -a /etc/fstab
-  mount -a
-fi
+sudo apt-get update
+sudo apt-get install -y lvm2
+sudo umount /dev/xvdb
+sudo apt-get update
+sudo apt-get install lvm2
+sudo pvcreate /dev/xvdb
+sudo pvcreate /dev/xvdc
+sudo pvcreate /dev/xvdd
+sudo pvcreate /dev/xvde
+sudo pvcreate /dev/xvdf
+sudo vgcreate desperation /dev/xvdb
+sudo vgextend desperation /dev/xvdc
+sudo vgextend desperation /dev/xvdd
+sudo vgextend desperation /dev/xvde
+sudo vgextend desperation /dev/xvdf
+sudo lvcreate -n desperation desperation -l 100%VG
+sudo mkdir -p /mnt/openstudio
+sudo mkfs.ext4 /dev/desperation/desperation
+sudo mount /dev/desperation/desperation /mnt/openstudio
 
 ## Worker Data Configuration -- On Vagrant this is a separate file
 
 rm -f /tmp/snow.log
 
 # Force the generation of various directories that are in the EBS mount
-rm -rf /mnt/openstudio
 mkdir -p /mnt/openstudio
 chown -R ubuntu:www-data /mnt/openstudio
 chmod -R 775 /mnt/openstudio
