@@ -478,14 +478,14 @@ class OpenStudioAwsWrapper
   # blocking method that executes required commands for creating and provisioning a docker swarm cluster
   def configure_swarm_cluster(save_directory)
     logger.info('waiting for server user_data to complete')
-    @server.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"')
+    @server.wait_command('while ! [ -e /home/ubuntu/user_data_done ]; do sleep 5; done && echo "true"')
     logger.info('Running the configuration script for the server.')
     @server.wait_command('sudo /home/ubuntu/server_provision.sh &> /home/ubuntu/server_provision.log && echo "true"')
     logger.info('Downloading the swarm join command.')
     swarm_file = File.join(save_directory, 'worker_swarm_join.sh')
     @server.download_file('/home/ubuntu/swarmjoin.sh', swarm_file)
     logger.info('waiting for worker user_data to complete')
-    @workers.each { |worker| worker.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"') }
+    @workers.each { |worker| worker.wait_command('while ! [ -e /home/ubuntu/user_data_done ]; do sleep 5; done && echo "true"') }
     logger.info('Running the configuration script for the worker(s).')
     @workers.each { |worker| worker.wait_command('sudo /home/ubuntu/worker_provision.sh &> /home/ubuntu/worker_provision.log && echo "true"') }
     logger.info('Successfully re-sized storage devices for all nodes. Joining server nodes to the swarm.')
