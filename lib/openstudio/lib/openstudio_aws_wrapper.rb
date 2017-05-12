@@ -383,12 +383,14 @@ class OpenStudioAwsWrapper
     defaults = {
       user_id: 'unknown_user',
       tags: [],
-      ebs_volume_size: nil
+      ebs_volume_size: nil,
+      user_data_file: 'server_script.sh.template'
     }
     launch_options = defaults.merge(launch_options)
 
     # replace the server_script.sh.template with the keys to add
-    user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/server_script.sh.template')
+
+    user_data = File.read(File.join(File.expand_path(File.dirname(__FILE__)), launch_options[:user_data_file]))
     user_data.gsub!(/SERVER_HOSTNAME/, 'openstudio.server')
     user_data.gsub!(/WORKER_PRIVATE_KEY_TEMPLATE/, worker_keys.private_key.gsub("\n", '\\n'))
     user_data.gsub!(/WORKER_PUBLIC_KEY_TEMPLATE/, worker_keys.ssh_public_key)
@@ -408,11 +410,12 @@ class OpenStudioAwsWrapper
       user_id: 'unknown_user',
       tags: [],
       ebs_volume_size: nil,
-      availability_zone: @server.data.availability_zone
+      availability_zone: @server.data.availability_zone,
+      user_data_file: 'worker_script.sh.template'
     }
     launch_options = defaults.merge(launch_options)
 
-    user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/worker_script.sh.template')
+    user_data = File.read(File.join(File.expand_path(File.dirname(__FILE__)), launch_options[:user_data_file]))
     user_data.gsub!(/SERVER_IP/, @server.data.private_ip_address)
     user_data.gsub!(/SERVER_HOSTNAME/, 'openstudio.server')
     user_data.gsub!(/WORKER_PUBLIC_KEY_TEMPLATE/, worker_keys.ssh_public_key)
@@ -474,13 +477,17 @@ class OpenStudioAwsWrapper
 
   # blocking method that executes required commands for creating and provisioning a docker swarm cluster
   def configure_swarm_cluster(save_directory)
+    logger.info('waiting for server user_data to complete')
+    @server.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"')
     logger.info('Running the configuration script for the server.')
-    @server.wait_command('sudo /home/ubuntu/server_provision.sh && echo "true"')
+    @server.wait_command('sudo /home/ubuntu/server_provision.sh &> /home/ubuntu/server_provision.log && echo "true"')
     logger.info('Downloading the swarm join command.')
     swarm_file = File.join(save_directory, 'worker_swarm_join.sh')
     @server.download_file('/home/ubuntu/swarmjoin.sh', swarm_file)
+    logger.info('waiting for worker user_data to complete')
+    @workers.each { |worker| worker.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"') }
     logger.info('Running the configuration script for the worker(s).')
-    @workers.each { |worker| worker.wait_command('sudo /home/ubuntu/worker_provision.sh && echo "true"') }
+    @workers.each { |worker| worker.wait_command('sudo /home/ubuntu/worker_provision.sh &> /home/ubuntu/worker_provision.log && echo "true"') }
     logger.info('Successfully re-sized storage devices for all nodes. Joining server nodes to the swarm.')
     worker_join_cmd = "#{File.read(swarm_file).strip} && echo \"true\""
     @workers.each { |worker| worker.wait_command(worker_join_cmd) }

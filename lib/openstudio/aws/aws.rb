@@ -180,11 +180,14 @@ module OpenStudio
           @os_aws.save_private_key @save_directory
         end
 
+        user_data_file = @dockerized ? 'server_script.sh.docker.template' : 'server_script.sh.template'
+
         server_options = {
           user_id: options[:user_id],
           tags: options[:tags],
           subnet_id: options[:subnet_id],
-          associate_public_ip_address: options[:associate_public_ip_address]
+          associate_public_ip_address: options[:associate_public_ip_address],
+          user_data_file: user_data_file
         }
 
         # save the worker pem and public to the directory
@@ -228,13 +231,15 @@ module OpenStudio
         end
 
         fail "Can't create workers without a server instance running" if @os_aws.server.nil?
+        user_data_file = @dockerized ? 'worker_script.sh.docker.template' : 'worker_script.sh.template'
 
         unless number_of_instances == 0
           worker_options = {
             user_id: options[:user_id],
             tags: options[:tags],
             subnet_id: options[:subnet_id],
-            associate_public_ip_address: options[:associate_public_ip_address]
+            associate_public_ip_address: options[:associate_public_ip_address],
+            user_data_file: user_data_file
           }
 
           # if options[:ebs_volume_size]
