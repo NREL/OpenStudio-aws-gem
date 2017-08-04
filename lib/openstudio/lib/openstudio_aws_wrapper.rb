@@ -480,6 +480,8 @@ class OpenStudioAwsWrapper
     logger.info('waiting for server user_data to complete')
     @server.wait_command('while ! [ -e /home/ubuntu/user_data_done ]; do sleep 5; done && echo "true"')
     logger.info('Running the configuration script for the server.')
+    @server.wait_command('echo $(env) &> /home/ubuntu/env.log && echo "true"')
+    @server.wait_command('cp /home/ubuntu/server_provision.sh /home/ubuntu/server_provision.sh.bak && echo "true"')
     @server.wait_command('sudo /home/ubuntu/server_provision.sh &> /home/ubuntu/server_provision.log && echo "true"')
     logger.info('Downloading the swarm join command.')
     swarm_file = File.join(save_directory, 'worker_swarm_join.sh')
@@ -494,12 +496,25 @@ class OpenStudioAwsWrapper
     logger.info('All worker nodes have been added to the swarm. Setting environment variables and starting the cluster')
     total_procs = @server.procs
     @workers.each { |worker| total_procs += worker.procs }
-    @server.shell_command("OS_SERVER_NUMBER_OF_WORKERS=#{total_procs} docker stack deploy --compose-file docker-compose.yml osserver-stack")
+    max_requests = ((total_procs + 10) * 1.2).round
+    mongo_cores = (total_procs / 64.0).ceil
+    web_cores = (total_procs / 32.0).ceil
+    max_pool = 16 * web_cores
+    rez_mem = 512 * max_pool
+    total_procs = total_procs - mongo_cores - web_cores + 2
+    @server.shell_command("echo 'MAX_REQUESTS=#{max_requests}' >> /home/ubuntu/.env && echo \"true\"")
+    @server.shell_command("echo 'MONGO_CORES=#{mongo_cores}' >> /home/ubuntu/.env && echo \"true\"")
+    @server.shell_command("echo 'WEB_CORES=#{web_cores}' >> /home/ubuntu/.env && echo \"true\"")
+    @server.shell_command("echo 'MAX_POOL=#{max_pool}' >> /home/ubuntu/.env && echo \"true\"")
+    @server.shell_command("echo 'REZ_MEM=#{rez_mem}M' >> /home/ubuntu/.env && echo \"true\"")
+    @server.shell_command("echo 'OS_SERVER_NUMBER_OF_WORKERS=#{total_procs}' >> /home/ubuntu/.env && echo \"true\"")
+    @server.shell_command("echo '' >> /home/ubuntu/.env && echo \"true\"")
+    @server.shell_command("docker stack deploy --compose-file docker-compose.yml osserver && echo \"true\"")
     sleep 10
     logger.info('The OpenStudio Server stack has been started. Waiting for the server to become available.')
     @server.wait_command("while ( nc -zv #{@server.ip} 80 3>&1 1>&2- 2>&3- ) | awk -F \":\" '$3 != \" Connection refused\" {exit 1}'; do sleep 5; done && echo \"true\"")
     logger.info('The OpenStudio Server stack has become available. Scaling the worker nodes.')
-    @server.wait_command("docker service scale osserver-stack_worker=#{total_procs} && echo \"true\"")
+    @server.wait_command("docker service scale osserver_worker=#{total_procs} && echo \"true\"")
     logger.info('The OpenStudio Server stack is booted and ready for analysis submissions.')
   end
 
