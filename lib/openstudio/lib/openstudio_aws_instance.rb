@@ -283,6 +283,10 @@ class OpenStudioAwsInstance
       'i2.2xlarge' => 8,
       'i2.4xlarge' => 16,
       'i2.8xlarge' => 32,
+      'd2.xlarge' => 4,
+      'd2.2xlarge' => 8,
+      'd2.4xlarge' => 16,
+      'd2.8xlarge' => 36,
       'hs1.8xlarge' => 16
     }
 
