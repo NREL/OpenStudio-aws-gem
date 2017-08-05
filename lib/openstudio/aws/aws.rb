@@ -190,6 +190,8 @@ module OpenStudio
           user_data_file: user_data_file
         }
 
+        server_options[:availability_zone] = options[:availability_zone] if options[:availability_zone]
+
         # save the worker pem and public to the directory
         # presently, this will always overwrite the worker key, is that okay? Is this really needed later?
         @os_aws.save_worker_keys @save_directory
