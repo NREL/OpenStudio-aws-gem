@@ -515,6 +515,8 @@ class OpenStudioAwsWrapper
     @server.wait_command("while ( nc -zv #{@server.ip} 80 3>&1 1>&2- 2>&3- ) | awk -F \":\" '$3 != \" Connection refused\" {exit 1}'; do sleep 5; done && echo \"true\"")
     logger.info('The OpenStudio Server stack has become available. Scaling the worker nodes.')
     @server.wait_command("docker service scale osserver_worker=#{total_procs} && echo \"true\"")
+    logger.info('Waiting up to two minutes for the osserver_worker service to scale.')
+    @server.wait_command("timeout 120 bash -c -- 'while [ $( docker service ls -f name=osserver_worker --format=\"{{.Replicas}}\" ) != \"#{total_procs}/#{total_procs}\" ]; do sleep 5; done'; echo \"true\"")
     logger.info('The OpenStudio Server stack is booted and ready for analysis submissions.')
   end
 
