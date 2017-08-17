@@ -1,5 +1,5 @@
 module OpenStudio
   module Aws
-    VERSION = '0.5.0-rc10'
+    VERSION = '0.5.0'
   end
 end
