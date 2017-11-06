@@ -502,12 +502,12 @@ class OpenStudioAwsWrapper
     max_pool = 16 * web_cores
     rez_mem = 512 * max_pool
     total_procs = total_procs - mongo_cores - web_cores + 2
-    @server.shell_command("echo 'MAX_REQUESTS=#{max_requests}' >> /home/ubuntu/.env && echo \"true\"")
-    @server.shell_command("echo 'MONGO_CORES=#{mongo_cores}' >> /home/ubuntu/.env && echo \"true\"")
-    @server.shell_command("echo 'WEB_CORES=#{web_cores}' >> /home/ubuntu/.env && echo \"true\"")
-    @server.shell_command("echo 'MAX_POOL=#{max_pool}' >> /home/ubuntu/.env && echo \"true\"")
-    @server.shell_command("echo 'REZ_MEM=#{rez_mem}M' >> /home/ubuntu/.env && echo \"true\"")
-    @server.shell_command("echo 'OS_SERVER_NUMBER_OF_WORKERS=#{total_procs}' >> /home/ubuntu/.env && echo \"true\"")
+    @server.shell_command("sed -i -e 's/AWS_MAX_REQUESTS/#{max_requests}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
+    @server.shell_command("sed -i -e 's/AWS_MONGO_CORES/#{mongo_cores}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
+    @server.shell_command("sed -i -e 's/AWS_WEB_CORES/#{web_cores}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
+    @server.shell_command("sed -i -e 's/AWS_MAX_POOL/#{max_pool}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
+    @server.shell_command("sed -i -e 's/AWS_REZ_MEM/#{rez_mem}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
+    @server.shell_command("sed -i -e 's/AWS_OS_SERVER_NUMBER_OF_WORKERS/#{total_procs}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
     @server.shell_command("echo '' >> /home/ubuntu/.env && echo \"true\"")
     @server.shell_command("docker stack deploy --compose-file docker-compose.yml osserver && echo \"true\"")
     sleep 10
