@@ -19,7 +19,7 @@ Gem::Specification.new do |s|
 
   s.add_dependency 'net-scp', '~> 1.1'
   s.add_dependency 'net-ssh', '= 3.0.2'
-  s.add_dependency 'aws-sdk-core', '= 2.2.26'
+  s.add_dependency 'aws-sdk-core', '= 2.10.97'
   s.add_dependency 'semantic', '~> 1.4'
   s.add_dependency 'sshkey', '~> 1.7'
 

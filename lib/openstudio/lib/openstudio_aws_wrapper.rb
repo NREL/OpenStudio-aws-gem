@@ -81,6 +81,280 @@ class OpenStudioAwsWrapper
     @aws = Aws::EC2::Client.new(options[:credentials])
   end
 
+  def create_or_retrieve_default_vpc(vpc_name = 'oss-vpc-v0.1')
+    vpc = find_or_create_vpc(vpc_name)
+    public_subnet = find_or_create_public_subnet(vpc)
+    private_subnet = find_or_create_private_subnet(vpc)
+    igw = find_or_create_igw(vpc)
+    eigw = find_or_create_eigw(vpc)
+    public_rtb = find_or_create_public_rtb(vpc, public_subnet)
+    private_rtb = find_or_create_private_subnet(vpc, private_subnet)
+  end
+
+  def retrieve_vpc(vpc_name)
+    vpcs = @aws.describe_vpcs(filters: [{name: 'tag-key', values: ['Name']}, {name: 'tag-value', values: [vpc_name]}])
+    if vpcs.vpcs.length == 1
+      vpcs.vpcs.first
+    elsif vpcs.vpcs.length == 0
+      false
+    else
+      raise "Did not find 1 VPC instance with name #{vpc_name}, instead found #{vpcs.vpcs.length}. Please delete these vpcs to allow for reconstruction."
+    end
+  end
+
+  def retrieve_subnet(subnet_name, vpc)
+    subnets = @aws.describe_subnets(filters: [{name: 'tag-key', values: ['Name']}, {name: 'tag-value', values: [subnet_name]}, {name: 'vpc-id', values: [vpc.vpc_id]}])
+    if subnets.subnets.length == 1
+      subnets.subnets.first
+    elsif subnets.subnets.length == 0
+      false
+    else
+      raise "Did not find 1 subnet instance with name #{subnet_name}, instead found #{subnets.subnets.length}. Please delete #{vpc_id} to allow the vpc to be reconstructed."
+    end
+  end
+
+  def retrieve_vpc_name(vpc)
+    name_tags = vpc.tags.select{ |tag| tag.key == 'Name' }
+    name_tags.empty? ? raise("Unable to find tag with key 'Name' for #{vpc.vpc_id}") : name_tags.first.value
+  end
+
+  def retrieve_igw(igw_name, vpc)
+    igws = @aws.describe_internet_gateways({filters: [
+        {name: "attachment.vpc-id", values: [vpc.vpc_id]},
+        {name: "Name",values: [igw_name]}
+    ]}).internet_gateways
+    if igws.length == 1
+      igws.first
+    elsif igws.length == 0
+      false
+    else
+      raise "Did not find 1 igw attachment for #{vpc.vpc_id}, instead found #{igws.length}. Please delete these igws to allow for the vpc to be reconstructed."
+    end
+  end
+
+  def find_or_create_vpc(vpc_version = 'vpc-v0.1')
+    vpc_name = 'oss-' + vpc_version
+    # If the vpc exists check for configuration issues and state
+    if retrieve_vpc(vpc_name)
+      vpc = retrieve_vpc(vpc_name)
+      # Ensure that the vpc has an IPV6 CIDR allocation
+      if vpc.ipv_6_cidr_block_association_set.empty?
+        raise "Found vpc #{vpc.vpc_id} with name #{vpc_name} but there is no allocated ipv6 CIDR block. Please delete #{vpc.vpc_id} to allow the vpc to be reconstructed."
+      end
+      if vpc.state == 'available'
+        return vpc
+      else
+        logger.warn "Existing #{vpc.vpc_id} is not available. Deleting and recreating."
+        @aws.delete_vpc({vpc_id: vpc.vpc_id})
+      end
+    end
+
+    # Create and configure a new vpc with an IPV6 allocation
+    vpc = @aws.create_vpc({cidr_block: '10.0.0.0/16', amazon_provided_ipv_6_cidr_block: true}).vpc
+    begin
+      @aws.wait_until(:vpc_available, vpc_ids: [vpc.vpc_id]) do |w|
+        w.max_attempts = 4
+      end
+    rescue Aws::Waiters::Errors::WaiterFailed
+      raise "ERROR: VPC #{vpc.vpc_id} did not become available within 60 seconds."
+    end
+    @aws.create_tags({
+                         resources: [vpc.vpc_id],
+                         tags: [{
+                                    key: 'Name',
+                                    value: vpc_name
+                                }]
+                     })
+    retrieve_vpc(vpc_name)
+  end
+
+  def find_or_create_public_subnet(vpc, public_subnet_version = 'public-v0.1')
+    # If the subnet exists check for configuration issues and state
+    public_subnet_name = retrieve_vpc_name(vpc) + '-' + public_subnet_version
+    if retrieve_subnet(public_subnet_name, vpc)
+      public_subnet = retrieve_subnet(public_subnet_name, vpc)
+      # Ensure that each instance launched in this subnet will receive a public IPV4 address on boot
+      unless public_subnet.map_public_ip_on_launch
+        raise "Public subnet (#{public_subnet.subnet_id}) does not have map_public_ip_on_launch enabled. Please delete #{public_subnet.subnet_id} to allow the subnet to be reconstructed."
+      end
+      # Ensure that the subnet is available before returning
+      if public_subnet.state == 'available'
+        return public_subnet
+      else
+        logger.warn "Existing public subnet #{public_subnet.subnet_id} is not available. Deleting and recreating."
+        @aws.delete_subnet({subnet_id: public_subnet.subnet_id})
+      end
+    end
+
+    # Create and configure a new subnet with map_public_ip_on_launch enabled
+    public_subnet = @aws.create_subnet({
+                                           cidr_block: '10.0.0.0/24',
+                                           vpc_id: vpc.vpc_id
+                                       }).subnet
+    begin
+      @aws.wait_until(:subnet_available, subnet_ids: [public_subnet.subnet_id]) do |w|
+        w.max_attempts = 4
+      end
+    rescue Aws::Waiters::Errors::WaiterFailed
+      raise "ERROR: Subnet #{public_subnet.subnet_id} did not become available within 60 seconds."
+    end
+    @aws.modify_subnet_attribute({
+                                     subnet_id: public_subnet.subnet_id,
+                                     map_public_ip_on_launch: {value: true}
+                                 })
+    @aws.create_tags({
+                         resources: [public_subnet.subnet_id],
+                         tags: [{
+                                    key: 'Name',
+                                    value: public_subnet_name
+                                }]
+                     })
+    retrieve_subnet(public_subnet_name, vpc.vpc_id)
+  end
+
+  def find_or_create_private_subnet(vpc, private_subnet_version = 'private-v0.1')
+    # If the subnet exists check for configuration issues and state
+    private_subnet_name = retrieve_vpc_name(vpc) + '-' + private_subnet_version
+    if retrieve_subnet(private_subnet_name, vpc)
+      private_subnet = retrieve_subnet(private_subnet_name, vpc)
+      # Ensure that the subnet has IPV6 enabled
+      unless private_subnet.ipv_6_cidr_block
+        raise "Private subnet (#{private_subnet.subnet_id}) does not have an IPV6 CIDR block. This configuration is not supported."
+      end
+      # Ensure that all instances will receive an IPV6 address on creation
+      unless private_subnet.assign_ipv_6_address_on_creation
+        raise "Private subnet (#{private_subnet.subnet_id}) does not have assign_ipv_6_address_on_creation enabled. This configuration is not supported."
+      end
+      # Ensure the subnet is available before returning
+      if private_subnet.state == 'available'
+        return public_subnet
+      else
+        logger.warn "Existing private subnet #{private_subnet.subnet_id} is not available. Deleting and recreating."
+        @aws.delete_subnet({subnet_id: private_subnet.subnet_id})
+      end
+    end
+
+    # Create and configure a new IPV6 enabled subnet with assign_ipv_6_address_on_creation enabled
+    vpc_ipv_6_block = vpc.ipv_6_cidr_block_association_set.first.ipv_6_cidr_block
+    private_subnet_ipv_6_block = vpc_ipv_6_block.gsub('/56', '/64')
+    private_subnet = @aws.create_subnet({
+                                            cidr_block: '10.0.1.0/24',
+                                            vpc_id: vpc.vpc_id,
+                                            ipv_6_cidr_block: private_subnet_ipv_6_block
+                                        }).subnet
+    begin
+      @aws.wait_until(:subnet_available, subnet_ids: [private_subnet.subnet_id]) do |w|
+        w.max_attempts = 4
+      end
+    rescue Aws::Waiters::Errors::WaiterFailed
+      raise "ERROR: Subnet #{private_subnet.subnet_id} did not become available within 60 seconds."
+    end
+    @aws.create_tags({
+                         resources: [private_subnet.subnet_id],
+                         tags: [{
+                                    key: 'Name',
+                                    value: private_subnet_name
+                                }]
+                     })
+    private_subnet = retrieve_subnet(private_subnet_name, vpc.vpc_id)
+    @aws.modify_subnet_attribute({
+                                     subnet_id: private_subnet.subnet_id,
+                                     assign_ipv_6_address_on_creation: {value: true}
+                                 })
+    retrieve_subnet(private_subnet_name, vpc.vpc_id)
+  end
+
+  def find_or_create_igw(vpc, igw_version = 'igw-v0.1')
+    # If the igw exists check state
+    igw_name = retrieve_vpc_name(vpc) + '-' + igw_version
+    if retrieve_igw(igw_name, igw_name)
+      igw = retrieve_igw(igw_name, igw_name)
+      # If only one vpc attachment exists everything is easy
+      if igw.attachments.length == 1
+        # Check state
+        if igw.attachments.first.state == 'available'
+          return igw
+        else
+          logger.warn "Existing #{igw.internet_gateway_id} attachment is not available. Deleting and recreating."
+          @aws.delete_internet_gateway({internet_gateway_id: igw.internet_gateway_id})
+        end
+      # In the case of multiple vpc attachments this isn't so straight forward. Start by downselecting
+      else
+        logger.warn "Multiple attachments found for #{igw.internet_gateway_id}"
+        vpc_attachments = igw.attachments.select{ |attachment| attachment.vpc_id == vpc.vpc_id }
+        if vpc_attachments.length != 1
+          raise "Multiple attachments found from #{igw.internet_gateway_id} to #{vpc.vpc_id}. Please delete this igw to all for reconfiguration of the vpc."
+        elsif vpc_attachments.first.state == 'available'
+          return igw
+        else
+          raise "Existing #{igw.internet_gateway_id} attachment is not available. Cannot delete and recreate as attachments exist to other vpcs."
+        end
+      end
+    end
+
+    # Create and attach a new igw for the vpc
+    igw_name = retrieve_vpc_name(vpc) + '-' + igw_version
+    igw = @aws.create_internet_gateway.internet_gateway
+    @aws.attach_internet_gateway({
+                                     internet_gateway_id: igw.internet_gateway_id,
+                                     vpc_id: vpc.vpc_id
+                                 })
+    @aws.create_tags({
+                         resources: [igw.internet_gateway_id],
+                         tags: [{
+                                    key: 'Name',
+                                    value: igw_name
+                                }]
+                     })
+    igw
+  end
+
+  def find_or_create_eigw(vpc)
+    @aws.create_egress_only_internet_gateway({vpc_id: vpc.vpc_id}).egress_only_internet_gateway
+  end
+
+  def find_or_create_public_rtb(vpc, public_subnet, private_rtb_version = 'rtb-public-v0.1')
+    public_rtb = @aws.create_route_table({vpc_id: vpc.vpc_id}).route_table
+    @aws.create_tags({
+                         resources: [public_rtb.route_table_id],
+                         tags: [{
+                                    key: 'Name',
+                                    value: public_rtb_name
+                                }]
+                     })
+    @aws.associate_route_table({
+                                   route_table_id: public_rtb.route_table_id,
+                                   subnet_id: public_subnet.subnet_id
+                               })
+    @aws.create_route({
+                          destination_cidr_block: '0.0.0.0/0',
+                          gateway_id: igw.internet_gateway_id,
+                          route_table_id: public_rtb.route_table_id
+                      })
+    public_rtb
+  end
+
+  def find_or_create_private_rtb(vpc, private_subnet, private_rtb_version = 'rtb-private-v0.1' )
+    private_rtb = @aws.create_route_table({vpc_id: vpc.vpc_id}).route_table
+    @aws.create_tags({
+                         resources: [private_rtb.route_table_id],
+                         tags: [{
+                                    key: 'Name',
+                                    value: private_rtb_name
+                                }]
+                     })
+    @aws.associate_route_table({
+                                   route_table_id: private_rtb.route_table_id,
+                                   subnet_id: private_subnet.subnet_id
+                               })
+    @aws.create_route({
+                          destination_ipv_6_cidr_block: '::/0',
+                          egress_only_internet_gateway_id: eigw.egress_only_internet_gateway_id,
+                          route_table_id: private_rtb.route_table_id
+                      })
+    private_rtb
+  end
+
   def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.2', vpc_id = nil)
     group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"

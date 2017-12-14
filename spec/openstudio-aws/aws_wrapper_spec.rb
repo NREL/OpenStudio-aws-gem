@@ -106,4 +106,230 @@ describe OpenStudioAwsWrapper do
       expect(sg).to_not be nil
     end
   end
+
+  context 'vpc creation & interaction' do
+    before :all do
+      @aws = OpenStudio::Aws::Aws.new
+    end
+
+    before :each do
+      expect{@aws.os_aws.retrieve_vpc('oss-vpc-v0.1')}.to be false
+    end
+
+    it 'should create a simple vpc' do
+      # If this doesn't work, check your iam permissions and account info
+      @vpc = @aws.create_vpc({cidr_block: '10.0.0.0/16'}).vpc
+      expect{@aws.wait_until(:vpc_available, vpc_ids: [@vpc.vpc_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+    end
+
+    it 'should create and retrieve a new vpc' do
+      expect{@vpc = @aws.os_aws.find_or_create_vpc}.to_not raise_error
+      expect{@aws.os_aws.retrieve_vpc('oss-vpc-v0.1').vpc_id}.to eq(@vpc.vpc_id)
+    end
+
+    it 'should find an already existing vpc' do
+      expect{@vpc = @aws.os_aws.find_or_create_vpc}.to_not raise_error
+      @vpc_2 = @aws.os_aws.find_or_create_vpc
+      expect{@vpc_2.vpc_id}.to eq(@vpc.vpc_id)
+    end
+
+    it 'should error out if the existing oss-vpc-v0.1 has no IPV6 CIDR allocation' do
+      @vpc = @aws.create_vpc({cidr_block: '10.0.0.0/16', amazon_provided_ipv_6_cidr_block: false}).vpc
+      expect{@aws.wait_until(:vpc_available, vpc_ids: [@vpc.vpc_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+      @aws.create_tags({
+                           resources: [@vpc.vpc_id],
+                           tags: [{
+                                      key: 'Name',
+                                      value: 'oss-vpc-v0.1'
+                                  }]
+                       })
+      expect{@aws.os_aws.find_or_create_vpc}.to raise_error(RuntimeError)
+    end
+
+    it 'should fail to retrieve the vpc if two vpcs with that name tag exist' do
+      @vpc = @aws.os_aws.find_or_create_vpc
+      expect{@vpc}.to_not raise_error
+      @vpc_2 = @aws.create_vpc({cidr_block: '10.0.0.0/16'}).vpc
+      expect{@aws.wait_until(:vpc_available, vpc_ids: [@vpc_2.vpc_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+      @aws.create_tags({
+                           resources: [@vpc_2.vpc_id],
+                           tags: [{
+                                      key: 'Name',
+                                      value: 'oss-vpc-v0.1'
+                                  }]
+                       })
+      expect{@aws.os_aws.retrieve_vpc('oss-vpc-v0.1')}.to raise_error(RuntimeError)
+    end
+
+    after :each do
+      @aws.delete_vpc({vpc_id: @vpc.vpc_id})
+      @aws.delete_vpc({vpc_id: @vpc_2.vpc_id}) if @vpc_2
+    end
+  end
+
+  context 'public subnet creation & interaction' do
+    before :all do
+      @aws = OpenStudio::Aws::Aws.new
+      @vpc = @aws.os_aws.find_or_create_vpc
+    end
+
+    before :each do
+      expect{@aws.os_aws.retrieve_subnet('oss-vpc-v0.1-public-v0.1', @vpc)}.to be false
+      @subnet_2 = false
+    end
+
+    it 'should create a simple subnet' do
+      # If this doesn't work check your iam permissions and account info
+      @subnet = @aws.create_subnet({cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id}).subnet
+      expect{@aws.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+    end
+
+    it 'should create and retrieve a public subnet' do
+      expect{@subnet = @aws.os_aws.find_or_create_public_subnet(@vpc)}.to_not raise_error
+      expect{@aws.os_aws.retrieve_subnet('oss-vpc-v0.1-public-v0.1', @vpc).subnet_id}.to eq(@subnet.subnet_id)
+    end
+
+    it 'should find an already existing public subnet' do
+      expect{@subnet = @aws.os_aws.find_or_create_public_subnet(@vpc)}.to_not raise_error
+      @subnet_2 = @aws.os_aws.find_or_create_public_subnet(@vpc)
+      expect{@subnet_2.subnet_id}.to eq(@subnet.subnet_id)
+    end
+
+    it 'should error out if the existing public subnet does not auto-assign public IPV4 addresses' do
+      @subnet = @aws.create_subnet({cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id}).subnet
+      expect{@aws.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+      @aws.create_tags({
+                           resources: [@subnet.subnet_id],
+                           tags: [{
+                                      key: 'Name',
+                                      value: 'oss-vpc-v0.1-public-v0.1'
+                                  }]
+                       })
+      expect{@aws.os_aws.find_or_create_public_subnet(@vpc)}.to raise_error(RuntimeError)
+    end
+
+    it 'should fail to retrieve the subnet if two subnets with the same name tag exist in the vpc' do
+      expect{@subnet = @aws.os_aws.find_or_create_public_subnet(@vpc)}.to_not raise_error
+      @subnet_2 = @aws.create_subnet({cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id}).subnet
+      expect{@aws.wait_until(:subnet_available, subnet_ids: [@subnet_2.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+      @aws.create_tags({
+                           resources: [@subnet_2.subnet_id],
+                           tags: [{
+                                      key: 'Name',
+                                      value: 'oss-vpc-v0.1-public-v0.1'
+                                  }]
+                       })
+      expect{@aws.os_aws.retrieve_subnet('oss-vpc-v0.1-public-v0.1', @vpc)}.to raise_error(RuntimeError)
+    end
+
+    after :each do
+      @aws.delete_subnet({subnet_id: @subnet.subnet_id})
+      @aws.delete_subnet({subnet_id: @subnet_2.subnet_id}) if @subnet_2
+    end
+  end
+
+  context 'private subnet creation & interaction' do
+    before :all do
+      @aws = OpenStudio::Aws::Aws.new
+      @vpc = @aws.os_aws.find_or_create_vpc
+      vpc_ipv_6_block = vpc.ipv_6_cidr_block_association_set.first.ipv_6_cidr_block
+      @ipv_6_block = vpc_ipv_6_block.gsub('/56', '/64')
+    end
+
+    before :each do
+      expect{@aws.os_aws.retrieve_subnet('oss-vpc-v0.1-private-v0.1', @vpc)}.to be false
+      @subnet_2 = false
+    end
+
+    it 'should create a simple subnet' do
+      # If this doesn't work check your iam permissions and account info
+      @subnet = @aws.create_subnet({cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id, ipv_6_cidr_block: @ipv_6_block}).subnet
+      expect{@aws.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+    end
+
+    it 'should create and retrieve a private subnet' do
+      expect{@subnet = @aws.os_aws.find_or_create_private_subnet(@vpc)}.to_not raise_error
+      expect{@aws.os_aws.retrieve_subnet('oss-vpc-v0.1-private-v0.1', @vpc).subnet_id}.to eq(@subnet.subnet_id)
+    end
+
+    it 'should find an already existing private subnet' do
+      expect{@subnet = @aws.os_aws.find_or_create_private_subnet(@vpc)}.to_not raise_error
+      @subnet_2 = @aws.os_aws.find_or_create_private_subnet(@vpc)
+      expect{@subnet_2.subnet_id}.to eq(@subnet.subnet_id)
+    end
+
+    it 'should error out if the existing private subnet does not have an IPV6 CIDR block' do
+      @subnet = @aws.create_subnet({cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id}).subnet
+      expect{@aws.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+      @aws.create_tags({
+                           resources: [@subnet.subnet_id],
+                           tags: [{
+                                      key: 'Name',
+                                      value: 'oss-vpc-v0.1-private-v0.1'
+                                  }]
+                       })
+      expect{@aws.os_aws.find_or_create_private_subnet(@vpc)}.to raise_error(RuntimeError)
+    end
+
+    it 'should error out if the existing private subnet does not auto-assign IPV6 addresses' do
+      @subnet = @aws.create_subnet({cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id, ipv_6_cidr_block: @ipv_6_block}).subnet
+      expect{@aws.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+      @aws.create_tags({
+                           resources: [@subnet.subnet_id],
+                           tags: [{
+                                      key: 'Name',
+                                      value: 'oss-vpc-v0.1-private-v0.1'
+                                  }]
+                       })
+      expect{@aws.os_aws.find_or_create_private_subnet(@vpc)}.to raise_error(RuntimeError)
+    end
+
+    it 'should fail to retrieve the subnet if two subnets with the same name tag exist in the vpc' do
+      expect{@subnet = @aws.os_aws.find_or_create_private_subnet(@vpc)}.to_not raise_error
+      @subnet_2 = @aws.create_subnet({cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id}).subnet
+      expect{@aws.wait_until(:subnet_available, subnet_ids: [@subnet_2.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+      @aws.create_tags({
+                           resources: [@subnet_2.subnet_id],
+                           tags: [{
+                                      key: 'Name',
+                                      value: 'oss-vpc-v0.1-private-v0.1'
+                                  }]
+                       })
+      expect{@aws.os_aws.retrieve_subnet('oss-vpc-v0.1-private-v0.1', @vpc)}.to raise_error(RuntimeError)
+    end
+
+    after :each do
+      @aws.delete_subnet({subnet_id: @subnet.subnet_id})
+      @aws.delete_subnet({subnet_id: @subnet_2.subnet_id}) if @subnet_2
+    end
+
+    after :all do
+      @aws.delete_vpc({vpc_id: @vpc.vpc_id})
+    end
+  end
+
+  context 'igw creation & interaction' do
+    before :all do
+      @aws = OpenStudio::Aws::Aws.new
+      @vpc = @aws.os_aws.find_or_create_vpc
+      @vpc2 = @aws.create_vpc({cidr_block: '10.0.0.0/16'}).vpc
+    end
+
+    before :each do
+      expect{@aws.os_aws.retrieve_igw('oss-vpc-v0.1-igw-v0.1', @vpc)}.to be false
+      @igw_2 = false
+    end
+
+    
+
+    after :each do
+      @aws.delete_internet_gateway({internet_gateway_id: @igw.internet_gateway_id})
+      @aws.delete_internet_gateway({internet_gateway_id: @igw_2.internet_gateway_id}) if @igw_2
+    end
+
+    after :all do
+      @aws.delete_vpc({vpc_id: @vpc.vpc_id})
+      @aws.delete_vpc({vpc_id: @vpc_2.vpc_id})
+    end
+  end
 end
