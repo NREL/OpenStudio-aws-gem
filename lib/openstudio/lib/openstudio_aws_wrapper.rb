@@ -81,18 +81,20 @@ class OpenStudioAwsWrapper
     @aws = Aws::EC2::Client.new(options[:credentials])
   end
 
-  def create_or_retrieve_default_vpc(vpc_name = 'oss-vpc-v0.1')
+  def create_or_retrieve_default_server_vpc(vpc_name = 'oss-vpc-v0.1')
     vpc = find_or_create_vpc(vpc_name)
     public_subnet = find_or_create_public_subnet(vpc)
     private_subnet = find_or_create_private_subnet(vpc)
     igw = find_or_create_igw(vpc)
     eigw = find_or_create_eigw(vpc)
     public_rtb = find_or_create_public_rtb(vpc, public_subnet)
-    private_rtb = find_or_create_private_subnet(vpc, private_subnet)
+    private_rtb = find_or_create_private_rtb(vpc, private_subnet)
   end
 
   def retrieve_vpc(vpc_name)
-    vpcs = @aws.describe_vpcs(filters: [{name: 'tag-key', values: ['Name']}, {name: 'tag-value', values: [vpc_name]}])
+    vpcs = @aws.describe_vpcs(filters: [
+        {name: 'tag:Name', values: [vpc_name]}
+    ])
     if vpcs.vpcs.length == 1
       vpcs.vpcs.first
     elsif vpcs.vpcs.length == 0
@@ -102,33 +104,103 @@ class OpenStudioAwsWrapper
     end
   end
 
+  def reload_vpc(vpc)
+    vpcs = @aws.describe_vpcs({vpc_ids: [vpc.vpc_id]}).vpcs
+    if vpcs.length == 1
+      vpcs.first
+    else
+      raise "Did not find #{vpc.vpc_id}"
+    end
+  end
+
   def retrieve_subnet(subnet_name, vpc)
-    subnets = @aws.describe_subnets(filters: [{name: 'tag-key', values: ['Name']}, {name: 'tag-value', values: [subnet_name]}, {name: 'vpc-id', values: [vpc.vpc_id]}])
+    subnets = @aws.describe_subnets(filters: [
+        {name: 'tag:Name', values: [subnet_name]},
+        {name: 'vpc-id', values: [vpc.vpc_id]}
+    ])
     if subnets.subnets.length == 1
       subnets.subnets.first
     elsif subnets.subnets.length == 0
       false
     else
-      raise "Did not find 1 subnet instance with name #{subnet_name}, instead found #{subnets.subnets.length}. Please delete #{vpc_id} to allow the vpc to be reconstructed."
+      raise "Did not find 1 subnet instance with name #{subnet_name}, instead found #{subnets.subnets.length}. Please delete #{vpc.vpc_id} to allow the vpc to be reconstructed."
+    end
+  end
+
+  def reload_subnet(subnet)
+    subnets = @aws.describe_subnets({subnet_ids: [subnet.subnet_id]}).subnets
+    if subnets.length == 1
+      subnets.first
+    else
+      raise "Did not find #{subnet.subnet_id}"
     end
   end
 
   def retrieve_vpc_name(vpc)
-    name_tags = vpc.tags.select{ |tag| tag.key == 'Name' }
+    name_tags = vpc.tags.select { |tag| tag.key == 'Name' }
     name_tags.empty? ? raise("Unable to find tag with key 'Name' for #{vpc.vpc_id}") : name_tags.first.value
   end
 
-  def retrieve_igw(igw_name, vpc)
+  def retrieve_igw(vpc)
     igws = @aws.describe_internet_gateways({filters: [
-        {name: "attachment.vpc-id", values: [vpc.vpc_id]},
-        {name: "Name",values: [igw_name]}
+        {name: "attachment.vpc-id", values: [vpc.vpc_id]}
     ]}).internet_gateways
     if igws.length == 1
       igws.first
-    elsif igws.length == 0
+    else igws.length == 0
+      false
+    end
+  end
+
+  def reload_igw(igw)
+    igws = @aws.describe_internet_gateways({internet_gateway_ids: [igw.internet_gateway_id]}).internet_gateways
+    if igws.length == 1
+      igws.first
+    else
+      raise "Did not find #{igw.internet_gateway_id}"
+    end
+  end
+
+  def retrieve_eigw(vpc)
+    eigws = @aws.describe_egress_only_internet_gateways({max_results: 254}).egress_only_internet_gateways
+    if eigws.length == 0
       false
     else
-      raise "Did not find 1 igw attachment for #{vpc.vpc_id}, instead found #{igws.length}. Please delete these igws to allow for the vpc to be reconstructed."
+      eigw = eigws.select { |eigw| eigw.attachments[0].vpc_id == vpc.vpc_id }[0]
+      eigw.nil? ? false : eigw
+    end
+  end
+
+  def reload_eigw(eigw)
+    eigws = @aws.describe_egress_only_internet_gateways({egress_only_internet_gateway_ids: [eigw.egress_only_internet_gateway_id]})
+    if eigws.length == 1
+      eigws.first
+    else
+      raise "Did not find #{eigw.egress_only_internet_gateway_id}"
+    end
+  end
+
+  def retrieve_rtb(rtb_name, subnet)
+    rtbs = @aws.describe_route_tables({filters: [
+        {name: "tag:Name", values: [rtb_name]}
+    ]}).route_tables
+    rtbs = rtbs.select { |rtb| rtb.associations.map { |association| association.subnet_id }.include? subnet.subnet_id }
+    if rtbs.length == 1
+      rtbs.first
+    elsif rtbs.length == 0
+      false
+    else
+      # This should be impossible
+      raise "Did not find 1 rtb for #{subnet.subnet_id}, instead found #{rtbs.length}"
+    end
+  end
+
+  def reload_rtb(rtb)
+    rtbs = @aws.describe_route_tables({route_table_ids: [rtb.route_table_id]})
+    if rtbs.length == 1
+      rtbs.first
+    else
+      raise "Did not find #{rtb.route_table_id}"
     end
   end
 
@@ -165,7 +237,7 @@ class OpenStudioAwsWrapper
                                     value: vpc_name
                                 }]
                      })
-    retrieve_vpc(vpc_name)
+    reload_vpc(vpc)
   end
 
   def find_or_create_public_subnet(vpc, public_subnet_version = 'public-v0.1')
@@ -209,7 +281,7 @@ class OpenStudioAwsWrapper
                                     value: public_subnet_name
                                 }]
                      })
-    retrieve_subnet(public_subnet_name, vpc.vpc_id)
+    reload_subnet(public_subnet)
   end
 
   def find_or_create_private_subnet(vpc, private_subnet_version = 'private-v0.1')
@@ -218,7 +290,7 @@ class OpenStudioAwsWrapper
     if retrieve_subnet(private_subnet_name, vpc)
       private_subnet = retrieve_subnet(private_subnet_name, vpc)
       # Ensure that the subnet has IPV6 enabled
-      unless private_subnet.ipv_6_cidr_block
+      if private_subnet.ipv_6_cidr_block_association_set.empty?
         raise "Private subnet (#{private_subnet.subnet_id}) does not have an IPV6 CIDR block. This configuration is not supported."
       end
       # Ensure that all instances will receive an IPV6 address on creation
@@ -227,7 +299,7 @@ class OpenStudioAwsWrapper
       end
       # Ensure the subnet is available before returning
       if private_subnet.state == 'available'
-        return public_subnet
+        return private_subnet
       else
         logger.warn "Existing private subnet #{private_subnet.subnet_id} is not available. Deleting and recreating."
         @aws.delete_subnet({subnet_id: private_subnet.subnet_id})
@@ -256,39 +328,26 @@ class OpenStudioAwsWrapper
                                     value: private_subnet_name
                                 }]
                      })
-    private_subnet = retrieve_subnet(private_subnet_name, vpc.vpc_id)
+    private_subnet = reload_subnet(private_subnet)
     @aws.modify_subnet_attribute({
                                      subnet_id: private_subnet.subnet_id,
                                      assign_ipv_6_address_on_creation: {value: true}
                                  })
-    retrieve_subnet(private_subnet_name, vpc.vpc_id)
+    reload_subnet(private_subnet)
   end
 
   def find_or_create_igw(vpc, igw_version = 'igw-v0.1')
     # If the igw exists check state
     igw_name = retrieve_vpc_name(vpc) + '-' + igw_version
-    if retrieve_igw(igw_name, igw_name)
-      igw = retrieve_igw(igw_name, igw_name)
-      # If only one vpc attachment exists everything is easy
-      if igw.attachments.length == 1
-        # Check state
-        if igw.attachments.first.state == 'available'
-          return igw
-        else
-          logger.warn "Existing #{igw.internet_gateway_id} attachment is not available. Deleting and recreating."
-          @aws.delete_internet_gateway({internet_gateway_id: igw.internet_gateway_id})
-        end
-      # In the case of multiple vpc attachments this isn't so straight forward. Start by downselecting
+    if retrieve_igw(vpc)
+      igw = retrieve_igw(vpc)
+      # Check state - only one attachment is allowed - the array is a templating artifact
+      if igw.attachments.first.state == 'available'
+        return igw
       else
-        logger.warn "Multiple attachments found for #{igw.internet_gateway_id}"
-        vpc_attachments = igw.attachments.select{ |attachment| attachment.vpc_id == vpc.vpc_id }
-        if vpc_attachments.length != 1
-          raise "Multiple attachments found from #{igw.internet_gateway_id} to #{vpc.vpc_id}. Please delete this igw to all for reconfiguration of the vpc."
-        elsif vpc_attachments.first.state == 'available'
-          return igw
-        else
-          raise "Existing #{igw.internet_gateway_id} attachment is not available. Cannot delete and recreate as attachments exist to other vpcs."
-        end
+        logger.warn "Existing #{igw.internet_gateway_id} attachment is not available. Deleting and recreating."
+        @aws.detach_internet_gateway({internet_gateway_id: igw.internet_gateway_id, vpc_id: igw.attachments.first.vpc_id})
+        @aws.delete_internet_gateway({internet_gateway_id: igw.internet_gateway_id})
       end
     end
 
@@ -306,14 +365,44 @@ class OpenStudioAwsWrapper
                                     value: igw_name
                                 }]
                      })
-    igw
+    reload_igw(igw)
   end
 
   def find_or_create_eigw(vpc)
-    @aws.create_egress_only_internet_gateway({vpc_id: vpc.vpc_id}).egress_only_internet_gateway
+    # This API is pretty simple, so this is quite easy
+    if retrieve_eigw(vpc)
+      retrieve_eigw(vpc)
+    else
+      @aws.create_egress_only_internet_gateway({vpc_id: vpc.vpc_id}).egress_only_internet_gateway
+    end
   end
 
-  def find_or_create_public_rtb(vpc, public_subnet, private_rtb_version = 'rtb-public-v0.1')
+  def find_or_create_public_rtb(vpc, public_subnet, public_rtb_extension = 'rtb-public-v0.1')
+    # If the rtb exists check that a route exists to the igw
+    public_rtb_name = retrieve_vpc_name(vpc) + '-' + public_rtb_extension
+    igw = retrieve_igw(vpc)
+    if retrieve_rtb(public_rtb_name, public_subnet)
+      public_rtb = retrieve_rtb(public_rtb_name, public_subnet)
+      if public_rtb.routes.map{ |route| route.gateway_id }.include? igw.internet_gateway_id
+        return public_rtb
+      else
+        # If a route points to 0.0.0.0/0 delete it, then add the igw route
+        unless public_rtb.routes.select { |route| route.destination_cidr_block == '0.0.0.0/0' }.empty?
+          @aws.delete_route({
+                                destination_cidr_block: '0.0.0.0/0',
+                                route_table_id: public_rtb.route_table_id,
+                            })
+        end
+        @aws.create_route({
+                              destination_cidr_block: '0.0.0.0/0',
+                              gateway_id: igw.internet_gateway_id,
+                              route_table_id: public_rtb.route_table_id
+                          })
+        return reload_rtb(public_rtb)
+      end
+    end
+
+    # Create and configure the standard public route table
     public_rtb = @aws.create_route_table({vpc_id: vpc.vpc_id}).route_table
     @aws.create_tags({
                          resources: [public_rtb.route_table_id],
@@ -331,10 +420,35 @@ class OpenStudioAwsWrapper
                           gateway_id: igw.internet_gateway_id,
                           route_table_id: public_rtb.route_table_id
                       })
-    public_rtb
+    reload_rtb(public_rtb)
   end
 
-  def find_or_create_private_rtb(vpc, private_subnet, private_rtb_version = 'rtb-private-v0.1' )
+  def find_or_create_private_rtb(vpc, private_subnet, private_rtb_extension = 'rtb-private-v0.1')
+    # If the rtb exists check that a route exists to the eigw
+    private_rtb_name = retrieve_vpc_name(vpc) + '-' + private_rtb_extension
+    eigw = retrieve_eigw(vpc)
+    if retrieve_rtb(private_rtb_name, private_subnet)
+      private_rtb = retrieve_rtb(private_rtb_name, private_subnet)
+      if private_rtb.routes.map{ |route| route.egress_only_internet_gateway_id }.include? eigw.egress_only_internet_gateway_id
+        return private_rtb
+      else
+        # If a route points to 0.0.0.0/0 delete it, then add the igw route
+        unless private_rtb.routes.select { |route| route.destination_ipv_6_cidr_block == '::/0' }.empty?
+          @aws.delete_route({
+                                destination_ipv_6_cidr_block: '::/0',
+                                route_table_id: private_rtb.route_table_id,
+                            })
+        end
+        @aws.create_route({
+                              destination_ipv_6_cidr_block: '::/0',
+                              egress_only_internet_gateway_id: eigw.egress_only_internet_gateway_id,
+                              route_table_id: private_rtb.route_table_id
+                          })
+        return reload_rtb(private_rtb)
+      end
+    end
+
+    # Create and configure the standard private route table
     private_rtb = @aws.create_route_table({vpc_id: vpc.vpc_id}).route_table
     @aws.create_tags({
                          resources: [private_rtb.route_table_id],
@@ -356,31 +470,31 @@ class OpenStudioAwsWrapper
   end
 
   def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.2', vpc_id = nil)
-    group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
+    group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.length == 0
       logger.info 'security group not found --- will create a new one'
       if vpc_id
         r = @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}",
-                                   vpc_id: vpc_id)
+                                       vpc_id: vpc_id)
       else
         r = @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
       end
       group_id = r[:group_id]
       @aws.authorize_security_group_ingress(
-        group_id: group_id,
-        ip_permissions: [
-          { ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0'] }, # Eventually make this only the user's IP address seen by the internet
-          { ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
-          { ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
-          { ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{ group_name: tmp_name }] }, # allow all machines in the security group talk to each other openly
-          { ip_protocol: 'udp', from_port: 0, to_port: 65535, user_id_group_pairs: [{ group_name: tmp_name }] }, # allow all machines in the security group talk to each other openly
-          { ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
-        ]
+          group_id: group_id,
+          ip_permissions: [
+              {ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0']}, # Eventually make this only the user's IP address seen by the internet
+              {ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0']},
+              {ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0']},
+              {ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{group_name: tmp_name}]}, # allow all machines in the security group talk to each other openly
+              {ip_protocol: 'udp', from_port: 0, to_port: 65535, user_id_group_pairs: [{group_name: tmp_name}]}, # allow all machines in the security group talk to each other openly
+              {ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0']}
+          ]
       )
 
       # reload group information
-      group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
+      group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
     else
       logger.info 'Found existing security group'
     end
@@ -398,7 +512,7 @@ class OpenStudioAwsWrapper
       map << zn.to_hash
     end
 
-    { availability_zone_info: map }
+    {availability_zone_info: map}
   end
 
   def describe_availability_zones_json
@@ -410,7 +524,7 @@ class OpenStudioAwsWrapper
 
     availability_zone = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : 'no_instances'
 
-    { total_instances: resp.instance_statuses.length, region: @region, availability_zone: availability_zone }
+    {total_instances: resp.instance_statuses.length, region: @region, availability_zone: availability_zone}
   end
 
   def describe_all_instances
@@ -424,11 +538,11 @@ class OpenStudioAwsWrapper
     resp = nil
     if group_uuid
       resp = @aws.describe_instances(
-        filters: [
-          # {name: 'instance-state-code', values: [0.to_s, 16.to_s]}, # running or pending -- any state
-          { name: 'tag-key', values: ['GroupUUID'] },
-          { name: 'tag-value', values: [group_uuid.to_s] }
-        ]
+          filters: [
+              # {name: 'instance-state-code', values: [0.to_s, 16.to_s]}, # running or pending -- any state
+              {name: 'tag-key', values: ['GroupUUID']},
+              {name: 'tag-value', values: [group_uuid.to_s]}
+          ]
       )
     else
       resp = @aws.describe_instances
@@ -456,11 +570,11 @@ class OpenStudioAwsWrapper
     resp = nil
     if group_uuid
       resp = @aws.describe_instances(
-        filters: [
-          { name: 'instance-state-code', values: [0.to_s, 16.to_s] }, # running or pending
-          { name: 'tag-key', values: ['GroupUUID'] },
-          { name: 'tag-value', values: [group_uuid.to_s] }
-        ]
+          filters: [
+              {name: 'instance-state-code', values: [0.to_s, 16.to_s]}, # running or pending
+              {name: 'tag-key', values: ['GroupUUID']},
+              {name: 'tag-value', values: [group_uuid.to_s]}
+          ]
       )
     else
       resp = @aws.describe_instances
@@ -475,7 +589,7 @@ class OpenStudioAwsWrapper
           if group_uuid && openstudio_instance_type
             # {:key=>"Purpose", :value=>"OpenStudioWorker"}
             if i_h[:tags].any? { |h| (h[:key] == 'Purpose') && (h[:value] == "OpenStudio#{openstudio_instance_type.capitalize}") } &&
-               i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+                i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
               instance_data << i_h
             end
           elsif group_uuid
@@ -535,8 +649,8 @@ class OpenStudioAwsWrapper
   # @param [Array] ids: Array of ids to stop
   def stop_instances(ids)
     resp = @aws.stop_instances(
-      instance_ids: ids,
-      force: true
+        instance_ids: ids,
+        force: true
     )
 
     resp
@@ -546,11 +660,11 @@ class OpenStudioAwsWrapper
     resp = nil
     begin
       resp = @aws.terminate_instances(
-        instance_ids: ids
+          instance_ids: ids
       )
     rescue Aws::EC2::Errors::InvalidInstanceIDNotFound
       # Log that the instances couldn't be found?
-      resp = { error: 'instances could not be found' }
+      resp = {error: 'instances could not be found'}
     end
 
     resp
@@ -655,10 +769,10 @@ class OpenStudioAwsWrapper
 
   def launch_server(image_id, instance_type, launch_options = {})
     defaults = {
-      user_id: 'unknown_user',
-      tags: [],
-      ebs_volume_size: nil,
-      user_data_file: 'server_script.sh.template'
+        user_id: 'unknown_user',
+        tags: [],
+        ebs_volume_size: nil,
+        user_data_file: 'server_script.sh.template'
     }
     launch_options = defaults.merge(launch_options)
 
@@ -681,11 +795,11 @@ class OpenStudioAwsWrapper
 
   def launch_workers(image_id, instance_type, num, launch_options = {})
     defaults = {
-      user_id: 'unknown_user',
-      tags: [],
-      ebs_volume_size: nil,
-      availability_zone: @server.data.availability_zone,
-      user_data_file: 'worker_script.sh.template'
+        user_id: 'unknown_user',
+        tags: [],
+        ebs_volume_size: nil,
+        availability_zone: @server.data.availability_zone,
+        user_data_file: 'worker_script.sh.template'
     }
     launch_options = defaults.merge(launch_options)
 
@@ -932,12 +1046,12 @@ class OpenStudioAwsWrapper
     h[:server][:worker_private_key_file_name] = @worker_keys_filename
     h[:workers] = @workers.map do |worker|
       {
-        id: worker.data.id,
-        ip: "http://#{worker.data.ip}",
-        dns: worker.data.dns,
-        procs: worker.data.procs,
-        private_key_file_name: worker.private_key_file_name,
-        private_ip_address: worker.private_ip_address
+          id: worker.data.id,
+          ip: "http://#{worker.data.ip}",
+          dns: worker.data.dns,
+          procs: worker.data.procs,
+          private_key_file_name: worker.private_key_file_name,
+          private_ip_address: worker.private_ip_address
       }
     end
 
@@ -966,7 +1080,7 @@ class OpenStudioAwsWrapper
   # transform the available amis into an easier to read format
   def transform_ami_lists(existing, available)
     # initialize ami hash
-    amis = { openstudio_server: {}, openstudio: {} }
+    amis = {openstudio_server: {}, openstudio: {}}
     list_of_svs = []
 
     available[:images].each do |ami|
