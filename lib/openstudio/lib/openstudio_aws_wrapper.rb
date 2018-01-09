@@ -180,10 +180,8 @@ class OpenStudioAwsWrapper
     end
   end
 
-  def retrieve_rtb(rtb_name, subnet)
-    rtbs = @aws.describe_route_tables({filters: [
-        {name: "tag:Name", values: [rtb_name]}
-    ]}).route_tables
+  def retrieve_rtb(subnet)
+    rtbs = @aws.describe_route_tables({}).route_tables
     rtbs = rtbs.select { |rtb| rtb.associations.map { |association| association.subnet_id }.include? subnet.subnet_id }
     if rtbs.length == 1
       rtbs.first
@@ -198,7 +196,7 @@ class OpenStudioAwsWrapper
   def reload_rtb(rtb)
     rtbs = @aws.describe_route_tables({route_table_ids: [rtb.route_table_id]})
     if rtbs.length == 1
-      rtbs.first
+      rtbs.first.route_tables.first
     else
       raise "Did not find #{rtb.route_table_id}"
     end
@@ -381,8 +379,8 @@ class OpenStudioAwsWrapper
     # If the rtb exists check that a route exists to the igw
     public_rtb_name = retrieve_vpc_name(vpc) + '-' + public_rtb_extension
     igw = retrieve_igw(vpc)
-    if retrieve_rtb(public_rtb_name, public_subnet)
-      public_rtb = retrieve_rtb(public_rtb_name, public_subnet)
+    if retrieve_rtb(public_subnet)
+      public_rtb = retrieve_rtb(public_subnet)
       if public_rtb.routes.map{ |route| route.gateway_id }.include? igw.internet_gateway_id
         return public_rtb
       else
@@ -427,8 +425,8 @@ class OpenStudioAwsWrapper
     # If the rtb exists check that a route exists to the eigw
     private_rtb_name = retrieve_vpc_name(vpc) + '-' + private_rtb_extension
     eigw = retrieve_eigw(vpc)
-    if retrieve_rtb(private_rtb_name, private_subnet)
-      private_rtb = retrieve_rtb(private_rtb_name, private_subnet)
+    if retrieve_rtb(private_subnet)
+      private_rtb = retrieve_rtb(private_subnet)
       if private_rtb.routes.map{ |route| route.egress_only_internet_gateway_id }.include? eigw.egress_only_internet_gateway_id
         return private_rtb
       else

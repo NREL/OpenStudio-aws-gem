@@ -407,7 +407,7 @@ describe OpenStudioAwsWrapper do
     end
 
     before :each do
-      expect(@osaws.os_aws.retrieve_igw('oss-vpc-v0.1-igw-v0.1', @vpc)).to be false
+      expect(@osaws.os_aws.retrieve_eigw(@vpc)).to be false
       @eigw = false
       @eigw_2 = false
     end
@@ -443,11 +443,153 @@ describe OpenStudioAwsWrapper do
   end
 
   context 'public rtb methods' do
+    before :all do
+      @osaws = OpenStudio::Aws::Aws.new
+      @client = @osaws.os_aws.instance_variable_get(:@aws)
+      @vpc = @osaws.os_aws.find_or_create_vpc
+      @subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc)
+      @igw = @osaws.os_aws.find_or_create_igw(@vpc)
+    end
 
+    before :each do
+      expect(@osaws.os_aws.retrieve_rtb(@subnet)).to be false
+      @rtb = false
+      @rtb_2 = false
+    end
+
+    it 'should create and associate a public rtb' do
+      expect{@rtb = @client.create_route_table({vpc_id: @vpc.vpc_id}).route_table}.to_not raise_error
+      expect{@client.associate_route_table({route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id})}.to_not raise_error
+    end
+
+    it 'should reflect changes upon reloading the public rtb' do
+      expect{@rtb = @client.create_route_table({vpc_id: @vpc.vpc_id}).route_table}.to_not raise_error
+      expect{@client.associate_route_table({route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id})}.to_not raise_error
+      expect(@rtb.associations.empty?).to be true
+      expect(@osaws.os_aws.reload_rtb(@rtb).associations.first.subnet_id).to eq(@subnet.subnet_id)
+    end
+
+    it 'should create and retrieve an existing public rtb' do
+      expect{@rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet)}.to_not raise_error
+      expect(@osaws.os_aws.retrieve_rtb(@subnet).route_table_id).to eq(@rtb.route_table_id)
+    end
+
+    it 'should find an already existing public rtb' do
+      expect{@rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet)}.to_not raise_error
+      @rtb_2 = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet)
+      expect(@rtb.route_table_id).to eq(@rtb_2.route_table_id)
+    end
+
+    it 'should self-heal if missing a route to the igw in the public rtb' do
+      expect{@rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet)}.to_not raise_error
+      @client.delete_route({destination_cidr_block: "0.0.0.0/0", route_table_id: @rtb.route_table_id})
+      @rtb = @osaws.os_aws.reload_rtb(@rtb)
+      expect(@rtb.routes.select { |route| route.gateway_id == @igw.internet_gateway_id }.empty?).to be true
+      expect{@rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet)}.to_not raise_error
+      expect(@rtb.routes.select { |route| route.gateway_id == @igw.internet_gateway_id }.empty?).to be false
+    end
+
+    after :each do
+      if @rtb
+        @rtb = @osaws.os_aws.reload_rtb(@rtb)
+        unless @rtb.associations.empty?
+          @rtb.associations.each { |assoc| @client.disassociate_route_table({association_id: assoc.route_table_association_id})}
+        end
+        @client.delete_route_table({route_table_id: @rtb.route_table_id})
+      end
+      if @rtb_2
+        if @rtb_2.route_table_id != @rtb.route_table_id
+          @rtb_2 = @osaws.os_aws.reload_rtb(@rtb_2)
+          unless @rtb_2.associations.empty?
+            @rtb.associations.each { |assoc| @client.disassociate_route_table({association_id: assoc.route_table_association_id})}
+          end
+          @client.delete_route_table({route_table_id: @rtb_2.route_table_id})
+        end
+      end
+    end
+
+    after :all do
+      @igw = @osaws.os_aws.reload_igw(@igw)
+      @client.detach_internet_gateway({internet_gateway_id: @igw.internet_gateway_id, vpc_id: @vpc.vpc_id})
+      @client.delete_internet_gateway({internet_gateway_id: @igw.internet_gateway_id})
+      @client.delete_subnet({subnet_id: @subnet.subnet_id})
+      sleep 2
+      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+    end
   end
 
   context 'private rtb methods' do
+    before :all do
+      @osaws = OpenStudio::Aws::Aws.new
+      @client = @osaws.os_aws.instance_variable_get(:@aws)
+      @vpc = @osaws.os_aws.find_or_create_vpc
+      @subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc)
+      @eigw = @osaws.os_aws.find_or_create_eigw(@vpc)
+    end
 
+    before :each do
+      expect(@osaws.os_aws.retrieve_rtb(@subnet)).to be false
+      @rtb = false
+      @rtb_2 = false
+    end
+
+    it 'should create and associate a private rtb' do
+      expect{@rtb = @client.create_route_table({vpc_id: @vpc.vpc_id}).route_table}.to_not raise_error
+      expect{@client.associate_route_table({route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id})}.to_not raise_error
+    end
+
+    it 'should reflect changes upon reloading the private rtb' do
+      expect{@rtb = @client.create_route_table({vpc_id: @vpc.vpc_id}).route_table}.to_not raise_error
+      expect{@client.associate_route_table({route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id})}.to_not raise_error
+      expect(@rtb.associations.empty?).to be true
+      expect(@osaws.os_aws.reload_rtb(@rtb).associations.first.subnet_id).to eq(@subnet.subnet_id)
+    end
+
+    it 'should create and retrieve an existing private rtb' do
+      expect{@rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet)}.to_not raise_error
+      expect(@osaws.os_aws.retrieve_rtb(@subnet).route_table_id).to eq(@rtb.route_table_id)
+    end
+
+    it 'should find an already existing private rtb' do
+      expect{@rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet)}.to_not raise_error
+      @rtb_2 = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet)
+      expect(@rtb.route_table_id).to eq(@rtb_2.route_table_id)
+    end
+
+    it 'should self-heal if missing a route to the eigw in the private rtb' do
+      expect{@rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet)}.to_not raise_error
+      @client.delete_route({destination_ipv_6_cidr_block: "::/0", route_table_id: @rtb.route_table_id})
+      @rtb = @osaws.os_aws.reload_rtb(@rtb)
+      expect(@rtb.routes.select { |route| route.egress_only_internet_gateway_id == @eigw.egress_only_internet_gateway_id }.empty?).to be true
+      expect{@rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet)}.to_not raise_error
+      expect(@rtb.routes.select { |route| route.egress_only_internet_gateway_id == @eigw.egress_only_internet_gateway_id }.empty?).to be false
+    end
+
+    after :each do
+      if @rtb
+        @rtb = @osaws.os_aws.reload_rtb(@rtb)
+        unless @rtb.associations.empty?
+          @rtb.associations.each { |assoc| @client.disassociate_route_table({association_id: assoc.route_table_association_id})}
+        end
+        @client.delete_route_table({route_table_id: @rtb.route_table_id})
+      end
+      if @rtb_2
+        if @rtb_2.route_table_id != @rtb.route_table_id
+          @rtb_2 = @osaws.os_aws.reload_rtb(@rtb_2)
+          unless @rtb_2.associations.empty?
+            @rtb.associations.each { |assoc| @client.disassociate_route_table({association_id: assoc.route_table_association_id})}
+          end
+          @client.delete_route_table({route_table_id: @rtb_2.route_table_id})
+        end
+      end
+    end
+
+    after :all do
+      @client.delete_egress_only_internet_gateway({egress_only_internet_gateway_id: @eigw.egress_only_internet_gateway_id})
+      @client.delete_subnet({subnet_id: @subnet.subnet_id})
+      sleep 2
+      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+    end
   end
 
 end
