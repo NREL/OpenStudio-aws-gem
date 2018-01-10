@@ -37,6 +37,7 @@ require_relative 'openstudio_aws_logger'
 
 class OpenStudioAwsWrapper
   include Logging
+  require 'net/http'
 
   attr_reader :group_uuid
   attr_reader :key_pair_name
@@ -89,6 +90,10 @@ class OpenStudioAwsWrapper
     eigw = find_or_create_eigw(vpc)
     public_rtb = find_or_create_public_rtb(vpc, public_subnet)
     private_rtb = find_or_create_private_rtb(vpc, private_subnet)
+  end
+
+  def retrieve_visible_ip()
+    Net::HTTP.get(URI('http://checkip.amazonaws.com')).strip
   end
 
   def retrieve_vpc(vpc_name)
@@ -194,12 +199,50 @@ class OpenStudioAwsWrapper
   end
 
   def reload_rtb(rtb)
-    rtbs = @aws.describe_route_tables({route_table_ids: [rtb.route_table_id]})
+    rtbs = @aws.describe_route_tables({route_table_ids: [rtb.route_table_id]}).route_tables
     if rtbs.length == 1
-      rtbs.first.route_tables.first
+      rtbs.first
     else
       raise "Did not find #{rtb.route_table_id}"
     end
+  end
+
+  def retrieve_nacl(subnet)
+    nacls = @aws.describe_network_acls({filters: [{name: "vpc-id", values: [subnet.vpc_id]}]}).network_acls
+    nacls = nacls.select { |nacl| nacl.associations.map { |assoc| assoc.subnet_id }.include? subnet.subnet_id }
+    if nacls.length == 1
+      nacls.first.is_default ? false : nacls.first
+    else
+      # This should be impossible
+      raise "Did not find 1 nacl for #{subnet.subnet_id}, instead found #{nacls.length}"
+    end
+  end
+
+  def reload_nacl(nacl)
+    nacls = @aws.describe_network_acls({network_acl_ids: [nacl.network_acl_id]}).network_acls
+    if nacls.length == 1
+      nacls.first
+    else
+      # This should be impossible
+      raise "Did not find 1 nacl for #{subnet.subnet_id}, instead found #{nacls.length}"
+    end
+  end
+
+  def set_nacl(subnet, nacl)
+    nacls = @aws.describe_network_acls({filters: [{name: "vpc-id", values: [subnet.vpc_id]}]}).network_acls
+    current_nacls = nacls.select { |nacl| nacl.associations.map { |assoc| assoc.subnet_id }.include? subnet.subnet_id }
+    unless current_nacls.length == 1
+      # This should be impossible
+      raise "Did not find 1 nacl for #{subnet.subnet_id}, instead found #{nacls.length}"
+    end
+    current_nacl = current_nacls.first
+    assoc_ids = current_nacl.associations.select { |assoc| assoc.subnet_id == subnet.subnet_id }
+    unless assoc_ids.length == 1
+      # This should also be impossible
+      raise "Did not find 1 nacl for #{subnet.subnet_id}, instead found #{nacls.length}"
+    end
+    assoc_id = assoc_ids[0].network_acl_association_id
+    @aws.replace_network_acl_association({association_id: assoc_id, network_acl_id: nacl.network_acl_id})
   end
 
   def find_or_create_vpc(vpc_version = 'vpc-v0.1')
@@ -465,6 +508,18 @@ class OpenStudioAwsWrapper
                           route_table_id: private_rtb.route_table_id
                       })
     private_rtb
+  end
+
+  def find_or_create_public_nacl(vpc, public_subnet, public_nacl_extension = 'nacl-public-v0.1')
+    # If the nacl exists verify ssh is enabled for this ip
+    if retrieve_nacl(public_subnet)
+      public_nacl = retrieve_nacl(public_subnet)
+
+    end
+  end
+
+  def find_or_create_private_nacl(private_nacl_extension = 'nacl-private-v0.1')
+
   end
 
   def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.2', vpc_id = nil)

@@ -592,4 +592,55 @@ describe OpenStudioAwsWrapper do
     end
   end
 
+  context 'public nacl methods' do
+    before :all do
+      @osaws = OpenStudio::Aws::Aws.new
+      @client = @osaws.os_aws.instance_variable_get(:@aws)
+      @vpc = @osaws.os_aws.find_or_create_vpc
+      @subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc)
+      @igw = @osaws.os_aws.find_or_create_igw(@vpc)
+      @default_nacl = @client.describe_network_acls({}).network_acls.select { |nacl| nacl.associations.map { |assoc| assoc.subnet_id }.include? @subnet.subnet_id }[0]
+    end
+
+    before :each do
+      expect(@osaws.os_aws.retrieve_nacl(@subnet)).to be false
+      @nacl = false
+      @nacl_2 = false
+    end
+
+    it 'should create and re-associate a public nacl' do
+      expect{@nacl = @client.create_network_acl({vpc_id: @vpc.vpc_id}).network_acl}.to_not raise_error
+      expect{@osaws.os_aws.set_nacl(@subnet, @nacl)}.to_not raise_error
+    end
+
+    after :each do
+      if @nacl
+        @osaws.os_aws.set_nacl(@subnet, @default_nacl)
+        @nacl = @osaws.os_aws.reload_nacl(@nacl)
+        unless @nacl.associations.empty?
+          raise "nacl #{@nacl.network_acl_id} is still associated with #{@nacl.associations[0].subnet_id}"
+        end
+        @client.delete_network_acl({network_acl_id: @nacl.network_acl_id})
+      end
+      if @nacl_2
+        if @nacl_2.network_acl_id != @nacl.network_acl_id
+          @nacl_2 = @osaws.os_aws.reload_nacl(@nacl_2)
+          unless @nacl_2.associations.empty?
+            raise "nacl #{@nacl_2.network_acl_id} is still associated with #{@nacl_2.associations[0].subnet_id}"
+          end
+          @client.delete_network_acl({network_acl_id: @nacl_2.network_acl_id})
+        end
+      end
+    end
+
+    after :all do
+      @igw = @osaws.os_aws.reload_igw(@igw)
+      @client.detach_internet_gateway({internet_gateway_id: @igw.internet_gateway_id, vpc_id: @vpc.vpc_id})
+      @client.delete_internet_gateway({internet_gateway_id: @igw.internet_gateway_id})
+      @client.delete_subnet({subnet_id: @subnet.subnet_id})
+      sleep 2
+      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+    end
+  end
+
 end
