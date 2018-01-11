@@ -70,6 +70,8 @@ class OpenStudioAwsWrapper
     end
 
     @private_key = nil # Private key data
+    @public_subnet_id = nil # Subnet id if using VPC networking
+    @private_subnet_id = nil # Subnet id if using VPC networking
 
     # List of instances
     @server = nil
@@ -888,6 +890,9 @@ class OpenStudioAwsWrapper
     private_nacl = find_or_create_private_nacl(vpc, private_subnet)
     logger.info "Created or retrieved private network access control list '#{private_nacl.network_acl_id}'"
     logger.info 'Finished configuring networking infrastructure'
+
+    @public_subnet_id = public_subnet.subnet_id
+    @private_subnet_id = private_subnet.subnet_id
     vpc.vpc_id
   end
 
@@ -1158,9 +1163,22 @@ class OpenStudioAwsWrapper
         user_id: 'unknown_user',
         tags: [],
         ebs_volume_size: nil,
-        user_data_file: 'server_script.sh.template'
+        user_data_file: 'server_script.sh.template',
+        vpc_enabled: false
     }
     launch_options = defaults.merge(launch_options)
+
+    # ensure networking infrastructure exists if required
+    if launch_options[:vpc_enabled]
+      find_or_create_networking
+      if @public_subnet_id.nil?
+        raise 'The method find_or_create_networking did not instantiate the @public_subnet_id variable. Please file redundant issues in the OpenStudio-Aws-Gem and OpenStudio-Server github repositories'
+      end
+      if launch_options[:subnet_id] != @public_subnet_id
+        raise "The subnet_id provided in launch options, #{launch_options[:subnet_id]}, differs from the retrieved VPC configuration, #{@public_subnet_id}"
+      end
+      launch_options[:subnet_id] = @public_subnet_id
+    end
 
     # replace the server_script.sh.template with the keys to add
 
@@ -1185,7 +1203,8 @@ class OpenStudioAwsWrapper
         tags: [],
         ebs_volume_size: nil,
         availability_zone: @server.data.availability_zone,
-        user_data_file: 'worker_script.sh.template'
+        user_data_file: 'worker_script.sh.template',
+        vpc_enabled: false
     }
     launch_options = defaults.merge(launch_options)
 
@@ -1199,6 +1218,17 @@ class OpenStudioAwsWrapper
     num.times do
       @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_groups, @group_uuid,
                                             @private_key, @private_key_file_name, @proxy)
+    end
+
+    # config vpc networking infrastructure settings if required
+    if launch_options[:vpc_enabled]
+      if @private_subnet_id.nil?
+        raise 'The method find_or_create_networking did not instantiate the @private_subnet_id variable. Please file redundant issues in the OpenStudio-Aws-Gem and OpenStudio-Server github repositories'
+      end
+      if launch_options[:subnet_id] != @private_subnet_id
+        raise "The subnet_id provided in launch options, #{launch_options[:subnet_id]}, differs from the retrieved VPC configuration, #{@private_subnet_id}"
+      end
+      launch_options[:subnet_id] = @private_subnet_id
     end
 
     threads = []
@@ -1250,7 +1280,7 @@ class OpenStudioAwsWrapper
   end
 
   # blocking method that executes required commands for creating and provisioning a docker swarm cluster
-  def configure_swarm_cluster(save_directory)
+  def configure_swarm_cluster(save_directory, vpc_enabled = false)
     logger.info('waiting for server user_data to complete')
     @server.wait_command('while ! [ -e /home/ubuntu/user_data_done ]; do sleep 5; done && echo "true"')
     logger.info('Running the configuration script for the server.')

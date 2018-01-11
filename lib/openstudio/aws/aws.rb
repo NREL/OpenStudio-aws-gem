@@ -39,8 +39,10 @@ module OpenStudio
     VALID_OPTIONS = [
       :proxy, :credentials, :ami_lookup_version, :openstudio_version,
       :openstudio_server_version, :region, :ssl_verify_peer, :host, :url, :stable,
-      :save_directory, :subnet_id
+      :save_directory, :subnet_id, :vpc_enabled
     ]
+    CLASIC_SUPPORTED_INSTANCES = ['c3.8xlarge', 'd2.4xlarge', 'd2.8xlarge']
+    VPC_SUPPORTED_INSTANCES = ['c5.8xlarge', 'i3.4xlarge', 'c5.large', 'i3.large']
 
     class Aws
       include Logging
@@ -72,7 +74,8 @@ module OpenStudio
           ami_lookup_version: 1,
           region: 'us-east-1',
           ssl_verify_peer: false,
-          save_directory: '.'
+          save_directory: '.',
+          vpc_enabled: false
         }
         options = defaults.merge(options)
         logger.info "AWS initialized with the options: #{options.except(:credentials)}"
@@ -112,6 +115,7 @@ module OpenStudio
         @os_cloudwatch = OpenStudioCloudWatch.new(options)
 
         @dockerized = options[:ami_lookup_version] == 3 ? true : false
+        @vpc_enabled = options[:vpc_enabled]
 
         # this will grab the default version of openstudio ami versions
         # get the arugments for the AMI lookup
@@ -161,6 +165,13 @@ module OpenStudio
           fail "Private key was not found: #{options[:private_key_file_name]}" unless File.exist? options[:private_key_file_name]
         end
 
+        # Verify instance type aligns with selected networking regime
+        if @vpc_enabled
+          raise "Selected instance #{options[:instance_type]} is not supported when using VPC networking" unless VPC_SUPPORTED_INSTANCES.include? options[:instance_type]
+        else
+          raise "Selected instance #{options[:instance_type]} is not supported when using ClassicLink networking" unless CLASIC_SUPPORTED_INSTANCES.include? options[:instance_type]
+        end
+
         if options[:security_groups].empty?
           # if the user has not specified any security groups, then create one called: 'openstudio-server-sg-v2'
           @os_aws.create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.2',
@@ -187,7 +198,8 @@ module OpenStudio
           tags: options[:tags],
           subnet_id: options[:subnet_id],
           associate_public_ip_address: options[:associate_public_ip_address],
-          user_data_file: user_data_file
+          user_data_file: user_data_file,
+          vpc_enabled: @vpc_enabled
         }
 
         server_options[:availability_zone] = options[:availability_zone] if options[:availability_zone]
@@ -232,6 +244,13 @@ module OpenStudio
           options[:image_id] = determine_image_type(options[:instance_type])
         end
 
+        # Verify instance type aligns with selected networking regime
+        if @vpc_enabled
+          raise "Selected instance #{options[:instance_type]} is not supported when using VPC networking" unless VPC_SUPPORTED_INSTANCES.include? options[:instance_type]
+        else
+          raise "Selected instance #{options[:instance_type]} is not supported when using ClassicLink networking" unless CLASIC_SUPPORTED_INSTANCES.include? options[:instance_type]
+        end
+
         fail "Can't create workers without a server instance running" if @os_aws.server.nil?
         user_data_file = @dockerized ? 'worker_script.sh.docker.template' : 'worker_script.sh.template'
 
@@ -241,7 +260,8 @@ module OpenStudio
             tags: options[:tags],
             subnet_id: options[:subnet_id],
             associate_public_ip_address: options[:associate_public_ip_address],
-            user_data_file: user_data_file
+            user_data_file: user_data_file,
+            vpc_enabled: @vpc_enabled
           }
 
           # if options[:ebs_volume_size]
@@ -255,7 +275,7 @@ module OpenStudio
 
         begin
           if @dockerized
-            @os_aws.configure_swarm_cluster(@save_directory)
+            @os_aws.configure_swarm_cluster(@save_directory, @vpc_enabled)
           else
             @os_aws.configure_server_and_workers
           end
@@ -502,6 +522,7 @@ module OpenStudio
 
         os_aws_file
       end
+
     end
   end
 end
