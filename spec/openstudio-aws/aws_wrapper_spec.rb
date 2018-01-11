@@ -698,4 +698,109 @@ describe OpenStudioAwsWrapper do
     end
   end
 
+  context 'private nacl methods' do
+    before :all do
+      @osaws = OpenStudio::Aws::Aws.new
+      @client = @osaws.os_aws.instance_variable_get(:@aws)
+      @vpc = @osaws.os_aws.find_or_create_vpc
+      @subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc)
+      @eigw = @osaws.os_aws.find_or_create_eigw(@vpc)
+      @default_nacl = @client.describe_network_acls({}).network_acls.select { |nacl| nacl.associations.map { |assoc| assoc.subnet_id }.include? @subnet.subnet_id }[0]
+    end
+
+    before :each do
+      expect(@osaws.os_aws.retrieve_nacl(@subnet)).to be false
+      @nacl = false
+      @nacl_2 = false
+    end
+
+    it 'should create and re-associate a private nacl' do
+      expect{@nacl = @client.create_network_acl({vpc_id: @vpc.vpc_id}).network_acl}.to_not raise_error
+      expect{@osaws.os_aws.set_nacl(@subnet, @nacl)}.to_not raise_error
+    end
+
+    it 'should create and retrieve a new (non-default) private nacl' do
+      expect{@nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
+      expect(@nacl.is_default).to eq false
+      expect{@nacl_2 = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
+      expect(@nacl_2.network_acl_id).to eq(@nacl.network_acl_id)
+    end
+
+    it 'should add routes to the private nacl enabling client and docker communications if not existing' do
+      expect{@nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
+      expect{@client.delete_network_acl_entry({egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 100})}.to_not raise_error
+      expect{@client.delete_network_acl_entry({egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 100})}.to_not raise_error
+      expect{@client.delete_network_acl_entry({egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 200})}.to_not raise_error
+      expect{@client.delete_network_acl_entry({egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 200})}.to_not raise_error
+      # Verify that the SSH and 2377 TCP rules are deleted
+      @nacl = @osaws.os_aws.reload_nacl(@nacl)
+      ingress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == false }.map { |rule| rule.rule_number }
+      egress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == true }.map { |rule| rule.rule_number }
+      expect(ingress_rule_numbers.include? 100).to be false
+      expect(ingress_rule_numbers.include? 200).to be false
+      expect(egress_rule_numbers.include? 100).to be false
+      expect(egress_rule_numbers.include? 200).to be false
+      # Verify that rules were recreated with rule numbers indexing from 400 by 10
+      expect{@nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
+      entries = @nacl.entries.select { |entry| entry.protocol != '-1' }
+      expectations = [
+          {egress: true, ports: [1025, 65535], cidr: '10.0.0.0/24'},
+          {egress: true, ports: [2377, 2377], cidr: '10.0.0.0/23'},
+          {egress: false, ports: [22, 22], cidr: '10.0.0.0/24'},
+          {egress: false, ports: [2377, 2377], cidr: '10.0.0.0/23'}
+      ]
+      expectations.each do |expectation|
+        matching_rules = entries.select { |entry| (entry.cidr_block == expectation[:cidr]) &
+            (entry.egress == expectation[:egress]) & (entry.port_range.from == expectation[:ports][0]) &
+            (entry.port_range.to == expectation[:ports][1]) & (entry.protocol == '6')}
+        expect(matching_rules.empty?).to be false
+      end
+    end
+
+    it 'should not add routes for IPV6 traffic if they have been altered' do
+      expect{@nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
+      expect{@client.delete_network_acl_entry({egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 300})}.to_not raise_error
+      expect{@client.delete_network_acl_entry({egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 310})}.to_not raise_error
+      expect{@client.delete_network_acl_entry({egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 300})}.to_not raise_error
+      # Verify that the ::/0 IPV6 rules are deleted
+      @nacl = @osaws.os_aws.reload_nacl(@nacl)
+      ingress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == false }.map { |rule| rule.rule_number }
+      egress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == true }.map { |rule| rule.rule_number }
+      expect(ingress_rule_numbers.include? 300).to be false
+      expect(egress_rule_numbers.include? 300).to be false
+      expect(egress_rule_numbers.include? 310).to be false
+      # Verify that the eigw rules were not re-created by the find_or_create_private_nacl method
+      expect{@nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
+      entries = @nacl.entries.select { |entry| entry.protocol != '-1' }
+      matching_rules = entries.select { |entry| (entry.ipv_6_cidr_block == '::/0') }
+      expect(matching_rules.empty?).to be true
+    end
+
+    after :each do
+      if @nacl
+        @osaws.os_aws.set_nacl(@subnet, @default_nacl)
+        @nacl = @osaws.os_aws.reload_nacl(@nacl)
+        unless @nacl.associations.empty?
+          raise "nacl #{@nacl.network_acl_id} is still associated with #{@nacl.associations[0].subnet_id}"
+        end
+        @client.delete_network_acl({network_acl_id: @nacl.network_acl_id})
+      end
+      if @nacl_2
+        if @nacl_2.network_acl_id != @nacl.network_acl_id
+          @nacl_2 = @osaws.os_aws.reload_nacl(@nacl_2)
+          unless @nacl_2.associations.empty?
+            raise "nacl #{@nacl_2.network_acl_id} is still associated with #{@nacl_2.associations[0].subnet_id}"
+          end
+          @client.delete_network_acl({network_acl_id: @nacl_2.network_acl_id})
+        end
+      end
+    end
+
+    after :all do
+      @client.delete_egress_only_internet_gateway({egress_only_internet_gateway_id: @eigw.egress_only_internet_gateway_id})
+      @client.delete_subnet({subnet_id: @subnet.subnet_id})
+      sleep 2
+      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+    end
+  end
 end
