@@ -804,7 +804,7 @@ describe OpenStudioAwsWrapper do
     end
   end
 
-  context 'vpc networking e2e test' do
+  context 'network integration tests' do
     before :all do
       @osaws = OpenStudio::Aws::Aws.new
       @client = @osaws.os_aws.instance_variable_get(:@aws)
