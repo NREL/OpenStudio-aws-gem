@@ -639,9 +639,9 @@ describe OpenStudioAwsWrapper do
       entries = @nacl.entries.select { |entry| entry.protocol != '-1' }
       expectations = [
           {egress: true, ports: [1025, 65535], cidr: @osaws.os_aws.retrieve_visible_ip + '/32'},
-          {egress: true, ports: [2377, 2377], cidr: '10.0.0.0/16'},
+          {egress: true, ports: [2377, 2377], cidr: '10.0.0.0/23'},
           {egress: false, ports: [22, 22], cidr: @osaws.os_aws.retrieve_visible_ip + '/32'},
-          {egress: false, ports: [2377, 2377], cidr: '10.0.0.0/16'}
+          {egress: false, ports: [2377, 2377], cidr: '10.0.0.0/23'}
       ]
       expectations.each do |expectation|
         matching_rules = entries.select { |entry| (entry.cidr_block == expectation[:cidr]) &

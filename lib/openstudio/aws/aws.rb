@@ -41,8 +41,8 @@ module OpenStudio
       :openstudio_server_version, :region, :ssl_verify_peer, :host, :url, :stable,
       :save_directory, :subnet_id, :vpc_enabled
     ]
-    CLASIC_SUPPORTED_INSTANCES = ['c3.8xlarge', 'd2.4xlarge', 'd2.8xlarge']
-    VPC_SUPPORTED_INSTANCES = ['c5.8xlarge', 'i3.4xlarge', 'c5.large', 'i3.large']
+    CLASIC_SUPPORTED_INSTANCES = ['m3.xlarge', 'm3.2xlarge', 'r3.xlarge', 'r3.2xlarge', 'r3.4xlarge', 'r3.8xlarge', 'i2.xlarge', 'i2.2xlarge', 'i2.4xlarge', 'i2.8xlarge', 'c3.xlarge', 'c3.2xlarge', 'c3.4xlarge', 'c3.8xlarge', 'd2.xlarge', 'd2.2xlarge', 'd2.4xlarge', 'd2.8xlarge']
+    VPC_SUPPORTED_INSTANCES = ['c4.xlarge', 'c4.2xlarge', 'c4.4xlarge', 'c4.8xlarge', 'c5.xlarge', 'c5.2xlarge', 'c5.4xlarge', 'c5.9xlarge', 'c5.18xlarge', 'm4.xlarge', 'm4.2xlarge', 'm4.4xlarge', 'm4.10xlarge', 'm4.16xlarge', 'i3.xlarge', 'i3.2xlarge', 'i3.4xlarge', 'i3.8xlarge', 'i3.16xlarge', 'r4.xlarge', 'r4.2xlarge', 'r4.4xlarge', 'r4.8xlarge', 'r4.16xlarge', 'm5.xlarge', 'm5.2xlarge', 'm5.4xlarge', 'm5.12xlarge', 'm5.24xlarge']
 
     class Aws
       include Logging
@@ -174,8 +174,8 @@ module OpenStudio
 
         if options[:security_groups].empty?
           # if the user has not specified any security groups, then create one called: 'openstudio-server-sg-v2'
-          @os_aws.create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.2',
-                                                            vpc_id=options[:vpc_id])
+          @os_aws.create_or_retrieve_default_security_group(tmp_name: 'openstudio-server-sg-v2.3',
+                                                            vpc_id: options[:vpc_id])
         else
           @os_aws.security_groups = options[:security_groups]
         end

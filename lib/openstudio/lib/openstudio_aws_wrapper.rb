@@ -569,7 +569,7 @@ class OpenStudioAwsWrapper
         {cidr: '0.0.0.0/0', egress: false, ports: [32768, 60999], protocol: '6', rule: 320},
         {cidr: '0.0.0.0/0', egress: true, ports: [80, 80], protocol: '6', rule: 300},
         {cidr: '0.0.0.0/0', egress: true, ports: [443, 443], protocol: '6', rule: 310},
-        {cidr: '0.0.0.0/0', egress: true, ports: [32768, 65535], protocol: '6', rule: 320}
+        {cidr: '0.0.0.0/0', egress: true, ports: [32768, 60999], protocol: '6', rule: 320}
     ]
     if retrieve_nacl(public_subnet)
       public_nacl = retrieve_nacl(public_subnet)
@@ -604,7 +604,23 @@ class OpenStudioAwsWrapper
       end
       return reload_nacl(public_nacl)
     end
+
+    # Create the public nacl within the VPC
     public_nacl = @aws.create_network_acl({vpc_id: vpc.vpc_id}).network_acl
+
+    # Poor mans wait_for method - thanks aws-sdk-core for not addressing a known race condition nicely!!!
+    waiting = true
+    for _ in 0..11
+      waiting = @aws.describe_network_acls({network_acl_ids: [public_nacl.network_acl_id]}).network_acls.empty?
+      if waiting
+        sleep(5)
+      else
+        break
+      end
+    end
+    raise "nacl #{public_nacl.network_acl_id} was not successfully created within 60 seconds" if waiting
+
+    # Tag and attach the public nacl
     @aws.create_tags({
                          resources: [public_nacl.network_acl_id],
                          tags: [{
@@ -639,7 +655,7 @@ class OpenStudioAwsWrapper
     # Client communication / access rules - TCP is protocol 6, UDP protocol 17
     client_rules = [
         {cidr: '10.0.0.0/24', egress: false, ports: [22, 22], protocol: '6', rule: 100},
-        {cidr: '10.0.0.0/24', egress: true, ports: [1025, 65535], protocol: '6', rule: 100}
+        {cidr: '10.0.0.0/24', egress: true, ports: [1025, 60999], protocol: '6', rule: 100}
     ]
     # Docker swarm networking rules
     swarm_rules = [
@@ -656,7 +672,7 @@ class OpenStudioAwsWrapper
     ipv6_rules = [
         {cidr: '::/0', egress: true, ports: [80, 80], protocol: '6', rule: 300},
         {cidr: '::/0', egress: true, ports: [443, 443], protocol: '6', rule: 310},
-        {cidr: '::/0', egress: false, ports: [32768, 65535], protocol: '6', rule: 300}
+        {cidr: '::/0', egress: false, ports: [32768, 60999], protocol: '6', rule: 300}
     ]
     if retrieve_nacl(private_subnet)
       private_nacl = retrieve_nacl(private_subnet)
@@ -691,7 +707,23 @@ class OpenStudioAwsWrapper
       end
       return reload_nacl(private_nacl)
     end
+
+    # Create the private nacl within the VPC
     private_nacl = @aws.create_network_acl({vpc_id: vpc.vpc_id}).network_acl
+
+    # Poor mans wait_for method - thanks aws-sdk-core for not addressing a known race condition nicely!!!
+    waiting = true
+    for _ in 0..11
+      waiting = @aws.describe_network_acls({network_acl_ids: [private_nacl.network_acl_id]}).network_acls.empty?
+      if waiting
+        sleep(5)
+      else
+        break
+      end
+    end
+    raise "nacl #{private_nacl.network_acl_id} was not successfully created within 60 seconds" if waiting
+
+    # Tag and attach the private nacl
     @aws.create_tags({
                          resources: [private_nacl.network_acl_id],
                          tags: [{
@@ -750,6 +782,10 @@ class OpenStudioAwsWrapper
                                                        {name: 'vpc-id', values: [vpc.vpc_id]}
                                                    ]
                                               }).network_acls[0]
+    default_sg = create_or_retrieve_default_security_group(vpc_id: vpc.vpc_id)
+
+    # First off delete the security group - this is sketchy and should be refactored as possible
+    @aws.delete_security_group({group_id: default_sg.group_id})
 
     # Start by tearing down the private nacl
     if private_nacl
@@ -813,8 +849,12 @@ class OpenStudioAwsWrapper
     true
   end
 
-  def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.3', vpc_id = nil)
-    group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
+  def create_or_retrieve_default_security_group(tmp_name: 'openstudio-server-sg-v2.3', vpc_id: nil)
+    if vpc_id
+      group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}, {name: 'vpc-id', values: [vpc_id]}])
+    else
+      group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
+    end
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.length == 0
       logger.info 'security group not found --- will create a new one'
@@ -832,8 +872,8 @@ class OpenStudioAwsWrapper
               {ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0']},
               {ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0']},
               {ip_protocol: 'tcp', from_port: 27017, to_port: 27017, ip_ranges: [cidr_ip: '0.0.0.0/0']},
-              {ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{group_name: tmp_name}]}, # allow all machines in the security group talk to each other openly
-              {ip_protocol: 'udp', from_port: 0, to_port: 65535, user_id_group_pairs: [{group_name: tmp_name}]}, # allow all machines in the security group talk to each other openly
+              {ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{group_id: group_id}]}, # allow all machines in the security group talk to each other openly
+              {ip_protocol: 'udp', from_port: 0, to_port: 65535, user_id_group_pairs: [{group_id: group_id}]}, # allow all machines in the security group talk to each other openly
               {ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0']}
           ]
       )
@@ -889,10 +929,14 @@ class OpenStudioAwsWrapper
     logger.info 'Creating or retrieving private network access control list'
     private_nacl = find_or_create_private_nacl(vpc, private_subnet)
     logger.info "Created or retrieved private network access control list '#{private_nacl.network_acl_id}'"
+    logger.info 'Creating the default security group in the vpc'
+    default_sg = create_or_retrieve_default_security_group(vpc_id: vpc.vpc_id)
+    logger.info "Created or retrieved default secuity group #{default_sg.group_id}"
     logger.info 'Finished configuring networking infrastructure'
 
     @public_subnet_id = public_subnet.subnet_id
     @private_subnet_id = private_subnet.subnet_id
+    @security_groups = [default_sg.group_id]
     vpc.vpc_id
   end
 
@@ -1174,8 +1218,10 @@ class OpenStudioAwsWrapper
       if @public_subnet_id.nil?
         raise 'The method find_or_create_networking did not instantiate the @public_subnet_id variable. Please file redundant issues in the OpenStudio-Aws-Gem and OpenStudio-Server github repositories'
       end
-      if launch_options[:subnet_id] != @public_subnet_id
-        raise "The subnet_id provided in launch options, #{launch_options[:subnet_id]}, differs from the retrieved VPC configuration, #{@public_subnet_id}"
+      if launch_options[:subnet_id]
+        if launch_options[:subnet_id] != @public_subnet_id
+          raise "The subnet_id provided in launch options, #{launch_options[:subnet_id]}, differs from the retrieved VPC configuration, #{@public_subnet_id}"
+        end
       end
       launch_options[:subnet_id] = @public_subnet_id
     end
@@ -1225,8 +1271,10 @@ class OpenStudioAwsWrapper
       if @private_subnet_id.nil?
         raise 'The method find_or_create_networking did not instantiate the @private_subnet_id variable. Please file redundant issues in the OpenStudio-Aws-Gem and OpenStudio-Server github repositories'
       end
-      if launch_options[:subnet_id] != @private_subnet_id
-        raise "The subnet_id provided in launch options, #{launch_options[:subnet_id]}, differs from the retrieved VPC configuration, #{@private_subnet_id}"
+      if launch_options[:subnet_id]
+        if launch_options[:subnet_id] != @private_subnet_id
+          raise "The subnet_id provided in launch options, #{launch_options[:subnet_id]}, differs from the retrieved VPC configuration, #{@private_subnet_id}"
+        end
       end
       launch_options[:subnet_id] = @private_subnet_id
     end
