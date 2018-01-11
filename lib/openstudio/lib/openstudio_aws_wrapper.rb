@@ -512,10 +512,93 @@ class OpenStudioAwsWrapper
 
   def find_or_create_public_nacl(vpc, public_subnet, public_nacl_extension = 'nacl-public-v0.1')
     # If the nacl exists verify ssh is enabled for this ip
+    public_nacl_name = retrieve_vpc_name(vpc) + '-' + public_nacl_extension
+    client_ip = retrieve_visible_ip
+    # Client communication / access rules - TCP is protocol 6, UDP protocol 17
+    client_rules = [
+        {cidr: client_ip + '/32', egress: false, ports: [22, 22], protocol: '6', rule: 100},
+        {cidr: client_ip + '/32', egress: false, ports: [27017, 27017], protocol: '6', rule: 110},
+        {cidr: client_ip + '/32', egress: true, ports: [1025, 65535], protocol: '6', rule: 100}
+    ]
+    # Docker swarm networking rules
+    swarm_rules = [
+        {cidr: '10.0.0.0/16', egress: false, ports: [2377, 2377], protocol: '6', rule: 200},
+        {cidr: '10.0.0.0/16', egress: true, ports: [2377, 2377], protocol: '6', rule: 200},
+        {cidr: '10.0.0.0/16', egress: false, ports: [4789, 4789], protocol: '17', rule: 210},
+        {cidr: '10.0.0.0/16', egress: true, ports: [4789, 4789], protocol: '17', rule: 210},
+        {cidr: '10.0.0.0/16', egress: false, ports: [7946, 7946], protocol: '6', rule: 220},
+        {cidr: '10.0.0.0/16', egress: true, ports: [7946, 7946], protocol: '6', rule: 220},
+        {cidr: '10.0.0.0/16', egress: false, ports: [7946, 7946], protocol: '17', rule: 230},
+        {cidr: '10.0.0.0/16', egress: true, ports: [7946, 7946], protocol: '17', rule: 230}
+    ]
+    # Application resolution rules
+    application_rules = [
+        {cidr: '0.0.0.0/0', egress: false, ports: [80, 80], protocol: '6', rule: 300},
+        {cidr: '0.0.0.0/0', egress: false, ports: [443, 443], protocol: '6', rule: 310},
+        {cidr: '0.0.0.0/0', egress: false, ports: [32768, 60999], protocol: '6', rule: 320},
+        {cidr: '0.0.0.0/0', egress: true, ports: [80, 80], protocol: '6', rule: 300},
+        {cidr: '0.0.0.0/0', egress: true, ports: [443, 443], protocol: '6', rule: 310},
+        {cidr: '0.0.0.0/0', egress: true, ports: [32768, 65535], protocol: '6', rule: 320}
+    ]
     if retrieve_nacl(public_subnet)
       public_nacl = retrieve_nacl(public_subnet)
-
+      rules_to_verify = client_rules + swarm_rules
+      rules_to_apply = []
+      entries = public_nacl.entries.select { |entry| entry.protocol != '-1' }
+      ingress_rule_numbers = entries.select{ |rule| rule.egress == false }.map { |rule| rule.rule_number }
+      ingress_rule_numbers.push(390) if ingress_rule_numbers.max < 390
+      egress_rule_numbers = entries.select{ |rule| rule.egress == true }.map { |rule| rule.rule_number }
+      egress_rule_numbers.push(390) if egress_rule_numbers.max < 390
+      rules_to_verify.each do |rule|
+        matching_rules = entries.select { |entry| (entry.cidr_block == rule[:cidr]) & (entry.egress == rule[:egress]) &
+            (entry.port_range.from == rule[:ports][0]) & (entry.port_range.to == rule[:ports][1]) &
+            (entry.protocol == rule[:protocol])}
+        rules_to_apply.push(rule) if matching_rules.empty?
+      end
+      rules_to_apply.each do |rule|
+        rule_number = (rule[:egress] ? egress_rule_numbers.max : egress_rule_numbers.max) + 10
+        rule[:egress] ? egress_rule_numbers.push(rule_number) : ingress_rule_numbers.push(rule_number)
+        @aws.create_network_acl_entry({
+                                          cidr_block: rule[:cidr],
+                                          egress: rule[:egress],
+                                          network_acl_id: public_nacl.network_acl_id,
+                                          port_range:{
+                                              from: rule[:ports][0],
+                                              to: rule[:ports][1]
+                                          },
+                                          protocol: rule[:protocol],
+                                          rule_action: 'allow',
+                                          rule_number: rule_number
+                                      })
+      end
+      return reload_nacl(public_nacl)
     end
+    public_nacl = @aws.create_network_acl({vpc_id: vpc.vpc_id}).network_acl
+    @aws.create_tags({
+                         resources: [public_nacl.network_acl_id],
+                         tags: [{
+                                    key: 'Name',
+                                    value: public_nacl_name
+                                }]
+                     })
+    set_nacl(public_subnet, public_nacl)
+    # Set all rules
+    rules_to_apply = client_rules + application_rules + swarm_rules
+    rules_to_apply.each do |rule|
+      @aws.create_network_acl_entry({
+                                        cidr_block: rule[:cidr],
+                                        egress: rule[:egress],
+                                        network_acl_id: public_nacl.network_acl_id,
+                                        port_range:{
+                                            from: rule[:ports][0],
+                                            to: rule[:ports][1]
+                                        },
+                                        protocol: rule[:protocol],
+                                        rule_action: 'allow',
+                                        rule_number: rule[:rule]
+                                    })
+    end
+    reload_nacl(public_nacl)
   end
 
   def find_or_create_private_nacl(private_nacl_extension = 'nacl-private-v0.1')
