@@ -803,4 +803,43 @@ describe OpenStudioAwsWrapper do
       @client.delete_vpc({vpc_id: @vpc.vpc_id})
     end
   end
+
+  context 'vpc networking e2e test' do
+    before :all do
+      @osaws = OpenStudio::Aws::Aws.new
+      @client = @osaws.os_aws.instance_variable_get(:@aws)
+    end
+
+    it 'should create all infrastructure through find_or_create and remove cleanly with remove_networking' do
+      expect{@vpc = @osaws.os_aws.find_or_create_vpc}.to_not raise_error
+      expect{@public_subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc)}.to_not raise_error
+      expect{@private_subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc)}.to_not raise_error
+      expect{@osaws.os_aws.find_or_create_igw(@vpc)}.to_not raise_error
+      expect{@osaws.os_aws.find_or_create_eigw(@vpc)}.to_not raise_error
+      expect{@osaws.os_aws.find_or_create_public_rtb(@vpc, @public_subnet)}.to_not raise_error
+      expect{@osaws.os_aws.find_or_create_private_rtb(@vpc, @private_subnet)}.to_not raise_error
+      expect{@osaws.os_aws.find_or_create_public_nacl(@vpc, @public_subnet)}.to_not raise_error
+      expect{@osaws.os_aws.find_or_create_private_nacl(@vpc, @private_subnet)}.to_not raise_error
+      expect(@osaws.os_aws.remove_networking(@vpc)).to be true
+    end
+  end
+
+  context 'main networking method' do
+    before :all do
+      @osaws = OpenStudio::Aws::Aws.new
+    end
+
+    it 'should create and re-instantiate a single network configuration' do
+      expect{@vpc_id = @osaws.os_aws.find_or_create_networking}.to_not raise_error
+      expect{@vpc_id_2 = @osaws.os_aws.find_or_create_networking(@vpc_id)}.to_not raise_error
+      expect(@vpc_id).to eq(@vpc_id_2)
+      expect{@vpc_id_3 = @osaws.os_aws.find_or_create_networking}.to_not raise_error
+      expect(@vpc_id).to eq(@vpc_id_3)
+    end
+
+    after :all do
+      vpc = @osaws.os_aws.find_or_create_vpc
+      @osaws.os_aws.remove_networking(vpc)
+    end
+  end
 end

@@ -443,8 +443,22 @@ class OpenStudioAwsWrapper
       end
     end
 
-    # Create and configure the standard public route table
+    # Create the standard public route table
     public_rtb = @aws.create_route_table({vpc_id: vpc.vpc_id}).route_table
+
+    # Poor mans wait_for method - thanks aws-sdk-core for not addressing a known race condition nicely!!!
+    waiting = true
+    for _ in 0..11
+      waiting = @aws.describe_route_tables({route_table_ids: [public_rtb.route_table_id]}).route_tables.empty?
+      if waiting
+        sleep(5)
+      else
+        break
+      end
+    end
+    raise "rtb #{public_rtb.route_table_id} was not successfully created within 60 seconds" if waiting
+
+    # Tag, associate, config, and return the new rtb
     @aws.create_tags({
                          resources: [public_rtb.route_table_id],
                          tags: [{
@@ -489,8 +503,22 @@ class OpenStudioAwsWrapper
       end
     end
 
-    # Create and configure the standard private route table
+    # Create the standard private route table
     private_rtb = @aws.create_route_table({vpc_id: vpc.vpc_id}).route_table
+
+    # Poor mans wait_for method - thanks aws-sdk-core for not addressing a known race condition nicely!!!
+    waiting = true
+    for _ in 0..11
+      waiting = @aws.describe_route_tables({route_table_ids: [private_rtb.route_table_id]}).route_tables.empty?
+      if waiting
+        sleep(5)
+      else
+        break
+      end
+    end
+    raise "rtb #{private_rtb.route_table_id} was not successfully created within 60 seconds" if waiting
+
+    # Tag, associate, config, and return the new rtb
     @aws.create_tags({
                          resources: [private_rtb.route_table_id],
                          tags: [{
@@ -507,7 +535,7 @@ class OpenStudioAwsWrapper
                           egress_only_internet_gateway_id: eigw.egress_only_internet_gateway_id,
                           route_table_id: private_rtb.route_table_id
                       })
-    private_rtb
+    reload_rtb(private_rtb)
   end
 
   def find_or_create_public_nacl(vpc, public_subnet, public_nacl_extension = 'nacl-public-v0.1')
@@ -704,7 +732,86 @@ class OpenStudioAwsWrapper
     reload_nacl(private_nacl)
   end
 
-  def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.2', vpc_id = nil)
+  def remove_networking(vpc)
+    # Initialize all networking infrastructure
+    public_subnet = find_or_create_public_subnet(vpc)
+    private_subnet = find_or_create_private_subnet(vpc)
+    igw = retrieve_igw(vpc)
+    eigw = retrieve_eigw(vpc)
+    public_rtb = retrieve_rtb(public_subnet)
+    private_rtb = retrieve_rtb(private_subnet)
+    public_nacl = retrieve_nacl(public_subnet)
+    private_nacl = retrieve_nacl(private_subnet)
+    default_nacl = @aws.describe_network_acls({filters:
+                                                   [
+                                                       {name: 'default', values: ['true']},
+                                                       {name: 'vpc-id', values: [vpc.vpc_id]}
+                                                   ]
+                                              }).network_acls[0]
+
+    # Start by tearing down the private nacl
+    if private_nacl
+      set_nacl(private_subnet, default_nacl)
+      private_nacl = reload_nacl(private_nacl)
+      unless private_nacl.associations.empty?
+        raise "nacl #{private_nacl.network_acl_id} is still associated with #{private_nacl.associations[0].subnet_id}"
+      end
+      @aws.delete_network_acl({network_acl_id: private_nacl.network_acl_id})
+    end
+
+    # Next tear down the public nacl
+    if public_nacl
+      set_nacl(public_subnet, default_nacl)
+      public_nacl = reload_nacl(public_nacl)
+      unless public_nacl.associations.empty?
+        raise "nacl #{public_nacl.network_acl_id} is still associated with #{public_nacl.associations[0].subnet_id}"
+      end
+      @aws.delete_network_acl({network_acl_id: public_nacl.network_acl_id})
+    end
+
+    # Now goes the private rtb
+    if private_rtb
+      private_rtb = reload_rtb(private_rtb)
+      unless private_rtb.associations.empty?
+        private_rtb.associations.each { |assoc| @aws.disassociate_route_table({association_id: assoc.route_table_association_id})}
+      end
+      @aws.delete_route_table({route_table_id: private_rtb.route_table_id})
+    end
+
+    # And now the public rtb
+    if public_rtb
+      public_rtb = reload_rtb(public_rtb)
+      unless public_rtb.associations.empty?
+        public_rtb.associations.each { |assoc| @aws.disassociate_route_table({association_id: assoc.route_table_association_id})}
+      end
+      @aws.delete_route_table({route_table_id: public_rtb.route_table_id})
+    end
+
+    # Next remove the eigw
+    if eigw
+      @aws.delete_egress_only_internet_gateway({egress_only_internet_gateway_id: eigw.egress_only_internet_gateway_id})
+    end
+
+    # Followed by the igw
+    if igw
+      igw = reload_igw(igw)
+      @aws.detach_internet_gateway({internet_gateway_id: igw.internet_gateway_id, vpc_id: vpc.vpc_id})
+      @aws.delete_internet_gateway({internet_gateway_id: igw.internet_gateway_id})
+    end
+
+    # And now we finally reach the private subnet
+    @aws.delete_subnet({subnet_id: private_subnet.subnet_id}) if private_subnet
+
+    # Next the public subnet
+    @aws.delete_subnet({subnet_id: public_subnet.subnet_id}) if public_subnet
+
+    # And last but not least, the vpc itself
+    sleep 5
+    @aws.delete_vpc({vpc_id: vpc.vpc_id})
+    true
+  end
+
+  def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.3', vpc_id = nil)
     group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.length == 0
@@ -722,6 +829,7 @@ class OpenStudioAwsWrapper
               {ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0']}, # Eventually make this only the user's IP address seen by the internet
               {ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0']},
               {ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0']},
+              {ip_protocol: 'tcp', from_port: 27017, to_port: 27017, ip_ranges: [cidr_ip: '0.0.0.0/0']},
               {ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{group_name: tmp_name}]}, # allow all machines in the security group talk to each other openly
               {ip_protocol: 'udp', from_port: 0, to_port: 65535, user_id_group_pairs: [{group_name: tmp_name}]}, # allow all machines in the security group talk to each other openly
               {ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0']}
@@ -738,6 +846,49 @@ class OpenStudioAwsWrapper
     logger.info("server_group #{group.data.security_groups.first.group_name}:#{group.data.security_groups.first.group_id}")
 
     group.data.security_groups.first
+  end
+
+  def find_or_create_networking(vpc_id = false)
+    logger.info "Creating networking infrastructure for OpenStudio Server"
+    if vpc_id
+      logger.info "Attempting to find existing vpc '#{vpc_id}'"
+      vpcs = @aws.describe_vpcs({vpc_ids: [vpc_id]}).vpcs
+      if vpcs.length != 1
+        raise "Unable to retrieve vpc #{vpc_id}"
+      end
+      vpc = vpcs.first
+      logger.info "Found vpc '#{vpc_id}'"
+    else
+      logger.info 'Creating a new vpc'
+      vpc = find_or_create_vpc
+      logger.info "Created vpc '#{vpc.vpc_id}'"
+    end
+    logger.info 'Creating or retrieving public subnet'
+    public_subnet = find_or_create_public_subnet(vpc)
+    logger.info "Created or retrieved public subnet '#{public_subnet.subnet_id}'"
+    logger.info 'Creating or retrieving private subnet'
+    private_subnet = find_or_create_private_subnet(vpc)
+    logger.info "Created or retrieved private subnet '#{private_subnet.subnet_id}'"
+    logger.info 'Creating or retrieving internet gateway'
+    igw = find_or_create_igw(vpc)
+    logger.info "Created or retrieved internet gateway '#{igw.internet_gateway_id}'"
+    logger.info 'Creating or retrieving egress-only internet gateway'
+    eigw = find_or_create_eigw(vpc)
+    logger.info "Created or retrieved egress-only internet gateway '#{eigw.egress_only_internet_gateway_id}'"
+    logger.info 'Creating or retrieving public route table'
+    public_rtb = find_or_create_public_rtb(vpc, public_subnet)
+    logger.info "Created or retrieved public route table '#{public_rtb.route_table_id}'"
+    logger.info 'Creating or retrieving private route table'
+    private_rtb = find_or_create_private_rtb(vpc, private_subnet)
+    logger.info "Created or retrieved private route table '#{private_rtb.route_table_id}'"
+    logger.info 'Creating or retrieving public network access control list'
+    public_nacl = find_or_create_public_nacl(vpc, public_subnet)
+    logger.info "Created or retrieved public network access control list '#{public_nacl.network_acl_id}'"
+    logger.info 'Creating or retrieving private network access control list'
+    private_nacl = find_or_create_private_nacl(vpc, private_subnet)
+    logger.info "Created or retrieved private network access control list '#{private_nacl.network_acl_id}'"
+    logger.info 'Finished configuring networking infrastructure'
+    vpc.vpc_id
   end
 
   def describe_availability_zones
