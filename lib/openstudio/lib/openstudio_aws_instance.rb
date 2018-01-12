@@ -260,40 +260,53 @@ class OpenStudioAwsInstance
 
   def find_processors(instance)
     lookup = {
-      'm3.medium' => 1,
-      'm3.large' => 2,
       'm3.xlarge' => 4,
       'm3.2xlarge' => 8,
-      'c3.large' => 2,
-      'c3.xlarge' => 4,
-      'c3.2xlarge' => 8,
-      'c3.4xlarge' => 16,
-      'c3.8xlarge' => 32,
-      'r3.large' => 2,
       'r3.xlarge' => 4,
       'r3.2xlarge' => 8,
       'r3.4xlarge' => 16,
       'r3.8xlarge' => 32,
-      't1.micro' => 1,
-      't2.micro' => 1,
-      'm1.small' => 1,
-      'm2.2xlarge' => 4,
-      'm2.4xlarge' => 8,
       'i2.xlarge' => 4,
       'i2.2xlarge' => 8,
       'i2.4xlarge' => 16,
       'i2.8xlarge' => 32,
-      'i3.large' => 2,
+      'c3.xlarge' => 4,
+      'c3.2xlarge' => 8,
+      'c3.4xlarge' => 16,
+      'c3.8xlarge' => 32,
+      'd2.xlarge' => 4,
+      'd2.2xlarge' => 8,
+      'd2.4xlarge' => 16,
+      'd2.8xlarge' => 32,
+      'c4.xlarge' => 4,
+      'c4.2xlarge' => 8,
+      'c4.4xlarge' => 16,
+      'c4.8xlarge' => 36,
+      'c5.xlarge' => 4,
+      'c5.2xlarge' => 8,
+      'c5.4xlarge' => 16,
+      'c5.9xlarge' => 36,
+      'c5.18xlarge' => 72,
+      'm4.xlarge' => 4,
+      'm4.2xlarge' => 8,
+      'm4.4xlarge' => 16,
+      'm4.10xlarge' => 40,
+      'm4.16xlarge' => 64,
       'i3.xlarge' => 4,
       'i3.2xlarge' => 8,
       'i3.4xlarge' => 16,
       'i3.8xlarge' => 32,
       'i3.16xlarge' => 64,
-      'd2.xlarge' => 4,
-      'd2.2xlarge' => 8,
-      'd2.4xlarge' => 16,
-      'd2.8xlarge' => 36,
-      'hs1.8xlarge' => 16
+      'r4.xlarge' => 4,
+      'r4.2xlarge' => 8,
+      'r4.4xlarge' => 16,
+      'r4.8xlarge' => 32,
+      'r4.16xlarge' => 64,
+      'm5.xlarge' => 4,
+      'm5.2xlarge' => 8,
+      'm5.4xlarge' => 16,
+      'm5.12xlarge' => 48,
+      'm5.24xlarge' => 96
     }
 
     processors = 1
@@ -328,7 +341,9 @@ class OpenStudioAwsInstance
   def upload_file(local_path, remote_path)
     retries = 0
     begin
-      Net::SCP.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |scp|
+      options = {key_data: [@private_key]}
+      options[:proxy]  = get_proxy if get_proxy
+      Net::SCP.start(@data.ip, @user, options) do |scp|
         scp.upload! local_path, remote_path
       end
     rescue SystemCallError, Timeout::Error => e
@@ -351,7 +366,9 @@ class OpenStudioAwsInstance
   def shell_command(command, load_env = true)
     logger.info("ssh_command #{command} with load environment #{load_env}")
     command = "source /etc/profile; source ~/.bash_profile; #{command}" if load_env
-    Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
+    options = {key_data: [@private_key]}
+    options[:proxy] = get_proxy if get_proxy
+    Net::SSH.start(@data.ip, @user, options) do |ssh|
       channel = ssh.open_channel do |ch|
         ch.exec "#{command}" do |ch, success|
           fail "could not execute #{command}" unless success
@@ -384,7 +401,9 @@ class OpenStudioAwsInstance
     flag = 0
     while flag == 0
       logger.info("wait_command #{command}")
-      Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
+      options = {key_data: [@private_key]}
+      options[:proxy] = get_proxy if get_proxy
+      Net::SSH.start(@data.ip, @user, options) do |ssh|
         channel = ssh.open_channel do |ch|
           ch.exec "#{command}" do |ch, success|
             fail "could not execute #{command}" unless success
@@ -427,7 +446,9 @@ class OpenStudioAwsInstance
   def download_file(remote_path, local_path)
     retries = 0
     begin
-      Net::SCP.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |scp|
+      options = {key_data: [@private_key]}
+      options[:proxy] = get_proxy if get_proxy
+      Net::SCP.start(@data.ip, @user, options) do |scp|
         scp.download! remote_path, local_path
       end
     rescue SystemCallError, Timeout::Error => e
