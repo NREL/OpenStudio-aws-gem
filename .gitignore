@@ -19,3 +19,4 @@ spec/output
 *.pem
 *.pub
 *.config
+.rubocop-http*
