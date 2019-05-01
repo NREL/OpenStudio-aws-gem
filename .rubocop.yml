@@ -3,5 +3,8 @@ AllCops:
     - 'doc/**/*'
     - 'gems/**/*'
 
+Security/YAMLLoad:
+  Enabled: false
+
 inherit_from:
   - http://s3.amazonaws.com/openstudio-resources/styles/rubocop.yml
