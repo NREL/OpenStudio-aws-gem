@@ -29,11 +29,22 @@ describe OpenStudioAmis do
   end
 
   context 'version 2' do
-
     it 'should fail when trying to find a stable version for older releases' do
       a = OpenStudioAmis.new(2, openstudio_version: '1.5.0', stable: true)
 
       expect { a.get_amis }.to raise_error(/Could not find a stable version for openstudio version 1.5.0/)
     end
   end
+
+  context 'version 3' do
+    it 'should fail when trying to find a stable version for older releases' do
+      a = OpenStudioAmis.new(3, openstudio_version: '2.8.0', stable: true)
+
+      puts a.inspect
+
+      expect { a.get_amis }.to raise_error(/Currently the openstudio_version lookup is not supported in v3/)
+    end
+  end
+
+
 end

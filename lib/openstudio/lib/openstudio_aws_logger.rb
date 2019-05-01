@@ -35,7 +35,7 @@
 
 require 'logger'
 
-# module for logging
+# module for logging. The AWS log will be stored in the user's home directory under .aws.log.
 module Logging
   def logger
     @logger ||= Logging.logger_for(self.class.name)
