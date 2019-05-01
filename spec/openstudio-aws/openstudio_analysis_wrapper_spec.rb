@@ -33,25 +33,21 @@
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # *******************************************************************************
 
-# From: https://github.com/rails/rails/blob/001b270611cd9cb653124775899bdbc2548333ab/activesupport/lib/active_support/core_ext/hash/except.rb
-class Hash
-  # Returns a hash that includes everything but the given keys.
-  #   hash = { a: true, b: false, c: nil}
-  #   hash.except(:c) # => { a: true, b: false}
-  #   hash # => { a: true, b: false, c: nil}
-  #
-  # This is useful for limiting a set of parameters to everything but a few known toggles:
-  #   @person.update(params[:person].except(:admin))
-  def except(*keys)
-    dup.except!(*keys)
-  end
+require 'spec_helper'
 
-  # Replaces the hash without the given keys.
-  #   hash = { a: true, b: false, c: nil}
-  #   hash.except!(:c) # => { a: true, b: false}
-  #   hash # => { a: true, b: false }
-  def except!(*keys)
-    keys.each { |key| delete(key) }
-    self
+describe OpenStudioAwsWrapper do
+  context 'number of cores' do
+    it 'should calculate number of cores' do
+      data = {
+          save_directory: 'spec/test_data',
+          credentials: { access_key_id: 'abcd', secret_access_key: 'efgh', region: 'us-east-1'}
+      }
+      @os_aws_wrapper = OpenStudioAwsWrapper.new(data)
+
+
+      proc_arr = @os_aws_wrapper.calculate_processors(356)
+      # total_procs
+      expect(proc_arr[0]).to eq 340
+    end
   end
 end

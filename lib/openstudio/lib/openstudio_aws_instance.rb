@@ -1,5 +1,5 @@
 # *******************************************************************************
-# OpenStudio(R), Copyright (c) 2008-2016, Alliance for Sustainable Energy, LLC.
+# OpenStudio(R), Copyright (c) 2008-2019, Alliance for Sustainable Energy, LLC.
 # All rights reserved.
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -258,6 +258,10 @@ class OpenStudioAwsInstance
     @data.procs
   end
 
+  # Return the total number of processors that available to run simulations. Note that this method reduces
+  # the number of processors on the server node by a prespecified number.
+  # @param instance [string], AWS instance type string
+  # @return [int], total number of available processors
   def find_processors(instance)
     lookup = {
       'm3.medium' => 1,
@@ -296,11 +300,13 @@ class OpenStudioAwsInstance
     end
 
     if @openstudio_instance_type == :server
-      # take out 4 of the processors for doing work with a max of 1 to work
-      # 1 for server
+      # take out 5 of the processors for known processors.
+      # 1 for server/web
+      # 1 for queue (redis)
       # 1 for mongodb
-      # 1 for child processes to download files
-      processors = [processors - 4, 1].max # this is 2 for now because the current server decrements by 1 (which will be removed if 2.0-pre6)
+      # 1 for web-background
+      # 1 for rserve
+      processors = [processors - 5, 1].max
     end
 
     processors

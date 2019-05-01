@@ -21,9 +21,9 @@ Gem::Specification.new do |s|
   s.add_dependency 'net-ssh', '= 4.2.0'
   s.add_dependency 'aws-sdk-core', '= 2.2.26'
   s.add_dependency 'semantic', '~> 1.4'
-  s.add_dependency 'sshkey', '~> 1.7'
+  s.add_dependency 'sshkey', '~> 2.0'
 
-  s.add_development_dependency 'rake', '~> 10.4'
+  s.add_development_dependency 'rake', '~> 12.3'
 
   s.files         = `git ls-files -z`.split("\x0")
   s.executables   = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
