@@ -1,5 +1,5 @@
 # *******************************************************************************
-# OpenStudio(R), Copyright (c) 2008-2016, Alliance for Sustainable Energy, LLC.
+# OpenStudio(R), Copyright (c) 2008-2019, Alliance for Sustainable Energy, LLC.
 # All rights reserved.
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -40,7 +40,7 @@ class OpenStudioAmis
 
   VALID_OPTIONS = [
     :openstudio_version, :openstudio_server_version, :host, :url, :stable
-  ]
+  ].freeze
 
   # Initializer for listing the AMIs and grabbing the correct version of the AMIs based on the OpenStudio version or
   # OpenStudio Server version.
@@ -52,11 +52,11 @@ class OpenStudioAmis
   def initialize(version = 1, options = {})
     invalid_options = options.keys - VALID_OPTIONS
     if invalid_options.any?
-      fail ArgumentError, "invalid option(s): #{invalid_options.join(', ')}"
+      raise ArgumentError, "invalid option(s): #{invalid_options.join(', ')}"
     end
 
     if options[:openstudio_version] && options[:openstudio_server_version]
-      fail 'Must pass only an openstudio_version or openstudio_server_version when looking up AMIs'
+      raise 'Must pass only an openstudio_version or openstudio_server_version when looking up AMIs'
     end
 
     # merge in some defaults
@@ -73,7 +73,7 @@ class OpenStudioAmis
     @options = defaults.merge(options)
 
     if @options[:openstudio_version] != 'default' && @options[:openstudio_server_version] != 'default'
-      fail 'Must pass either the openstudio_version or openstudio_server_version when looking up AMIs, not both'
+      raise 'Must pass either the openstudio_version or openstudio_server_version when looking up AMIs, not both'
     end
   end
 
@@ -100,10 +100,10 @@ class OpenStudioAmis
     if OpenStudioAmis.method_defined?(command)
       amis = send(command)
     else
-      fail "Unknown api version command #{command}"
+      raise "Unknown api version command #{command}"
     end
 
-    fail "Could not find any amis for #{@version}" if amis.nil?
+    raise "Could not find any amis for #{@version}" if amis.nil?
 
     amis
   end
@@ -141,8 +141,10 @@ class OpenStudioAmis
           value = json[:openstudio_server][stable.to_sym]
           amis = value[:amis]
         else
-          logger.info "Could not find a stable version for OpenStudio version #{@options[:openstudio_version]}. "\
-                      'Looking up older versions to find the latest stable.' unless stable
+          unless stable
+            logger.info "Could not find a stable version for OpenStudio version #{@options[:openstudio_version]}. "\
+                        'Looking up older versions to find the latest stable.'
+          end
 
           json[:openstudio].each do |os_version, values|
             next if os_version == :default
@@ -160,12 +162,13 @@ class OpenStudioAmis
             end
           end
 
-          fail "Could not find a stable version for openstudio version #{@options[:openstudio_version]}" unless amis
+          raise "Could not find a stable version for openstudio version #{@options[:openstudio_version]}" unless amis
         end
       else
         # return the default version (which is the latest)
         default = json[:openstudio][@options[:openstudio_version].to_sym][:default]
-        fail "Could not find a default version for openstudio version #{@options[:openstudio_version]}" unless default
+        raise "Could not find a default version for openstudio version #{@options[:openstudio_version]}" unless default
+
         value = json[:openstudio][@options[:openstudio_version].to_sym][default.to_sym]
         amis = value[:amis]
       end
@@ -189,14 +192,16 @@ class OpenStudioAmis
     elsif @options[:openstudio_server_version] != 'default'
       hash_array = json[:builds]
       hash = hash_array.select { |hash| hash[:name] == @options[:openstudio_server_version] }
-      fail "Multiple | no entries found matching name key `#{@options[:openstudio_server_version]}`" unless hash.length == 1
+      raise "Multiple | no entries found matching name key `#{@options[:openstudio_server_version]}`" unless hash.length == 1
+
       amis = {}
       amis[:server] = hash.first[:ami]
       amis[:worker] = hash.first[:ami]
     elsif @options[:openstudio_version] != 'default'
-      fail 'Currently the openstudio_version lookup is not supported in v3.'
+      raise 'Currently the openstudio_version lookup is not supported in v3.'
     end
-    fail 'The requested AMI key is NULL.' if amis[:server] == nil
+    raise 'The requested AMI key is NULL.' if amis[:server].nil?
+
     logger.info "AMI IDs are #{amis}" if amis
 
     amis
@@ -207,7 +212,7 @@ class OpenStudioAmis
   # fetch the URL with redirects
   def fetch(uri_str, limit = 10)
     # You should choose better exception.
-    fail ArgumentError, 'HTTP redirect too deep' if limit == 0
+    raise ArgumentError, 'HTTP redirect too deep' if limit == 0
 
     url = URI.parse(uri_str)
     req = Net::HTTP::Get.new(url.path)
@@ -229,7 +234,7 @@ class OpenStudioAmis
     if resp.code == '200'
       result = JSON.parse(resp.body, symbolize_names: true)
     else
-      fail "#{resp.code} Unable to download AMI IDs"
+      raise "#{resp.code} Unable to download AMI IDs"
     end
 
     result

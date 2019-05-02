@@ -1,3 +1,8 @@
+#!/usr/bin/env ruby
+
+ruby_regex = /^#.\*{79}.*#.\*{79}$/m
+
+ruby_header_text = <<EOT
 # *******************************************************************************
 # OpenStudio(R), Copyright (c) 2008-2019, Alliance for Sustainable Energy, LLC.
 # All rights reserved.
@@ -32,26 +37,32 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # *******************************************************************************
+EOT
+ruby_header_text.strip!
 
-# From: https://github.com/rails/rails/blob/001b270611cd9cb653124775899bdbc2548333ab/activesupport/lib/active_support/core_ext/hash/except.rb
-class Hash
-  # Returns a hash that includes everything but the given keys.
-  #   hash = { a: true, b: false, c: nil}
-  #   hash.except(:c) # => { a: true, b: false}
-  #   hash # => { a: true, b: false, c: nil}
-  #
-  # This is useful for limiting a set of parameters to everything but a few known toggles:
-  #   @person.update(params[:person].except(:admin))
-  def except(*keys)
-    dup.except!(*keys)
-  end
+paths = [
+  { glob: 'lib/**/*.rb', license: ruby_header_text, regex: ruby_regex },
+  { glob: 'spec/**/*.rb', license: ruby_header_text, regex: ruby_regex },
 
-  # Replaces the hash without the given keys.
-  #   hash = { a: true, b: false, c: nil}
-  #   hash.except!(:c) # => { a: true, b: false}
-  #   hash # => { a: true, b: false }
-  def except!(*keys)
-    keys.each { |key| delete(key) }
-    self
+  # single files
+  { glob: 'Rakefile', license: ruby_header_text, regex: ruby_regex }
+]
+
+paths.each do |path|
+  Dir[path[:glob]].each do |file|
+    puts "Updating license in file #{file}"
+
+    f = File.read(file)
+    if f =~ path[:regex]
+      puts '  License found -- updating'
+      File.open(file, 'w') { |write| write << f.gsub(path[:regex], path[:license]) }
+    else
+      puts '  No license found -- adding'
+      if f =~ /#!/
+        puts '  CANNOT add license to file automatically, add it manually and it will update automatically in the future'
+        next
+      end
+      File.open(file, 'w') { |write| write << f.insert(0, path[:license] + "\n\n") }
+    end
   end
 end
