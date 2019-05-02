@@ -88,7 +88,7 @@ describe OpenStudio::Aws::Aws do
     it 'should error on key not found' do
       options = {
         aws_key_pair_name: 'a_random_key_pair',
-        private_key_file_name: '/file/should/not/exist', # required if using an existing "aws_key_pair_name"
+        private_key_file_name: '/file/should/not/exist' # required if using an existing "aws_key_pair_name"
       }
       aws = OpenStudio::Aws::Aws.new
 
@@ -98,7 +98,7 @@ describe OpenStudio::Aws::Aws do
     it 'should require a private key' do
       options = {
         aws_key_pair_name: 'a_random_key_pair',
-        private_key_file_name: nil, # required if using an existing "aws_key_pair_name"
+        private_key_file_name: nil # required if using an existing "aws_key_pair_name"
       }
       aws = OpenStudio::Aws::Aws.new
 

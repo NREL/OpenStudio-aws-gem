@@ -45,21 +45,21 @@ require 'ci/reporter/rake/rspec'
 # Gem tasks
 require 'bundler/gem_tasks'
 
-$LOAD_PATH.unshift File.expand_path('../lib', __FILE__)
+$LOAD_PATH.unshift File.expand_path('lib', __dir__)
 require 'openstudio-aws'
 
 RSpec::Core::RakeTask.new('spec') do |spec|
-  spec.rspec_opts = %w(--format progress --format CI::Reporter::RSpec)
+  spec.rspec_opts = ['--format', 'progress', '--format', 'CI::Reporter::RSpec']
   spec.pattern = 'spec/**/*_spec.rb'
 end
 
 RSpec::Core::RakeTask.new('spec:api') do |spec|
-  spec.rspec_opts = %w(--format progress --format CI::Reporter::RSpec)
+  spec.rspec_opts = ['--format', 'progress', '--format', 'CI::Reporter::RSpec']
   spec.pattern = 'spec/**/*_spec_api.rb'
 end
 
 RSpec::Core::RakeTask.new('spec:no_auth') do |spec|
-  spec.rspec_opts = %w(--format progress --format CI::Reporter::RSpec)
+  spec.rspec_opts = ['--format', 'progress', '--format', 'CI::Reporter::RSpec']
 
   file_list = FileList['spec/**/*_spec.rb']
   file_list = file_list.exclude('spec/**/aws_wrapper_spec.rb')

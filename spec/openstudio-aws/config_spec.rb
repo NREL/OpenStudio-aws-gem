@@ -60,7 +60,7 @@ describe OpenStudio::Aws::Config do
       local_file = 'test_custom_old.config'
 
       data = {
-        'access_key_id' =>  'abcd',
+        'access_key_id' => 'abcd',
         'secret_access_key' => 'efgh'
       }
 

@@ -156,12 +156,12 @@ class OpenStudioAwsInstance
       t = tag.split('=')
       if t.size != 2
         logger.error "Tag '#{t}' not defined or does not have an equal sign"
-        fail "Tag '#{t}' not defined or does not have an equal sign"
+        raise "Tag '#{t}' not defined or does not have an equal sign"
         next
       end
-      if %w(Name GroupUUID NumberOfProcessors Purpose UserID).include? t[0]
+      if ['Name', 'GroupUUID', 'NumberOfProcessors', 'Purpose', 'UserID'].include? t[0]
         logger.error "Tag name '#{t[0]}' is a reserved tag"
-        fail "Tag name '#{t[0]}' is a reserved tag"
+        raise "Tag name '#{t[0]}' is a reserved tag"
         next
       end
 
@@ -238,7 +238,7 @@ class OpenStudioAwsInstance
         }
       }
     else
-      fail 'do not know how to convert :worker instance to_os_hash. Use the os_aws.to_worker_hash method'
+      raise 'do not know how to convert :worker instance to_os_hash. Use the os_aws.to_worker_hash method'
     end
 
     logger.info("server info #{h}")
@@ -339,12 +339,14 @@ class OpenStudioAwsInstance
     rescue SystemCallError, Timeout::Error => e
       # port 22 might not be available immediately after the instance finishes launching
       return if retries == 5
+
       retries += 1
       sleep 2
       retry
-    rescue
+    rescue StandardError
       # Unknown upload error, retry
       return if retries == 5
+
       retries += 1
       sleep 2
       retry
@@ -360,20 +362,21 @@ class OpenStudioAwsInstance
       proxy: get_proxy,
       key_data: [@private_key]
     }
-    ssh_options.delete_if { |_k, v| v.nil? }	
+    ssh_options.delete_if { |_k, v| v.nil? }
     Net::SSH.start(@data.ip, @user, ssh_options) do |ssh|
       channel = ssh.open_channel do |ch|
-        ch.exec "#{command}" do |ch, success|
-          fail "could not execute #{command}" unless success
+        ch.exec command.to_s do |ch, success|
+          raise "could not execute #{command}" unless success
+
           # "on_data" is called when the process wr_ites something to stdout
           ch.on_data do |_c, data|
             # $stdout.print data
-            logger.info("#{data.inspect}")
+            logger.info(data.inspect.to_s)
           end
           # "on_extended_data" is called when the process writes something to s_tde_rr
           ch.on_extended_data do |_c, _type, data|
             # $stderr.print data
-            logger.info("#{data.inspect}")
+            logger.info(data.inspect.to_s)
           end
         end
       end
@@ -397,17 +400,18 @@ class OpenStudioAwsInstance
     while flag == 0
       logger.info("wait_command #{command}")
       ssh_options = {
-          proxy: get_proxy,
-          key_data: [@private_key]
+        proxy: get_proxy,
+        key_data: [@private_key]
       }
       ssh_options.delete_if { |_k, v| v.nil? }
       Net::SSH.start(@data.ip, @user, ssh_options) do |ssh|
         channel = ssh.open_channel do |ch|
-          ch.exec "#{command}" do |ch, success|
-            fail "could not execute #{command}" unless success
+          ch.exec command.to_s do |ch, success|
+            raise "could not execute #{command}" unless success
+
             # "on_data" is called_ when the process writes something to stdout
             ch.on_data do |_c, data|
-              logger.info("#{data.inspect}")
+              logger.info(data.inspect.to_s)
               if data.chomp == 'true'
                 logger.info("wait_command #{command} is true")
                 flag = 1
@@ -417,7 +421,7 @@ class OpenStudioAwsInstance
             end
             # "on_extended_data" is called when the process writes some_thi_ng to stderr
             ch.on_extended_data do |_c, _type, data|
-              logger.info("#{data.inspect}")
+              logger.info(data.inspect.to_s)
               if data == 'true'
                 logger.info("wait_command #{command} is true")
                 flag = 1
@@ -446,8 +450,8 @@ class OpenStudioAwsInstance
   def download_file(remote_path, local_path)
     retries = 0
     ssh_options = {
-        proxy: get_proxy,
-        key_data: [@private_key]
+      proxy: get_proxy,
+      key_data: [@private_key]
     }
     ssh_options.delete_if { |_k, v| v.nil? }
     begin
@@ -457,11 +461,13 @@ class OpenStudioAwsInstance
     rescue SystemCallError, Timeout::Error => e
       # port 22 might not be available immediately after the instance finishes launching
       return if retries == 5
+
       retries += 1
       sleep 2
       retry
-    rescue
+    rescue StandardError
       return if retries == 5
+
       retries += 1
       sleep 2
       retry

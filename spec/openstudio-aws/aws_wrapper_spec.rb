@@ -40,7 +40,7 @@ describe OpenStudioAwsWrapper do
   context 'unauthenticated session' do
     it 'should fail to authenticate' do
       options = {
-        save_directory: "spec/test_run",
+        save_directory: 'spec/test_run',
         credentials: {
           access_key_id: 'some_random_access_key_id',
           secret_access_key: 'some_super_secret_access_key',
@@ -71,7 +71,7 @@ describe OpenStudioAwsWrapper do
         expect(resp).not_to be_nil
         expect(resp[:availability_zone_info].length).to eq(6)
 
-        expect(resp[:availability_zone_info].inspect).to eq("[{:zone_name=>\"us-east-1a\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1b\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1c\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1d\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1e\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}, {:zone_name=>\"us-east-1f\", :state=>\"available\", :region_name=>\"us-east-1\", :messages=>[]}]")
+        expect(resp[:availability_zone_info].inspect).to eq('[{:zone_name=>"us-east-1a", :state=>"available", :region_name=>"us-east-1", :messages=>[]}, {:zone_name=>"us-east-1b", :state=>"available", :region_name=>"us-east-1", :messages=>[]}, {:zone_name=>"us-east-1c", :state=>"available", :region_name=>"us-east-1", :messages=>[]}, {:zone_name=>"us-east-1d", :state=>"available", :region_name=>"us-east-1", :messages=>[]}, {:zone_name=>"us-east-1e", :state=>"available", :region_name=>"us-east-1", :messages=>[]}, {:zone_name=>"us-east-1f", :state=>"available", :region_name=>"us-east-1", :messages=>[]}]')
 
         resp = @aws.os_aws.describe_availability_zones_json
         expect(resp).not_to be_nil
@@ -116,7 +116,6 @@ describe OpenStudioAwsWrapper do
     #   end
     # end
   end
-
 
   # This method is to be deprecated since next versions are no longer part of AWS gem
   # context 'ami list' do

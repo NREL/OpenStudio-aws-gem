@@ -80,6 +80,4 @@ describe OpenStudioAmis do
       expect { a.get_amis }.to raise_error(/Currently the openstudio_version lookup is not supported in v3/)
     end
   end
-
-
 end
