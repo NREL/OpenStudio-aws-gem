@@ -56,7 +56,7 @@ describe OpenStudio::Aws::Config do
     end
 
     it 'should read old format' do
-      # make sure that we can read the old format which has non-symoblized keys
+      # make sure that we can read the old format which has non-symbolized keys
       local_file = 'test_custom_old.config'
 
       data = {

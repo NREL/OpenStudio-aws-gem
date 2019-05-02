@@ -327,8 +327,13 @@ class OpenStudioAwsInstance
 
   def upload_file(local_path, remote_path)
     retries = 0
+    ssh_options = {
+      proxy: get_proxy,
+      key_data: [@private_key]
+    }
+    ssh_options.delete_if { |_k, v| v.nil? }
     begin
-      Net::SCP.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |scp|
+      Net::SCP.start(@data.ip, @user, ssh_options) do |scp|
         scp.upload! local_path, remote_path
       end
     rescue SystemCallError, Timeout::Error => e
@@ -351,7 +356,12 @@ class OpenStudioAwsInstance
   def shell_command(command, load_env = true)
     logger.info("ssh_command #{command} with load environment #{load_env}")
     command = "source /etc/profile; source ~/.bash_profile; #{command}" if load_env
-    Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
+    ssh_options = {
+      proxy: get_proxy,
+      key_data: [@private_key]
+    }
+    ssh_options.delete_if { |_k, v| v.nil? }	
+    Net::SSH.start(@data.ip, @user, ssh_options) do |ssh|
       channel = ssh.open_channel do |ch|
         ch.exec "#{command}" do |ch, success|
           fail "could not execute #{command}" unless success
@@ -367,6 +377,8 @@ class OpenStudioAwsInstance
           end
         end
       end
+      ssh.loop
+      channel.wait
     end
   rescue Net::SSH::HostKeyMismatch => e
     e.remember_host!
@@ -384,7 +396,12 @@ class OpenStudioAwsInstance
     flag = 0
     while flag == 0
       logger.info("wait_command #{command}")
-      Net::SSH.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |ssh|
+      ssh_options = {
+          proxy: get_proxy,
+          key_data: [@private_key]
+      }
+      ssh_options.delete_if { |_k, v| v.nil? }
+      Net::SSH.start(@data.ip, @user, ssh_options) do |ssh|
         channel = ssh.open_channel do |ch|
           ch.exec "#{command}" do |ch, success|
             fail "could not execute #{command}" unless success
@@ -410,6 +427,8 @@ class OpenStudioAwsInstance
             end
           end
         end
+        channel.wait
+        ssh.loop
       end
     end
   rescue Net::SSH::HostKeyMismatch => e
@@ -426,8 +445,13 @@ class OpenStudioAwsInstance
 
   def download_file(remote_path, local_path)
     retries = 0
+    ssh_options = {
+        proxy: get_proxy,
+        key_data: [@private_key]
+    }
+    ssh_options.delete_if { |_k, v| v.nil? }
     begin
-      Net::SCP.start(@data.ip, @user, proxy: get_proxy, key_data: [@private_key]) do |scp|
+      Net::SCP.start(@data.ip, @user, ssh_options) do |scp|
         scp.download! remote_path, local_path
       end
     rescue SystemCallError, Timeout::Error => e
