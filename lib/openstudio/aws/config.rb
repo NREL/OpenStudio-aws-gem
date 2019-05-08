@@ -59,7 +59,7 @@ module OpenStudio
 
           unless File.exist?(@yml_config_file)
             write_config_file
-            fail "Config file not found. A template has been added, please edit and save: #{@yml_config_file}"
+            raise "Config file not found. A template has been added, please edit and save: #{@yml_config_file}"
             exit 1
           end
 
@@ -71,7 +71,7 @@ module OpenStudio
 
             @access_key = @config[:access_key_id]
             @secret_key = @config[:secret_access_key]
-          rescue
+          rescue StandardError
             raise "Couldn't read config file #{@yml_config_file}. Delete file then recreate by rerunning script"
           end
         end

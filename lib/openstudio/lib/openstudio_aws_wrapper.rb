@@ -48,10 +48,10 @@ class OpenStudioAwsWrapper
   attr_accessor :private_key_file_name
   attr_accessor :security_groups
 
-  VALID_OPTIONS = [:proxy, :credentials]
+  VALID_OPTIONS = [:proxy, :credentials].freeze
 
   def initialize(options = {}, group_uuid = nil)
-    @group_uuid = group_uuid || (SecureRandom.uuid).delete('-')
+    @group_uuid = group_uuid || SecureRandom.uuid.delete('-')
 
     @security_groups = []
     @key_pair_name = nil
@@ -75,7 +75,7 @@ class OpenStudioAwsWrapper
     @workers = []
 
     # store an instance variable with the proxy for passing to instances for use in scp/ssh
-    @proxy = options[:proxy] ? options[:proxy] : nil
+    @proxy = options[:proxy] || nil
 
     # need to remove the prxoy information here
     @aws = Aws::EC2::Client.new(options[:credentials])
@@ -99,11 +99,11 @@ class OpenStudioAwsWrapper
   def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.2', vpc_id = nil)
     group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
-    if group.data.security_groups.length == 0
+    if group.data.security_groups.empty?
       logger.info 'security group not found --- will create a new one'
       if vpc_id
         r = @aws.create_security_group(
-            group_name: tmp_name, description: "group dynamically created by #{__FILE__}", vpc_id: vpc_id
+          group_name: tmp_name, description: "group dynamically created by #{__FILE__}", vpc_id: vpc_id
         )
       else
         r = @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
@@ -150,7 +150,7 @@ class OpenStudioAwsWrapper
   def total_instances_count
     resp = @aws.describe_instance_status
 
-    availability_zone = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : 'no_instances'
+    availability_zone = !resp.instance_statuses.empty? ? resp.instance_statuses.first.availability_zone : 'no_instances'
 
     { total_instances: resp.instance_statuses.length, region: @region, availability_zone: availability_zone }
   end
@@ -305,12 +305,12 @@ class OpenStudioAwsWrapper
     resp = nil
     begin
       resp = @aws.describe_key_pairs(key_names: [tmp_name]).data
-      fail 'looks like there are 2 key pairs with the same name' if resp.key_pairs.size >= 2
-    rescue
+      raise 'looks like there are 2 key pairs with the same name' if resp.key_pairs.size >= 2
+    rescue StandardError
       logger.info "could not find key pair '#{tmp_name}'"
     end
 
-    if resp.nil? || resp.key_pairs.size == 0
+    if resp.nil? || resp.key_pairs.empty?
       # create the new key_pair
       # check if the key pair name exists
       # create a new key pair everytime
@@ -336,7 +336,7 @@ class OpenStudioAwsWrapper
     begin
       logger.info "Trying to delete key pair #{tmp_name}"
       resp = @aws.delete_key_pair(key_name: tmp_name)
-    rescue
+    rescue StandardError
       logger.info "could not delete the key pair '#{tmp_name}'"
     end
 
@@ -351,7 +351,7 @@ class OpenStudioAwsWrapper
         logger.info "Found key of same name in user's home ssh folder #{filename}"
         # using the key in your home directory
       else
-        fail "Could not find private key #{filename}" unless File.exist? filename
+        raise "Could not find private key #{filename}" unless File.exist? filename
       end
     end
 
@@ -376,9 +376,9 @@ class OpenStudioAwsWrapper
       logger.info "Saving server private key in #{@private_key_file_name}"
       File.open(@private_key_file_name, 'w') { |f| f << @private_key }
       logger.info 'Setting permissions of server private key to 0600'
-      File.chmod(0600, @private_key_file_name)
+      File.chmod(0o600, @private_key_file_name)
     else
-      fail "No private key found in which to persist with filename #{filename}"
+      raise "No private key found in which to persist with filename #{filename}"
     end
   end
 
@@ -388,7 +388,7 @@ class OpenStudioAwsWrapper
     logger.info "Saving worker private key in #{@worker_keys_filename}"
     File.open(@worker_keys_filename, 'w') { |f| f << @worker_keys.private_key }
     logger.info 'Setting permissions of worker private key to 0600'
-    File.chmod(0600, @worker_keys_filename)
+    File.chmod(0o600, @worker_keys_filename)
 
     wk = "#{directory}/ec2_worker_key.pub"
     logger.info "Saving worker public key in #{wk}"
@@ -406,7 +406,7 @@ class OpenStudioAwsWrapper
 
     # replace the server_script.sh.template with the keys to add
 
-    user_data = File.read(File.join(File.expand_path(File.dirname(__FILE__)), launch_options[:user_data_file]))
+    user_data = File.read(File.join(__dir__, launch_options[:user_data_file]))
     user_data.gsub!(/SERVER_HOSTNAME/, 'openstudio.server')
     user_data.gsub!(/WORKER_PRIVATE_KEY_TEMPLATE/, worker_keys.private_key.gsub("\n", '\\n'))
     user_data.gsub!(/WORKER_PUBLIC_KEY_TEMPLATE/, worker_keys.ssh_public_key)
@@ -416,8 +416,9 @@ class OpenStudioAwsWrapper
 
     # TODO: create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
 
-    fail 'image_id is nil' unless image_id
-    fail 'instance type is nil' unless instance_type
+    raise 'image_id is nil' unless image_id
+    raise 'instance type is nil' unless instance_type
+
     @server.launch_instance(image_id, instance_type, user_data, launch_options[:user_id], launch_options)
   end
 
@@ -431,7 +432,7 @@ class OpenStudioAwsWrapper
     }
     launch_options = defaults.merge(launch_options)
 
-    user_data = File.read(File.join(File.expand_path(File.dirname(__FILE__)), launch_options[:user_data_file]))
+    user_data = File.read(File.join(__dir__, launch_options[:user_data_file]))
     user_data.gsub!(/SERVER_IP/, @server.data.private_ip_address)
     user_data.gsub!(/SERVER_HOSTNAME/, 'openstudio.server')
     user_data.gsub!(/WORKER_PUBLIC_KEY_TEMPLATE/, worker_keys.ssh_public_key)
@@ -476,7 +477,7 @@ class OpenStudioAwsWrapper
     logger.info("ips #{ips}")
     @server.shell_command('chmod 664 /home/ubuntu/ip_addresses')
 
-    mongoid = File.read(File.expand_path(File.dirname(__FILE__)) + '/mongoid.yml.template')
+    mongoid = File.read(__dir__ + '/mongoid.yml.template')
     mongoid.gsub!(/SERVER_IP/, @server.data.private_ip_address)
     file = Tempfile.new('mongoid.yml')
     file.write(mongoid)
@@ -516,7 +517,7 @@ class OpenStudioAwsWrapper
     # total procs = 340 (but should be 336)
     total_procs = @server.procs
     @workers.each { |worker| total_procs += worker.procs }
-    total_procs, max_requests, mongo_cores, web_cores, max_pool, rez_mem = self.calculate_processors(total_procs)
+    total_procs, max_requests, mongo_cores, web_cores, max_pool, rez_mem = calculate_processors(total_procs)
     logger.info('Processors allocations are:')
     logger.info("   total_procs: #{total_procs}")
     logger.info("   max_requests: #{max_requests}")
@@ -531,7 +532,7 @@ class OpenStudioAwsWrapper
     @server.shell_command("sed -i -e 's/AWS_REZ_MEM/#{rez_mem}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
     @server.shell_command("sed -i -e 's/AWS_OS_SERVER_NUMBER_OF_WORKERS/#{total_procs}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
     @server.shell_command("echo '' >> /home/ubuntu/.env && echo \"true\"")
-    @server.shell_command("docker stack deploy --compose-file docker-compose.yml osserver && echo \"true\"")
+    @server.shell_command('docker stack deploy --compose-file docker-compose.yml osserver && echo "true"')
     sleep 10
     logger.info('The OpenStudio Server stack has been started. Waiting for the server to become available.')
     @server.wait_command("while ( nc -zv #{@server.ip} 80 3>&1 1>&2- 2>&3- ) | awk -F \":\" '$3 != \" Connection refused\" {exit 1}'; do sleep 5; done && echo \"true\"")
@@ -555,13 +556,14 @@ class OpenStudioAwsWrapper
     load_private_key(server_data_hash[:server][:private_key_file_name])
 
     logger.info "Finding the server for GroupUUID of #{group_uuid}"
-    fail 'no GroupUUID defined either in member variable or method argument' if @group_uuid.nil?
+    raise 'no GroupUUID defined either in member variable or method argument' if @group_uuid.nil?
 
     # This should really just be a single call to describe running instances
     @server = nil
     resp = describe_running_instances(group_uuid, :server)
     if resp
-      fail "more than one server running with group uuid of #{group_uuid} found, expecting only one" if resp.size > 1
+      raise "more than one server running with group uuid of #{group_uuid} found, expecting only one" if resp.size > 1
+
       resp = resp.first
       if !@server
         if resp
@@ -574,7 +576,7 @@ class OpenStudioAwsWrapper
 
           # set the key name from AWS if it isn't yet assigned
           logger.info 'Setting the keyname in the aws wrapper'
-          @key_pair_name = resp[:key_name] unless @key_pair_name
+          @key_pair_name ||= resp[:key_name]
 
           @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, sg, @group_uuid, @private_key, @private_key_file_name, @proxy)
 
@@ -588,7 +590,7 @@ class OpenStudioAwsWrapper
     end
 
     # Find the worker instances.
-    if @workers.size == 0
+    if @workers.empty?
       resp = describe_running_instances(group_uuid, :worker)
       if resp
         resp.each do |r|
@@ -764,7 +766,7 @@ class OpenStudioAwsWrapper
           elsif ami[:virtualization_type] == 'hvm'
             a[:amis][:cc2worker] = ami[:image_id]
           else
-            fail "unknown virtualization_type in #{ami[:name]}"
+            raise "unknown virtualization_type in #{ami[:name]}"
           end
         elsif ami[:name] =~ /Server/
           a[:amis][:server] = ami[:image_id]

@@ -35,8 +35,8 @@
 
 require 'spec_helper'
 
-SERVER_AMI = 'ami-e0b38888'
-WORKER_AMI = 'ami-a8bc87c0'
+SERVER_AMI = 'ami-e0b38888'.freeze
+WORKER_AMI = 'ami-a8bc87c0'.freeze
 
 describe OpenStudio::Aws::Aws do
   context 'create a new instance' do
@@ -418,7 +418,7 @@ describe OpenStudio::Aws::Aws do
 
         shell = @aws.server.shell_command('df -h | grep /dev/xvdb.*/mnt')
         expect(shell).not_to be_nil
-        expect(shell).to eq /\/dev\/xvdb.*\/mnt/
+        expect(shell).to eq %r{/dev/xvdb.*/mnt}
       ensure
         @aws.terminate_instances_by_group_id(h[:group_id])
       end

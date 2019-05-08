@@ -41,11 +41,11 @@ class OpenStudioCloudWatch
   attr_accessor :private_key_file_name
   attr_accessor :security_groups
 
-  VALID_OPTIONS = [:proxy, :credentials]
+  VALID_OPTIONS = [:proxy, :credentials].freeze
 
   def initialize(options = {})
     # store an instance variable with the proxy for passing to instances for use in scp/ssh
-    @proxy = options[:proxy] ? options[:proxy] : nil
+    @proxy = options[:proxy] || nil
 
     # need to remove the prxoy information here
     @aws = Aws::CloudWatch::Client.new(options[:credentials])
@@ -57,7 +57,8 @@ class OpenStudioCloudWatch
     resp = @aws.get_metric_statistics(
       dimensions: [
         { name: 'ServiceName', value: 'AmazonEC2' },
-        { name: 'Currency', value: 'USD' }],
+        { name: 'Currency', value: 'USD' }
+      ],
       metric_name: 'EstimatedCharges',
       namespace: 'AWS/Billing',
       start_time: start_time.iso8601,

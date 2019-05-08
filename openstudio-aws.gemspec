@@ -1,4 +1,4 @@
-lib = File.expand_path('../lib/', __FILE__)
+lib = File.expand_path('lib', __dir__)
 $LOAD_PATH.unshift lib unless $LOAD_PATH.include?(lib)
 
 require 'openstudio/aws/version'
@@ -17,9 +17,9 @@ Gem::Specification.new do |s|
   s.required_ruby_version = '>= 2.0.0'
   s.required_rubygems_version = '>= 1.3.6'
 
-  s.add_dependency 'net-scp', '~> 1.1'
-  s.add_dependency 'net-ssh', '= 3.0.2'
-  s.add_dependency 'aws-sdk-core', '= 2.2.26'
+  s.add_dependency 'aws-sdk-core', '= 2.2.37'
+  s.add_dependency 'net-scp', '= 2.0.0'
+  s.add_dependency 'net-ssh', '= 4.2.0'
   s.add_dependency 'semantic', '~> 1.4'
   s.add_dependency 'sshkey', '~> 2.0'
 
