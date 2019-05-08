@@ -1,5 +1,5 @@
 # *******************************************************************************
-# OpenStudio(R), Copyright (c) 2008-2016, Alliance for Sustainable Energy, LLC.
+# OpenStudio(R), Copyright (c) 2008-2019, Alliance for Sustainable Energy, LLC.
 # All rights reserved.
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -81,14 +81,30 @@ class OpenStudioAwsWrapper
     @aws = Aws::EC2::Client.new(options[:credentials])
   end
 
+  # Calculate the number of processors for the server and workers. This is used to scale the docker stack
+  # appropriately.
+  # @param total_procs [int] Total number of processors that are available
+  def calculate_processors(total_procs)
+    max_requests = ((total_procs + 10) * 1.2).round
+    mongo_cores = (total_procs / 64.0).ceil
+    web_cores = (total_procs / 32.0).ceil
+    max_pool = 16 * web_cores
+    rez_mem = 512 * max_pool
+    # what is this +2 doing here
+    total_procs = total_procs - mongo_cores - web_cores + 2
+
+    [total_procs, max_requests, mongo_cores, web_cores, max_pool, rez_mem]
+  end
+
   def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.2', vpc_id = nil)
     group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.length == 0
       logger.info 'security group not found --- will create a new one'
       if vpc_id
-        r = @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}",
-                                   vpc_id: vpc_id)
+        r = @aws.create_security_group(
+            group_name: tmp_name, description: "group dynamically created by #{__FILE__}", vpc_id: vpc_id
+        )
       else
         r = @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
       end
@@ -494,14 +510,20 @@ class OpenStudioAwsWrapper
     worker_join_cmd = "#{File.read(swarm_file).strip} && echo \"true\""
     @workers.each { |worker| worker.wait_command(worker_join_cmd) }
     logger.info('All worker nodes have been added to the swarm. Setting environment variables and starting the cluster')
+    # e.g. 356 CPUs
+    # mongo cores = 6
+    # web cores = 12
+    # total procs = 340 (but should be 336)
     total_procs = @server.procs
     @workers.each { |worker| total_procs += worker.procs }
-    max_requests = ((total_procs + 10) * 1.2).round
-    mongo_cores = (total_procs / 64.0).ceil
-    web_cores = (total_procs / 32.0).ceil
-    max_pool = 16 * web_cores
-    rez_mem = 512 * max_pool
-    total_procs = total_procs - mongo_cores - web_cores + 2
+    total_procs, max_requests, mongo_cores, web_cores, max_pool, rez_mem = self.calculate_processors(total_procs)
+    logger.info('Processors allocations are:')
+    logger.info("   total_procs: #{total_procs}")
+    logger.info("   max_requests: #{max_requests}")
+    logger.info("   mongo_cores: #{mongo_cores}")
+    logger.info("   web_cores: #{web_cores}")
+    logger.info("   max_pool: #{max_pool}")
+    logger.info("   rez_mem: #{rez_mem}")
     @server.shell_command("sed -i -e 's/AWS_MAX_REQUESTS/#{max_requests}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
     @server.shell_command("sed -i -e 's/AWS_MONGO_CORES/#{mongo_cores}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
     @server.shell_command("sed -i -e 's/AWS_WEB_CORES/#{web_cores}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")

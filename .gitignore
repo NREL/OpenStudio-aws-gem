@@ -20,3 +20,4 @@ spec/output
 *.pub
 *.config
 .rubocop-http*
+gems

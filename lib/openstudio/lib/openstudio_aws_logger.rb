@@ -1,5 +1,5 @@
 # *******************************************************************************
-# OpenStudio(R), Copyright (c) 2008-2016, Alliance for Sustainable Energy, LLC.
+# OpenStudio(R), Copyright (c) 2008-2019, Alliance for Sustainable Energy, LLC.
 # All rights reserved.
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -35,7 +35,7 @@
 
 require 'logger'
 
-# module for logging
+# module for logging. The AWS log will be stored in the user's home directory under .aws.log.
 module Logging
   def logger
     @logger ||= Logging.logger_for(self.class.name)

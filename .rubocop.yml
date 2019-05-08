@@ -1,6 +1,7 @@
 AllCops:
   Exclude:
     - 'doc/**/*'
+    - 'gems/**/*'
 
 inherit_from:
   - http://s3.amazonaws.com/openstudio-resources/styles/rubocop.yml
