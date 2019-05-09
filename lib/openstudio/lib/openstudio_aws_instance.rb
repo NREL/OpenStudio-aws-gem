@@ -1,5 +1,5 @@
 # *******************************************************************************
-# OpenStudio(R), Copyright (c) 2008-2016, Alliance for Sustainable Energy, LLC.
+# OpenStudio(R), Copyright (c) 2008-2019, Alliance for Sustainable Energy, LLC.
 # All rights reserved.
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -156,12 +156,12 @@ class OpenStudioAwsInstance
       t = tag.split('=')
       if t.size != 2
         logger.error "Tag '#{t}' not defined or does not have an equal sign"
-        fail "Tag '#{t}' not defined or does not have an equal sign"
+        raise "Tag '#{t}' not defined or does not have an equal sign"
         next
       end
-      if %w(Name GroupUUID NumberOfProcessors Purpose UserID).include? t[0]
+      if ['Name', 'GroupUUID', 'NumberOfProcessors', 'Purpose', 'UserID'].include? t[0]
         logger.error "Tag name '#{t[0]}' is a reserved tag"
-        fail "Tag name '#{t[0]}' is a reserved tag"
+        raise "Tag name '#{t[0]}' is a reserved tag"
         next
       end
 
@@ -238,7 +238,7 @@ class OpenStudioAwsInstance
         }
       }
     else
-      fail 'do not know how to convert :worker instance to_os_hash. Use the os_aws.to_worker_hash method'
+      raise 'do not know how to convert :worker instance to_os_hash. Use the os_aws.to_worker_hash method'
     end
 
     logger.info("server info #{h}")
@@ -258,6 +258,10 @@ class OpenStudioAwsInstance
     @data.procs
   end
 
+  # Return the total number of processors that available to run simulations. Note that this method reduces
+  # the number of processors on the server node by a prespecified number.
+  # @param instance [string], AWS instance type string
+  # @return [int], total number of available processors
   def find_processors(instance)
     lookup = {
       'm3.xlarge' => 4,
@@ -315,11 +319,13 @@ class OpenStudioAwsInstance
     end
 
     if @openstudio_instance_type == :server
-      # take out 4 of the processors for doing work with a max of 1 to work
-      # 1 for server
+      # take out 5 of the processors for known processors.
+      # 1 for server/web
+      # 1 for queue (redis)
       # 1 for mongodb
-      # 1 for child processes to download files
-      processors = [processors - 4, 1].max # this is 2 for now because the current server decrements by 1 (which will be removed if 2.0-pre6)
+      # 1 for web-background
+      # 1 for rserve
+      processors = [processors - 5, 1].max
     end
 
     processors
@@ -340,21 +346,26 @@ class OpenStudioAwsInstance
 
   def upload_file(local_path, remote_path)
     retries = 0
+    ssh_options = {
+      proxy: get_proxy,
+      key_data: [@private_key]
+    }
+    ssh_options.delete_if { |_k, v| v.nil? }
     begin
-      options = {key_data: [@private_key]}
-      options[:proxy]  = get_proxy if get_proxy
-      Net::SCP.start(@data.ip, @user, options) do |scp|
+      Net::SCP.start(@data.ip, @user, ssh_options) do |scp|
         scp.upload! local_path, remote_path
       end
     rescue SystemCallError, Timeout::Error => e
       # port 22 might not be available immediately after the instance finishes launching
       return if retries == 5
+
       retries += 1
       sleep 2
       retry
-    rescue
+    rescue StandardError
       # Unknown upload error, retry
       return if retries == 5
+
       retries += 1
       sleep 2
       retry
@@ -366,24 +377,30 @@ class OpenStudioAwsInstance
   def shell_command(command, load_env = true)
     logger.info("ssh_command #{command} with load environment #{load_env}")
     command = "source /etc/profile; source ~/.bash_profile; #{command}" if load_env
-    options = {key_data: [@private_key]}
-    options[:proxy] = get_proxy if get_proxy
-    Net::SSH.start(@data.ip, @user, options) do |ssh|
+    ssh_options = {
+      proxy: get_proxy,
+      key_data: [@private_key]
+    }
+    ssh_options.delete_if { |_k, v| v.nil? }
+    Net::SSH.start(@data.ip, @user, ssh_options) do |ssh|
       channel = ssh.open_channel do |ch|
-        ch.exec "#{command}" do |ch, success|
-          fail "could not execute #{command}" unless success
+        ch.exec command.to_s do |ch, success|
+          raise "could not execute #{command}" unless success
+
           # "on_data" is called when the process wr_ites something to stdout
           ch.on_data do |_c, data|
             # $stdout.print data
-            logger.info("#{data.inspect}")
+            logger.info(data.inspect.to_s)
           end
           # "on_extended_data" is called when the process writes something to s_tde_rr
           ch.on_extended_data do |_c, _type, data|
             # $stderr.print data
-            logger.info("#{data.inspect}")
+            logger.info(data.inspect.to_s)
           end
         end
       end
+      ssh.loop
+      channel.wait
     end
   rescue Net::SSH::HostKeyMismatch => e
     e.remember_host!
@@ -401,15 +418,19 @@ class OpenStudioAwsInstance
     flag = 0
     while flag == 0
       logger.info("wait_command #{command}")
-      options = {key_data: [@private_key]}
-      options[:proxy] = get_proxy if get_proxy
-      Net::SSH.start(@data.ip, @user, options) do |ssh|
+      ssh_options = {
+        proxy: get_proxy,
+        key_data: [@private_key]
+      }
+      ssh_options.delete_if { |_k, v| v.nil? }
+      Net::SSH.start(@data.ip, @user, ssh_options) do |ssh|
         channel = ssh.open_channel do |ch|
-          ch.exec "#{command}" do |ch, success|
-            fail "could not execute #{command}" unless success
+          ch.exec command.to_s do |ch, success|
+            raise "could not execute #{command}" unless success
+
             # "on_data" is called_ when the process writes something to stdout
             ch.on_data do |_c, data|
-              logger.info("#{data.inspect}")
+              logger.info(data.inspect.to_s)
               if data.chomp == 'true'
                 logger.info("wait_command #{command} is true")
                 flag = 1
@@ -419,7 +440,7 @@ class OpenStudioAwsInstance
             end
             # "on_extended_data" is called when the process writes some_thi_ng to stderr
             ch.on_extended_data do |_c, _type, data|
-              logger.info("#{data.inspect}")
+              logger.info(data.inspect.to_s)
               if data == 'true'
                 logger.info("wait_command #{command} is true")
                 flag = 1
@@ -429,6 +450,8 @@ class OpenStudioAwsInstance
             end
           end
         end
+        channel.wait
+        ssh.loop
       end
     end
   rescue Net::SSH::HostKeyMismatch => e
@@ -445,20 +468,25 @@ class OpenStudioAwsInstance
 
   def download_file(remote_path, local_path)
     retries = 0
+    ssh_options = {
+      proxy: get_proxy,
+      key_data: [@private_key]
+    }
+    ssh_options.delete_if { |_k, v| v.nil? }
     begin
-      options = {key_data: [@private_key]}
-      options[:proxy] = get_proxy if get_proxy
-      Net::SCP.start(@data.ip, @user, options) do |scp|
+      Net::SCP.start(@data.ip, @user, ssh_options) do |scp|
         scp.download! remote_path, local_path
       end
     rescue SystemCallError, Timeout::Error => e
       # port 22 might not be available immediately after the instance finishes launching
       return if retries == 5
+
       retries += 1
       sleep 2
       retry
-    rescue
+    rescue StandardError
       return if retries == 5
+
       retries += 1
       sleep 2
       retry

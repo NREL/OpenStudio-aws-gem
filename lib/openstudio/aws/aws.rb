@@ -1,5 +1,5 @@
 # *******************************************************************************
-# OpenStudio(R), Copyright (c) 2008-2016, Alliance for Sustainable Energy, LLC.
+# OpenStudio(R), Copyright (c) 2008-2019, Alliance for Sustainable Energy, LLC.
 # All rights reserved.
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -41,8 +41,9 @@ module OpenStudio
       :openstudio_server_version, :region, :ssl_verify_peer, :host, :url, :stable,
       :save_directory, :subnet_id, :vpc_enabled
     ]
+    # I think we can remove support for CLASIC (sic) instances
     CLASIC_SUPPORTED_INSTANCES = ['m3.xlarge', 'm3.2xlarge', 'r3.xlarge', 'r3.2xlarge', 'r3.4xlarge', 'r3.8xlarge', 'i2.xlarge', 'i2.2xlarge', 'i2.4xlarge', 'i2.8xlarge', 'c3.xlarge', 'c3.2xlarge', 'c3.4xlarge', 'c3.8xlarge', 'd2.xlarge', 'd2.2xlarge', 'd2.4xlarge', 'd2.8xlarge']
-    VPC_SUPPORTED_INSTANCES = ['c4.xlarge', 'c4.2xlarge', 'c4.4xlarge', 'c4.8xlarge', 'c5.xlarge', 'c5.2xlarge', 'c5.4xlarge', 'c5.9xlarge', 'c5.18xlarge', 'm4.xlarge', 'm4.2xlarge', 'm4.4xlarge', 'm4.10xlarge', 'm4.16xlarge', 'i3.xlarge', 'i3.2xlarge', 'i3.4xlarge', 'i3.8xlarge', 'i3.16xlarge', 'r4.xlarge', 'r4.2xlarge', 'r4.4xlarge', 'r4.8xlarge', 'r4.16xlarge', 'm5.xlarge', 'm5.2xlarge', 'm5.4xlarge', 'm5.12xlarge', 'm5.24xlarge']
+    VPC_SUPPORTED_INSTANCES = ['c4.xlarge', 'c4.2xlarge', 'c4.4xlarge', 'c4.8xlarge', 'c5.xlarge', 'c5.2xlarge', 'c5.4xlarge', 'c5.9xlarge', 'c5.18xlarge', 'm4.xlarge', 'm4.2xlarge', 'm4.4xlarge', 'm4.10xlarge', 'm4.16xlarge', 'i3.xlarge', 'i3.2xlarge', 'i3.4xlarge', 'i3.8xlarge', 'i3.16xlarge', 'r4.xlarge', 'r4.2xlarge', 'r4.4xlarge', 'r4.8xlarge', 'r4.16xlarge', 'm5.xlarge', 'm5.2xlarge', 'm5.4xlarge', 'm5.12xlarge', 'm5.24xlarge'].freeze
 
     class Aws
       include Logging
@@ -66,7 +67,7 @@ module OpenStudio
       def initialize(options = {})
         invalid_options = options.keys - VALID_OPTIONS
         if invalid_options.any?
-          fail ArgumentError, "invalid option(s): #{invalid_options.join(', ')}"
+          raise ArgumentError, "invalid option(s): #{invalid_options.join(', ')}"
         end
 
         # merge in some defaults
@@ -90,12 +91,12 @@ module OpenStudio
 
           # populate the credentials
           options[:credentials] =
-              {
-                access_key_id: config_file.access_key,
-                secret_access_key: config_file.secret_key,
-                region: options[:region],
-                ssl_verify_peer: options[:ssl_verify_peer]
-              }
+            {
+              access_key_id: config_file.access_key,
+              secret_access_key: config_file.secret_key,
+              region: options[:region],
+              ssl_verify_peer: options[:ssl_verify_peer]
+            }
         else
           options[:credentials][:region] = options[:region]
           options[:credentials][:ssl_verify_peer] = options[:ssl_verify_peer]
@@ -114,7 +115,7 @@ module OpenStudio
         @os_aws = OpenStudioAwsWrapper.new(options)
         @os_cloudwatch = OpenStudioCloudWatch.new(options)
 
-        @dockerized = options[:ami_lookup_version] == 3 ? true : false
+        @dockerized = options[:ami_lookup_version] == 3
         @vpc_enabled = options[:vpc_enabled]
 
         # this will grab the default version of openstudio ami versions
@@ -161,8 +162,8 @@ module OpenStudio
         end
 
         if options[:aws_key_pair_name]
-          fail 'Must pass in the private_key_file_name' unless options[:private_key_file_name]
-          fail "Private key was not found: #{options[:private_key_file_name]}" unless File.exist? options[:private_key_file_name]
+          raise 'Must pass in the private_key_file_name' unless options[:private_key_file_name]
+          raise "Private key was not found: #{options[:private_key_file_name]}" unless File.exist? options[:private_key_file_name]
         end
 
         # Verify instance type aligns with selected networking regime
@@ -174,8 +175,7 @@ module OpenStudio
 
         if options[:security_groups].empty?
           # if the user has not specified any security groups, then create one called: 'openstudio-server-sg-v2'
-          @os_aws.create_or_retrieve_default_security_group(tmp_name: 'openstudio-server-sg-v2.3',
-                                                            vpc_id: options[:vpc_id])
+          @os_aws.create_or_retrieve_default_security_group('openstudio-server-sg-v2.3', options[:vpc_id])
         else
           @os_aws.security_groups = options[:security_groups]
         end
@@ -251,7 +251,8 @@ module OpenStudio
           raise "Selected instance #{options[:instance_type]} is not supported when using ClassicLink networking" unless CLASIC_SUPPORTED_INSTANCES.include? options[:instance_type]
         end
 
-        fail "Can't create workers without a server instance running" if @os_aws.server.nil?
+        raise "Can't create workers without a server instance running" if @os_aws.server.nil?
+
         user_data_file = @dockerized ? 'worker_script.sh.docker.template' : 'worker_script.sh.template'
 
         unless number_of_instances == 0
@@ -279,8 +280,8 @@ module OpenStudio
           else
             @os_aws.configure_server_and_workers
           end
-        rescue => e
-          fail "Configuring the cluster failed with error `#{e.message}` in:\n#{e.backtrace.join('\n')}"
+        rescue StandardError => e
+          raise "Configuring the cluster failed with error `#{e.message}` in:\n#{e.backtrace.join('\n')}"
         end
       end
 
@@ -292,7 +293,7 @@ module OpenStudio
         puts ''
         puts 'Server SSH Command:'
         puts "ssh -i #{@os_aws.private_key_file_name} ubuntu@#{@os_aws.server.data[:dns]}"
-        if @os_aws.workers.size > 0
+        if !@os_aws.workers.empty?
           puts ''
           puts 'Worker SSH Command:'
           @os_aws.workers.each do |worker|
@@ -422,7 +423,7 @@ module OpenStudio
 
       # Warning, it appears that this terminates all the instances
       def terminate_instances_by_group_id(group_id)
-        fail 'Group ID not defined' unless group_id
+        raise 'Group ID not defined' unless group_id
 
         instances = @os_aws.describe_running_instances(group_id)
         logger.info instances
@@ -443,7 +444,7 @@ module OpenStudio
       end
 
       def load_instance_info_from_file(filename)
-        fail 'Could not find instance description JSON file' unless File.exist? filename
+        raise 'Could not find instance description JSON file' unless File.exist? filename
 
         h = JSON.parse(File.read(filename), symbolize_names: true)
         if h[:location] == 'AWS'
@@ -464,10 +465,12 @@ module OpenStudio
       def upload_file(server_or_workers, local_file, remote_file)
         case server_or_workers
           when :server
-            fail 'Server node is nil' unless @os_aws.server
+            raise 'Server node is nil' unless @os_aws.server
+
             return @os_aws.server.upload_file(local_file, remote_file)
           when :worker
-            fail 'Worker list is empty' if @os_aws.workers.empty?
+            raise 'Worker list is empty' if @os_aws.workers.empty?
+
             return @os_aws.workers.each { |w| w.upload_file(local_file, remote_file) }
         end
       end
@@ -475,10 +478,12 @@ module OpenStudio
       def shell_command(server_or_workers, command, load_env = true)
         case server_or_workers
           when :server
-            fail 'Server node is nil' unless @os_aws.server
+            raise 'Server node is nil' unless @os_aws.server
+
             return @os_aws.server.shell_command(command, load_env)
           when :worker
-            fail 'Worker list is empty' if @os_aws.workers.empty?
+            raise 'Worker list is empty' if @os_aws.workers.empty?
+
             return @os_aws.workers.each { |w| w.shell_command(command, load_env) }
         end
       end
@@ -488,10 +493,11 @@ module OpenStudio
       def download_remote_file(server_or_workers, remote_file, local_file)
         case server_or_workers
           when :server
-            fail 'Server node is nil' unless @os_aws.server
+            raise 'Server node is nil' unless @os_aws.server
+
             return @os_aws.server.download_file(remote_file, local_file)
           when :worker
-            fail 'Worker file download is not available'
+            raise 'Worker file download is not available'
         end
       end
 
@@ -518,7 +524,7 @@ module OpenStudio
       def os_aws_file_location
         # Get the location of the os-aws.rb file.  Use the relative path from where this file exists
         os_aws_file = File.expand_path(File.join(File.dirname(__FILE__), '..', 'lib', 'os-aws.rb'))
-        fail "os_aws_file does not exist where it is expected: #{os_aws_file}" unless File.exist?(os_aws_file)
+        raise "os_aws_file does not exist where it is expected: #{os_aws_file}" unless File.exist?(os_aws_file)
 
         os_aws_file
       end
