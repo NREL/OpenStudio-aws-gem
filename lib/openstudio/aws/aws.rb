@@ -40,9 +40,9 @@ module OpenStudio
       :proxy, :credentials, :ami_lookup_version, :openstudio_version,
       :openstudio_server_version, :region, :ssl_verify_peer, :host, :url, :stable,
       :save_directory, :subnet_id, :vpc_enabled
-    ]
+    ].freeze
     # I think we can remove support for CLASIC (sic) instances
-    CLASIC_SUPPORTED_INSTANCES = ['m3.xlarge', 'm3.2xlarge', 'r3.xlarge', 'r3.2xlarge', 'r3.4xlarge', 'r3.8xlarge', 'i2.xlarge', 'i2.2xlarge', 'i2.4xlarge', 'i2.8xlarge', 'c3.xlarge', 'c3.2xlarge', 'c3.4xlarge', 'c3.8xlarge', 'd2.xlarge', 'd2.2xlarge', 'd2.4xlarge', 'd2.8xlarge']
+    CLASIC_SUPPORTED_INSTANCES = ['m3.xlarge', 'm3.2xlarge', 'r3.xlarge', 'r3.2xlarge', 'r3.4xlarge', 'r3.8xlarge', 'i2.xlarge', 'i2.2xlarge', 'i2.4xlarge', 'i2.8xlarge', 'c3.xlarge', 'c3.2xlarge', 'c3.4xlarge', 'c3.8xlarge', 'd2.xlarge', 'd2.2xlarge', 'd2.4xlarge', 'd2.8xlarge'].freeze
     VPC_SUPPORTED_INSTANCES = ['c4.xlarge', 'c4.2xlarge', 'c4.4xlarge', 'c4.8xlarge', 'c5.xlarge', 'c5.2xlarge', 'c5.4xlarge', 'c5.9xlarge', 'c5.18xlarge', 'm4.xlarge', 'm4.2xlarge', 'm4.4xlarge', 'm4.10xlarge', 'm4.16xlarge', 'i3.xlarge', 'i3.2xlarge', 'i3.4xlarge', 'i3.8xlarge', 'i3.16xlarge', 'r4.xlarge', 'r4.2xlarge', 'r4.4xlarge', 'r4.8xlarge', 'r4.16xlarge', 'm5.xlarge', 'm5.2xlarge', 'm5.4xlarge', 'm5.12xlarge', 'm5.24xlarge'].freeze
 
     class Aws
@@ -528,7 +528,6 @@ module OpenStudio
 
         os_aws_file
       end
-
     end
   end
 end

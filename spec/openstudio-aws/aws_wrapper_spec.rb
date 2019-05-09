@@ -159,59 +159,59 @@ describe OpenStudioAwsWrapper do
 
     it 'should create a simple vpc' do
       # If this doesn't work, check your iam permissions and account info
-      @vpc = @client.create_vpc({cidr_block: '10.0.0.0/16'}).vpc
-      expect{@client.wait_until(:vpc_available, vpc_ids: [@vpc.vpc_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+      @vpc = @client.create_vpc(cidr_block: '10.0.0.0/16').vpc
+      expect { @client.wait_until(:vpc_available, vpc_ids: [@vpc.vpc_id]) { |w| w.max_attempts = 4 } }.to_not raise_error
     end
 
     it 'should create and retrieve a new vpc' do
-      expect{@vpc = @osaws.os_aws.find_or_create_vpc}.to_not raise_error
+      expect { @vpc = @osaws.os_aws.find_or_create_vpc }.to_not raise_error
       expect(@osaws.os_aws.retrieve_vpc('oss-vpc-v0.1').vpc_id).to eq(@vpc.vpc_id)
     end
 
     it 'should find an already existing vpc' do
-      expect{@vpc = @osaws.os_aws.find_or_create_vpc}.to_not raise_error
+      expect { @vpc = @osaws.os_aws.find_or_create_vpc }.to_not raise_error
       @vpc_2 = @osaws.os_aws.find_or_create_vpc
       expect(@vpc_2.vpc_id).to eq(@vpc.vpc_id)
     end
 
     it 'should error out if the existing oss-vpc-v0.1 has no IPV6 CIDR allocation' do
-      @vpc = @client.create_vpc({cidr_block: '10.0.0.0/16', amazon_provided_ipv_6_cidr_block: false}).vpc
-      expect{@client.wait_until(:vpc_available, vpc_ids: [@vpc.vpc_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
-      @client.create_tags({
-                           resources: [@vpc.vpc_id],
-                           tags: [{
-                                      key: 'Name',
-                                      value: 'oss-vpc-v0.1'
-                                  }]
-                       })
-      expect{@osaws.os_aws.find_or_create_vpc}.to raise_error(RuntimeError)
+      @vpc = @client.create_vpc(cidr_block: '10.0.0.0/16', amazon_provided_ipv_6_cidr_block: false).vpc
+      expect { @client.wait_until(:vpc_available, vpc_ids: [@vpc.vpc_id]) { |w| w.max_attempts = 4 } }.to_not raise_error
+      @client.create_tags(
+        resources: [@vpc.vpc_id],
+        tags: [{
+          key: 'Name',
+          value: 'oss-vpc-v0.1'
+        }]
+      )
+      expect { @osaws.os_aws.find_or_create_vpc }.to raise_error(RuntimeError)
     end
 
     it 'should fail to retrieve the vpc if two vpcs with that name tag exist' do
-      expect{@vpc = @osaws.os_aws.find_or_create_vpc}.to_not raise_error
-      @vpc_2 = @client.create_vpc({cidr_block: '10.0.0.0/16'}).vpc
-      expect{@client.wait_until(:vpc_available, vpc_ids: [@vpc_2.vpc_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
-      @client.create_tags({
-                           resources: [@vpc_2.vpc_id],
-                           tags: [{
-                                      key: 'Name',
-                                      value: 'oss-vpc-v0.1'
-                                  }]
-                       })
-      expect{@osaws.os_aws.retrieve_vpc('oss-vpc-v0.1')}.to raise_error(RuntimeError)
+      expect { @vpc = @osaws.os_aws.find_or_create_vpc }.to_not raise_error
+      @vpc_2 = @client.create_vpc(cidr_block: '10.0.0.0/16').vpc
+      expect { @client.wait_until(:vpc_available, vpc_ids: [@vpc_2.vpc_id]) { |w| w.max_attempts = 4 } }.to_not raise_error
+      @client.create_tags(
+        resources: [@vpc_2.vpc_id],
+        tags: [{
+          key: 'Name',
+          value: 'oss-vpc-v0.1'
+        }]
+      )
+      expect { @osaws.os_aws.retrieve_vpc('oss-vpc-v0.1') }.to raise_error(RuntimeError)
     end
 
     after :each do
-      @client.delete_vpc({vpc_id: @vpc.vpc_id}) if @vpc
+      @client.delete_vpc(vpc_id: @vpc.vpc_id) if @vpc
       if @vpc_2
-        @client.delete_vpc({vpc_id: @vpc_2.vpc_id}) if (@vpc_2.vpc_id != @vpc.vpc_id)
+        @client.delete_vpc(vpc_id: @vpc_2.vpc_id) if @vpc_2.vpc_id != @vpc.vpc_id
       end
     end
 
     after :all do
-      vpcs = @client.describe_vpcs(filters: [{name: 'tag-key', values: ['Name']}, {name: 'tag-value', values: ['oss-vpc-v0.1']}]).vpcs
+      vpcs = @client.describe_vpcs(filters: [{ name: 'tag-key', values: ['Name'] }, { name: 'tag-value', values: ['oss-vpc-v0.1'] }]).vpcs
       vpcs.each do |vpc|
-        @client.delete_vpc({vpc_id: vpc.vpc_id})
+        @client.delete_vpc(vpc_id: vpc.vpc_id)
       end
     end
   end
@@ -232,61 +232,61 @@ describe OpenStudioAwsWrapper do
 
     it 'should create a simple subnet' do
       # If this doesn't work check your iam permissions and account info
-      @subnet = @client.create_subnet({cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id}).subnet
-      expect{@client.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+      @subnet = @client.create_subnet(cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id).subnet
+      expect { @client.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]) { |w| w.max_attempts = 4 } }.to_not raise_error
     end
 
     it 'should create and retrieve a public subnet' do
-      expect{@subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc)}.to_not raise_error
+      expect { @subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc) }.to_not raise_error
       expect(@osaws.os_aws.retrieve_subnet('oss-vpc-v0.1-public-v0.1', @vpc).subnet_id).to eq(@subnet.subnet_id)
     end
 
     it 'should find an already existing public subnet' do
-      expect{@subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc)}.to_not raise_error
+      expect { @subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc) }.to_not raise_error
       @subnet_2 = @osaws.os_aws.find_or_create_public_subnet(@vpc)
       expect(@subnet_2.subnet_id).to eq(@subnet.subnet_id)
     end
 
     it 'should error out if the existing public subnet does not auto-assign public IPV4 addresses' do
-      @subnet = @client.create_subnet({cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id}).subnet
-      expect{@client.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
-      @client.create_tags({
-                           resources: [@subnet.subnet_id],
-                           tags: [{
-                                      key: 'Name',
-                                      value: 'oss-vpc-v0.1-public-v0.1'
-                                  }]
-                       })
-      expect{@osaws.os_aws.find_or_create_public_subnet(@vpc)}.to raise_error(RuntimeError)
+      @subnet = @client.create_subnet(cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id).subnet
+      expect { @client.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]) { |w| w.max_attempts = 4 } }.to_not raise_error
+      @client.create_tags(
+        resources: [@subnet.subnet_id],
+        tags: [{
+          key: 'Name',
+          value: 'oss-vpc-v0.1-public-v0.1'
+        }]
+      )
+      expect { @osaws.os_aws.find_or_create_public_subnet(@vpc) }.to raise_error(RuntimeError)
     end
 
     it 'should fail to retrieve the subnet if two subnets with the same name tag exist in the vpc' do
-      expect{@subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc)}.to_not raise_error
-      @subnet_2 = @client.create_subnet({cidr_block: '10.0.1.0/24', vpc_id: @vpc.vpc_id}).subnet
-      expect{@client.wait_until(:subnet_available, subnet_ids: [@subnet_2.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
-      @client.create_tags({
-                           resources: [@subnet_2.subnet_id],
-                           tags: [{
-                                      key: 'Name',
-                                      value: 'oss-vpc-v0.1-public-v0.1'
-                                  }]
-                       })
-      expect{@osaws.os_aws.retrieve_subnet('oss-vpc-v0.1-public-v0.1', @vpc)}.to raise_error(RuntimeError)
+      expect { @subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc) }.to_not raise_error
+      @subnet_2 = @client.create_subnet(cidr_block: '10.0.1.0/24', vpc_id: @vpc.vpc_id).subnet
+      expect { @client.wait_until(:subnet_available, subnet_ids: [@subnet_2.subnet_id]) { |w| w.max_attempts = 4 } }.to_not raise_error
+      @client.create_tags(
+        resources: [@subnet_2.subnet_id],
+        tags: [{
+          key: 'Name',
+          value: 'oss-vpc-v0.1-public-v0.1'
+        }]
+      )
+      expect { @osaws.os_aws.retrieve_subnet('oss-vpc-v0.1-public-v0.1', @vpc) }.to raise_error(RuntimeError)
     end
 
     after :each do
-      @client.delete_subnet({subnet_id: @subnet.subnet_id}) if @subnet
+      @client.delete_subnet(subnet_id: @subnet.subnet_id) if @subnet
       if @subnet_2
-        @client.delete_subnet({subnet_id: @subnet_2.subnet_id}) if (@subnet_2.subnet_id != @subnet.subnet_id)
+        @client.delete_subnet(subnet_id: @subnet_2.subnet_id) if @subnet_2.subnet_id != @subnet.subnet_id
       end
     end
 
     after :all do
-      subnets = @client.describe_subnets(filters: [{name: 'tag-key', values: ['Name']}, {name: 'tag-value', values: ['oss-vpc-v0.1-public-v0.1']}, {name: 'vpc-id', values: [@vpc.vpc_id]}]).subnets
+      subnets = @client.describe_subnets(filters: [{ name: 'tag-key', values: ['Name'] }, { name: 'tag-value', values: ['oss-vpc-v0.1-public-v0.1'] }, { name: 'vpc-id', values: [@vpc.vpc_id] }]).subnets
       subnets.each do |subnet|
-        @client.delete_subnet({subnet_id: subnet.subnet_id})
+        @client.delete_subnet(subnet_id: subnet.subnet_id)
       end
-      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+      @client.delete_vpc(vpc_id: @vpc.vpc_id)
     end
   end
 
@@ -298,7 +298,6 @@ describe OpenStudioAwsWrapper do
       @client = @osaws.os_aws.instance_variable_get(:@aws)
       vpc_ipv_6_block = @vpc.ipv_6_cidr_block_association_set.first.ipv_6_cidr_block
       @ipv_6_block = vpc_ipv_6_block.gsub('/56', '/64')
-
     end
 
     before :each do
@@ -309,74 +308,74 @@ describe OpenStudioAwsWrapper do
 
     it 'should create a simple subnet' do
       # If this doesn't work check your iam permissions and account info
-      @subnet = @client.create_subnet({cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id, ipv_6_cidr_block: @ipv_6_block}).subnet
-      expect{@client.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
+      @subnet = @client.create_subnet(cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id, ipv_6_cidr_block: @ipv_6_block).subnet
+      expect { @client.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]) { |w| w.max_attempts = 4 } }.to_not raise_error
     end
 
     it 'should create and retrieve a private subnet' do
-      expect{@subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc)}.to_not raise_error
+      expect { @subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc) }.to_not raise_error
       expect(@osaws.os_aws.retrieve_subnet('oss-vpc-v0.1-private-v0.1', @vpc).subnet_id).to eq(@subnet.subnet_id)
     end
 
     it 'should find an already existing private subnet' do
-      expect{@subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc)}.to_not raise_error
+      expect { @subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc) }.to_not raise_error
       @subnet_2 = @osaws.os_aws.find_or_create_private_subnet(@vpc)
       expect(@subnet_2.subnet_id).to eq(@subnet.subnet_id)
     end
 
     it 'should error out if the existing private subnet does not have an IPV6 CIDR block' do
-      @subnet = @client.create_subnet({cidr_block: '10.0.2.0/24', vpc_id: @vpc.vpc_id}).subnet
-      expect{@client.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
-      @client.create_tags({
-                           resources: [@subnet.subnet_id],
-                           tags: [{
-                                      key: 'Name',
-                                      value: 'oss-vpc-v0.1-private-v0.1'
-                                  }]
-                       })
-      expect{@osaws.os_aws.find_or_create_private_subnet(@vpc)}.to raise_error(RuntimeError)
+      @subnet = @client.create_subnet(cidr_block: '10.0.2.0/24', vpc_id: @vpc.vpc_id).subnet
+      expect { @client.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]) { |w| w.max_attempts = 4 } }.to_not raise_error
+      @client.create_tags(
+        resources: [@subnet.subnet_id],
+        tags: [{
+          key: 'Name',
+          value: 'oss-vpc-v0.1-private-v0.1'
+        }]
+      )
+      expect { @osaws.os_aws.find_or_create_private_subnet(@vpc) }.to raise_error(RuntimeError)
     end
 
     it 'should error out if the existing private subnet does not auto-assign IPV6 addresses' do
-      @subnet = @client.create_subnet({cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id, ipv_6_cidr_block: @ipv_6_block}).subnet
-      expect{@client.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
-      @client.create_tags({
-                           resources: [@subnet.subnet_id],
-                           tags: [{
-                                      key: 'Name',
-                                      value: 'oss-vpc-v0.1-private-v0.1'
-                                  }]
-                       })
-      expect{@osaws.os_aws.find_or_create_private_subnet(@vpc)}.to raise_error(RuntimeError)
+      @subnet = @client.create_subnet(cidr_block: '10.0.0.0/24', vpc_id: @vpc.vpc_id, ipv_6_cidr_block: @ipv_6_block).subnet
+      expect { @client.wait_until(:subnet_available, subnet_ids: [@subnet.subnet_id]) { |w| w.max_attempts = 4 } }.to_not raise_error
+      @client.create_tags(
+        resources: [@subnet.subnet_id],
+        tags: [{
+          key: 'Name',
+          value: 'oss-vpc-v0.1-private-v0.1'
+        }]
+      )
+      expect { @osaws.os_aws.find_or_create_private_subnet(@vpc) }.to raise_error(RuntimeError)
     end
 
     it 'should fail to retrieve the subnet if two subnets with the same name tag exist in the vpc' do
-      expect{@subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc)}.to_not raise_error
-      @subnet_2 = @client.create_subnet({cidr_block: '10.0.2.0/24', vpc_id: @vpc.vpc_id}).subnet
-      expect{@client.wait_until(:subnet_available, subnet_ids: [@subnet_2.subnet_id]){ |w| w.max_attempts = 4 }}.to_not raise_error
-      @client.create_tags({
-                           resources: [@subnet_2.subnet_id],
-                           tags: [{
-                                      key: 'Name',
-                                      value: 'oss-vpc-v0.1-private-v0.1'
-                                  }]
-                       })
-      expect{@osaws.os_aws.retrieve_subnet('oss-vpc-v0.1-private-v0.1', @vpc)}.to raise_error(RuntimeError)
+      expect { @subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc) }.to_not raise_error
+      @subnet_2 = @client.create_subnet(cidr_block: '10.0.2.0/24', vpc_id: @vpc.vpc_id).subnet
+      expect { @client.wait_until(:subnet_available, subnet_ids: [@subnet_2.subnet_id]) { |w| w.max_attempts = 4 } }.to_not raise_error
+      @client.create_tags(
+        resources: [@subnet_2.subnet_id],
+        tags: [{
+          key: 'Name',
+          value: 'oss-vpc-v0.1-private-v0.1'
+        }]
+      )
+      expect { @osaws.os_aws.retrieve_subnet('oss-vpc-v0.1-private-v0.1', @vpc) }.to raise_error(RuntimeError)
     end
 
     after :each do
-      @client.delete_subnet({subnet_id: @subnet.subnet_id}) if @subnet
+      @client.delete_subnet(subnet_id: @subnet.subnet_id) if @subnet
       if @subnet_2
-        @client.delete_subnet({subnet_id: @subnet_2.subnet_id}) if (@subnet_2.subnet_id != @subnet.subnet_id)
+        @client.delete_subnet(subnet_id: @subnet_2.subnet_id) if @subnet_2.subnet_id != @subnet.subnet_id
       end
     end
 
     after :all do
-      subnets = @client.describe_subnets(filters: [{name: 'tag-key', values: ['Name']}, {name: 'tag-value', values: ['oss-vpc-v0.1-public-v0.1']}, {name: 'vpc-id', values: [@vpc.vpc_id]}]).subnets
+      subnets = @client.describe_subnets(filters: [{ name: 'tag-key', values: ['Name'] }, { name: 'tag-value', values: ['oss-vpc-v0.1-public-v0.1'] }, { name: 'vpc-id', values: [@vpc.vpc_id] }]).subnets
       subnets.each do |subnet|
-        @client.delete_subnet({subnet_id: subnet.subnet_id})
+        @client.delete_subnet(subnet_id: subnet.subnet_id)
       end
-      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+      @client.delete_vpc(vpc_id: @vpc.vpc_id)
     end
   end
 
@@ -395,45 +394,46 @@ describe OpenStudioAwsWrapper do
 
     it 'should create and attach an igw' do
       # If this doesn't work check your igw IAM permissions and credentials
-      expect{@igw = @client.create_internet_gateway.internet_gateway}.to_not raise_error
-      expect{@client.attach_internet_gateway({
-                                                 internet_gateway_id: @igw.internet_gateway_id,
-                                                 vpc_id: @vpc.vpc_id
-                                             })}.to_not raise_error
+      expect { @igw = @client.create_internet_gateway.internet_gateway }.to_not raise_error
+      expect do
+        @client.attach_internet_gateway(
+          internet_gateway_id: @igw.internet_gateway_id,
+          vpc_id: @vpc.vpc_id
+        )
+      end .to_not raise_error
     end
 
     it 'should create and retrieve an igw' do
-      expect{@igw = @osaws.os_aws.find_or_create_igw(@vpc)}.to_not raise_error
+      expect { @igw = @osaws.os_aws.find_or_create_igw(@vpc) }.to_not raise_error
       expect(@osaws.os_aws.retrieve_igw('oss-vpc-v0.1-igw-v0.1', @vpc).internet_gateway_id).to eq(@igw.internet_gateway_id)
     end
 
     it 'should find an already existing igw' do
-      expect{@igw = @osaws.os_aws.find_or_create_igw(@vpc)}.to_not raise_error
+      expect { @igw = @osaws.os_aws.find_or_create_igw(@vpc) }.to_not raise_error
       @igw_2 = @osaws.os_aws.find_or_create_igw(@vpc)
       expect(@igw.internet_gateway_id).to eq(@igw_2.internet_gateway_id)
     end
 
     it 'should error when the attached igw is not named oss-vpc-v0.1-igw-v0.1' do
-
     end
 
     after :each do
       if @igw
         @igw = @osaws.os_aws.reload_igw(@igw)
-        @client.detach_internet_gateway({internet_gateway_id: @igw.internet_gateway_id, vpc_id: @igw.attachments.first.vpc_id})
-        @client.delete_internet_gateway({internet_gateway_id: @igw.internet_gateway_id})
+        @client.detach_internet_gateway(internet_gateway_id: @igw.internet_gateway_id, vpc_id: @igw.attachments.first.vpc_id)
+        @client.delete_internet_gateway(internet_gateway_id: @igw.internet_gateway_id)
       end
       if @igw_2
         if @igw.internet_gateway_id != @igw_2.internet_gateway_id
           @igw_2 = @osaws.os_aws.reload_igw(@igw_2)
-          @client.detach_internet_gateway({internet_gateway_id: @igw_2.internet_gateway_id, vpc_id: @igw_2.attachments.first.vpc_id})
-          @client.delete_internet_gateway({internet_gateway_id: @igw_2.internet_gateway_id})
+          @client.detach_internet_gateway(internet_gateway_id: @igw_2.internet_gateway_id, vpc_id: @igw_2.attachments.first.vpc_id)
+          @client.delete_internet_gateway(internet_gateway_id: @igw_2.internet_gateway_id)
         end
       end
     end
 
     after :all do
-      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+      @client.delete_vpc(vpc_id: @vpc.vpc_id)
     end
   end
 
@@ -452,31 +452,31 @@ describe OpenStudioAwsWrapper do
 
     it 'should create and attach an eigw' do
       # If this doesn't work check your eigw IAM permissions and credentials
-      expect{@eigw = @client.create_egress_only_internet_gateway({vpc_id: @vpc.vpc_id}).egress_only_internet_gateway}.to_not raise_error
+      expect { @eigw = @client.create_egress_only_internet_gateway(vpc_id: @vpc.vpc_id).egress_only_internet_gateway }.to_not raise_error
     end
 
     it 'should create and retrieve an eigw' do
-      expect{@eigw = @osaws.os_aws.find_or_create_eigw(@vpc)}.to_not raise_error
+      expect { @eigw = @osaws.os_aws.find_or_create_eigw(@vpc) }.to_not raise_error
       expect(@osaws.os_aws.retrieve_eigw(@vpc).egress_only_internet_gateway_id).to eq(@eigw.egress_only_internet_gateway_id)
     end
 
     it 'should find an already existing eigw' do
-      expect{@eigw = @osaws.os_aws.find_or_create_eigw(@vpc)}.to_not raise_error
+      expect { @eigw = @osaws.os_aws.find_or_create_eigw(@vpc) }.to_not raise_error
       @eigw_2 = @osaws.os_aws.find_or_create_eigw(@vpc)
       expect(@eigw.egress_only_internet_gateway_id).to eq(@eigw_2.egress_only_internet_gateway_id)
     end
 
     after :each do
-      @client.delete_egress_only_internet_gateway({egress_only_internet_gateway_id: @eigw.egress_only_internet_gateway_id}) if @eigw
+      @client.delete_egress_only_internet_gateway(egress_only_internet_gateway_id: @eigw.egress_only_internet_gateway_id) if @eigw
       if @eigw_2
         if @eigw.egress_only_internet_gateway_id != @eigw_2.egress_only_internet_gateway_id
-          @client.delete_egress_only_internet_gateway({egress_only_internet_gateway_id: @eigw_2.egress_only_internet_gateway_id})
+          @client.delete_egress_only_internet_gateway(egress_only_internet_gateway_id: @eigw_2.egress_only_internet_gateway_id)
         end
       end
     end
 
     after :all do
-      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+      @client.delete_vpc(vpc_id: @vpc.vpc_id)
     end
   end
 
@@ -496,34 +496,34 @@ describe OpenStudioAwsWrapper do
     end
 
     it 'should create and associate a public rtb' do
-      expect{@rtb = @client.create_route_table({vpc_id: @vpc.vpc_id}).route_table}.to_not raise_error
-      expect{@client.associate_route_table({route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id})}.to_not raise_error
+      expect { @rtb = @client.create_route_table(vpc_id: @vpc.vpc_id).route_table }.to_not raise_error
+      expect { @client.associate_route_table(route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id) }.to_not raise_error
     end
 
     it 'should reflect changes upon reloading the public rtb' do
-      expect{@rtb = @client.create_route_table({vpc_id: @vpc.vpc_id}).route_table}.to_not raise_error
-      expect{@client.associate_route_table({route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id})}.to_not raise_error
+      expect { @rtb = @client.create_route_table(vpc_id: @vpc.vpc_id).route_table }.to_not raise_error
+      expect { @client.associate_route_table(route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id) }.to_not raise_error
       expect(@rtb.associations.empty?).to be true
       expect(@osaws.os_aws.reload_rtb(@rtb).associations.first.subnet_id).to eq(@subnet.subnet_id)
     end
 
     it 'should create and retrieve an existing public rtb' do
-      expect{@rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet)}.to_not raise_error
+      expect { @rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet) }.to_not raise_error
       expect(@osaws.os_aws.retrieve_rtb(@subnet).route_table_id).to eq(@rtb.route_table_id)
     end
 
     it 'should find an already existing public rtb' do
-      expect{@rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet)}.to_not raise_error
+      expect { @rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet) }.to_not raise_error
       @rtb_2 = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet)
       expect(@rtb.route_table_id).to eq(@rtb_2.route_table_id)
     end
 
     it 'should self-heal if missing a route to the igw in the public rtb' do
-      expect{@rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet)}.to_not raise_error
-      @client.delete_route({destination_cidr_block: "0.0.0.0/0", route_table_id: @rtb.route_table_id})
+      expect { @rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet) }.to_not raise_error
+      @client.delete_route(destination_cidr_block: '0.0.0.0/0', route_table_id: @rtb.route_table_id)
       @rtb = @osaws.os_aws.reload_rtb(@rtb)
       expect(@rtb.routes.select { |route| route.gateway_id == @igw.internet_gateway_id }.empty?).to be true
-      expect{@rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet)}.to_not raise_error
+      expect { @rtb = @osaws.os_aws.find_or_create_public_rtb(@vpc, @subnet) }.to_not raise_error
       expect(@rtb.routes.select { |route| route.gateway_id == @igw.internet_gateway_id }.empty?).to be false
     end
 
@@ -531,28 +531,28 @@ describe OpenStudioAwsWrapper do
       if @rtb
         @rtb = @osaws.os_aws.reload_rtb(@rtb)
         unless @rtb.associations.empty?
-          @rtb.associations.each { |assoc| @client.disassociate_route_table({association_id: assoc.route_table_association_id})}
+          @rtb.associations.each { |assoc| @client.disassociate_route_table(association_id: assoc.route_table_association_id) }
         end
-        @client.delete_route_table({route_table_id: @rtb.route_table_id})
+        @client.delete_route_table(route_table_id: @rtb.route_table_id)
       end
       if @rtb_2
         if @rtb_2.route_table_id != @rtb.route_table_id
           @rtb_2 = @osaws.os_aws.reload_rtb(@rtb_2)
           unless @rtb_2.associations.empty?
-            @rtb.associations.each { |assoc| @client.disassociate_route_table({association_id: assoc.route_table_association_id})}
+            @rtb.associations.each { |assoc| @client.disassociate_route_table(association_id: assoc.route_table_association_id) }
           end
-          @client.delete_route_table({route_table_id: @rtb_2.route_table_id})
+          @client.delete_route_table(route_table_id: @rtb_2.route_table_id)
         end
       end
     end
 
     after :all do
       @igw = @osaws.os_aws.reload_igw(@igw)
-      @client.detach_internet_gateway({internet_gateway_id: @igw.internet_gateway_id, vpc_id: @vpc.vpc_id})
-      @client.delete_internet_gateway({internet_gateway_id: @igw.internet_gateway_id})
-      @client.delete_subnet({subnet_id: @subnet.subnet_id})
+      @client.detach_internet_gateway(internet_gateway_id: @igw.internet_gateway_id, vpc_id: @vpc.vpc_id)
+      @client.delete_internet_gateway(internet_gateway_id: @igw.internet_gateway_id)
+      @client.delete_subnet(subnet_id: @subnet.subnet_id)
       sleep 2
-      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+      @client.delete_vpc(vpc_id: @vpc.vpc_id)
     end
   end
 
@@ -572,34 +572,34 @@ describe OpenStudioAwsWrapper do
     end
 
     it 'should create and associate a private rtb' do
-      expect{@rtb = @client.create_route_table({vpc_id: @vpc.vpc_id}).route_table}.to_not raise_error
-      expect{@client.associate_route_table({route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id})}.to_not raise_error
+      expect { @rtb = @client.create_route_table(vpc_id: @vpc.vpc_id).route_table }.to_not raise_error
+      expect { @client.associate_route_table(route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id) }.to_not raise_error
     end
 
     it 'should reflect changes upon reloading the private rtb' do
-      expect{@rtb = @client.create_route_table({vpc_id: @vpc.vpc_id}).route_table}.to_not raise_error
-      expect{@client.associate_route_table({route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id})}.to_not raise_error
+      expect { @rtb = @client.create_route_table(vpc_id: @vpc.vpc_id).route_table }.to_not raise_error
+      expect { @client.associate_route_table(route_table_id: @rtb.route_table_id, subnet_id: @subnet.subnet_id) }.to_not raise_error
       expect(@rtb.associations.empty?).to be true
       expect(@osaws.os_aws.reload_rtb(@rtb).associations.first.subnet_id).to eq(@subnet.subnet_id)
     end
 
     it 'should create and retrieve an existing private rtb' do
-      expect{@rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet)}.to_not raise_error
+      expect { @rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet) }.to_not raise_error
       expect(@osaws.os_aws.retrieve_rtb(@subnet).route_table_id).to eq(@rtb.route_table_id)
     end
 
     it 'should find an already existing private rtb' do
-      expect{@rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet)}.to_not raise_error
+      expect { @rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet) }.to_not raise_error
       @rtb_2 = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet)
       expect(@rtb.route_table_id).to eq(@rtb_2.route_table_id)
     end
 
     it 'should self-heal if missing a route to the eigw in the private rtb' do
-      expect{@rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet)}.to_not raise_error
-      @client.delete_route({destination_ipv_6_cidr_block: "::/0", route_table_id: @rtb.route_table_id})
+      expect { @rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet) }.to_not raise_error
+      @client.delete_route(destination_ipv_6_cidr_block: '::/0', route_table_id: @rtb.route_table_id)
       @rtb = @osaws.os_aws.reload_rtb(@rtb)
       expect(@rtb.routes.select { |route| route.egress_only_internet_gateway_id == @eigw.egress_only_internet_gateway_id }.empty?).to be true
-      expect{@rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet)}.to_not raise_error
+      expect { @rtb = @osaws.os_aws.find_or_create_private_rtb(@vpc, @subnet) }.to_not raise_error
       expect(@rtb.routes.select { |route| route.egress_only_internet_gateway_id == @eigw.egress_only_internet_gateway_id }.empty?).to be false
     end
 
@@ -607,26 +607,26 @@ describe OpenStudioAwsWrapper do
       if @rtb
         @rtb = @osaws.os_aws.reload_rtb(@rtb)
         unless @rtb.associations.empty?
-          @rtb.associations.each { |assoc| @client.disassociate_route_table({association_id: assoc.route_table_association_id})}
+          @rtb.associations.each { |assoc| @client.disassociate_route_table(association_id: assoc.route_table_association_id) }
         end
-        @client.delete_route_table({route_table_id: @rtb.route_table_id})
+        @client.delete_route_table(route_table_id: @rtb.route_table_id)
       end
       if @rtb_2
         if @rtb_2.route_table_id != @rtb.route_table_id
           @rtb_2 = @osaws.os_aws.reload_rtb(@rtb_2)
           unless @rtb_2.associations.empty?
-            @rtb.associations.each { |assoc| @client.disassociate_route_table({association_id: assoc.route_table_association_id})}
+            @rtb.associations.each { |assoc| @client.disassociate_route_table(association_id: assoc.route_table_association_id) }
           end
-          @client.delete_route_table({route_table_id: @rtb_2.route_table_id})
+          @client.delete_route_table(route_table_id: @rtb_2.route_table_id)
         end
       end
     end
 
     after :all do
-      @client.delete_egress_only_internet_gateway({egress_only_internet_gateway_id: @eigw.egress_only_internet_gateway_id})
-      @client.delete_subnet({subnet_id: @subnet.subnet_id})
+      @client.delete_egress_only_internet_gateway(egress_only_internet_gateway_id: @eigw.egress_only_internet_gateway_id)
+      @client.delete_subnet(subnet_id: @subnet.subnet_id)
       sleep 2
-      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+      @client.delete_vpc(vpc_id: @vpc.vpc_id)
     end
   end
 
@@ -637,7 +637,7 @@ describe OpenStudioAwsWrapper do
       @vpc = @osaws.os_aws.find_or_create_vpc
       @subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc)
       @igw = @osaws.os_aws.find_or_create_igw(@vpc)
-      @default_nacl = @client.describe_network_acls({}).network_acls.select { |nacl| nacl.associations.map { |assoc| assoc.subnet_id }.include? @subnet.subnet_id }[0]
+      @default_nacl = @client.describe_network_acls({}).network_acls.select { |nacl| nacl.associations.map(&:subnet_id).include? @subnet.subnet_id }[0]
     end
 
     before :each do
@@ -647,61 +647,63 @@ describe OpenStudioAwsWrapper do
     end
 
     it 'should create and re-associate a public nacl' do
-      expect{@nacl = @client.create_network_acl({vpc_id: @vpc.vpc_id}).network_acl}.to_not raise_error
-      expect{@osaws.os_aws.set_nacl(@subnet, @nacl)}.to_not raise_error
+      expect { @nacl = @client.create_network_acl(vpc_id: @vpc.vpc_id).network_acl }.to_not raise_error
+      expect { @osaws.os_aws.set_nacl(@subnet, @nacl) }.to_not raise_error
     end
 
     it 'should create and retrieve a new (non-default) public nacl' do
-      expect{@nacl = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet)}.to_not raise_error
+      expect { @nacl = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet) }.to_not raise_error
       expect(@nacl.is_default).to eq false
-      expect{@nacl_2 = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet)}.to_not raise_error
+      expect { @nacl_2 = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet) }.to_not raise_error
       expect(@nacl_2.network_acl_id).to eq(@nacl.network_acl_id)
     end
 
     it 'should add routes to the public nacl enabling client and docker communications if not existing' do
-      expect{@nacl = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet)}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 100})}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 100})}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 200})}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 200})}.to_not raise_error
+      expect { @nacl = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 100) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 100) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 200) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 200) }.to_not raise_error
       # Verify that the SSH and 2377 TCP rules are deleted
       @nacl = @osaws.os_aws.reload_nacl(@nacl)
-      ingress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == false }.map { |rule| rule.rule_number }
-      egress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == true }.map { |rule| rule.rule_number }
-      expect(ingress_rule_numbers.include? 100).to be false
-      expect(ingress_rule_numbers.include? 200).to be false
-      expect(egress_rule_numbers.include? 100).to be false
-      expect(egress_rule_numbers.include? 200).to be false
+      ingress_rule_numbers = @nacl.entries.select { |rule| rule.egress == false }.map(&:rule_number)
+      egress_rule_numbers = @nacl.entries.select { |rule| rule.egress == true }.map(&:rule_number)
+      expect(ingress_rule_numbers.include?(100)).to be false
+      expect(ingress_rule_numbers.include?(200)).to be false
+      expect(egress_rule_numbers.include?(100)).to be false
+      expect(egress_rule_numbers.include?(200)).to be false
       # Verify that rules were recreated with rule numbers indexing from 400 by 10
-      expect{@nacl = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet)}.to_not raise_error
-      entries = @nacl.entries.select { |entry| entry.protocol != '-1' }
+      expect { @nacl = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet) }.to_not raise_error
+      entries = @nacl.entries.reject { |entry| entry.protocol == '-1' }
       expectations = [
-          {egress: true, ports: [1025, 65535], cidr: @osaws.os_aws.retrieve_visible_ip + '/32'},
-          {egress: true, ports: [2377, 2377], cidr: '10.0.0.0/23'},
-          {egress: false, ports: [22, 22], cidr: @osaws.os_aws.retrieve_visible_ip + '/32'},
-          {egress: false, ports: [2377, 2377], cidr: '10.0.0.0/23'}
+        { egress: true, ports: [1025, 65535], cidr: @osaws.os_aws.retrieve_visible_ip + '/32' },
+        { egress: true, ports: [2377, 2377], cidr: '10.0.0.0/23' },
+        { egress: false, ports: [22, 22], cidr: @osaws.os_aws.retrieve_visible_ip + '/32' },
+        { egress: false, ports: [2377, 2377], cidr: '10.0.0.0/23' }
       ]
       expectations.each do |expectation|
-        matching_rules = entries.select { |entry| (entry.cidr_block == expectation[:cidr]) &
+        matching_rules = entries.select do |entry|
+          (entry.cidr_block == expectation[:cidr]) &
             (entry.egress == expectation[:egress]) & (entry.port_range.from == expectation[:ports][0]) &
-            (entry.port_range.to == expectation[:ports][1]) & (entry.protocol == '6')}
+            (entry.port_range.to == expectation[:ports][1]) & (entry.protocol == '6')
+        end
         expect(matching_rules.empty?).to be false
       end
     end
 
     it 'should not add public routes for 80, 443, and ephemeral port range if they have been altered' do
-      expect{@nacl = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet)}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 300})}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 300})}.to_not raise_error
+      expect { @nacl = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 300) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 300) }.to_not raise_error
       # Verify that the HTTP rules are deleted
       @nacl = @osaws.os_aws.reload_nacl(@nacl)
-      ingress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == false }.map { |rule| rule.rule_number }
-      egress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == true }.map { |rule| rule.rule_number }
-      expect(ingress_rule_numbers.include? 300).to be false
-      expect(egress_rule_numbers.include? 300).to be false
+      ingress_rule_numbers = @nacl.entries.select { |rule| rule.egress == false }.map(&:rule_number)
+      egress_rule_numbers = @nacl.entries.select { |rule| rule.egress == true }.map(&:rule_number)
+      expect(ingress_rule_numbers.include?(300)).to be false
+      expect(egress_rule_numbers.include?(300)).to be false
       # Verify that the HTTP rules were not re-created by the find_or_create_public_nacl method
-      expect{@nacl = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet)}.to_not raise_error
-      entries = @nacl.entries.select { |entry| entry.protocol != '-1' }
+      expect { @nacl = @osaws.os_aws.find_or_create_public_nacl(@vpc, @subnet) }.to_not raise_error
+      entries = @nacl.entries.reject { |entry| entry.protocol == '-1' }
       matching_rules = entries.select { |entry| (entry.port_range.to == 80) }
       expect(matching_rules.empty?).to be true
     end
@@ -713,7 +715,8 @@ describe OpenStudioAwsWrapper do
         unless @nacl.associations.empty?
           raise "nacl #{@nacl.network_acl_id} is still associated with #{@nacl.associations[0].subnet_id}"
         end
-        @client.delete_network_acl({network_acl_id: @nacl.network_acl_id})
+
+        @client.delete_network_acl(network_acl_id: @nacl.network_acl_id)
       end
       if @nacl_2
         if @nacl_2.network_acl_id != @nacl.network_acl_id
@@ -721,18 +724,19 @@ describe OpenStudioAwsWrapper do
           unless @nacl_2.associations.empty?
             raise "nacl #{@nacl_2.network_acl_id} is still associated with #{@nacl_2.associations[0].subnet_id}"
           end
-          @client.delete_network_acl({network_acl_id: @nacl_2.network_acl_id})
+
+          @client.delete_network_acl(network_acl_id: @nacl_2.network_acl_id)
         end
       end
     end
 
     after :all do
       @igw = @osaws.os_aws.reload_igw(@igw)
-      @client.detach_internet_gateway({internet_gateway_id: @igw.internet_gateway_id, vpc_id: @vpc.vpc_id})
-      @client.delete_internet_gateway({internet_gateway_id: @igw.internet_gateway_id})
-      @client.delete_subnet({subnet_id: @subnet.subnet_id})
+      @client.detach_internet_gateway(internet_gateway_id: @igw.internet_gateway_id, vpc_id: @vpc.vpc_id)
+      @client.delete_internet_gateway(internet_gateway_id: @igw.internet_gateway_id)
+      @client.delete_subnet(subnet_id: @subnet.subnet_id)
       sleep 2
-      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+      @client.delete_vpc(vpc_id: @vpc.vpc_id)
     end
   end
 
@@ -743,7 +747,7 @@ describe OpenStudioAwsWrapper do
       @vpc = @osaws.os_aws.find_or_create_vpc
       @subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc)
       @eigw = @osaws.os_aws.find_or_create_eigw(@vpc)
-      @default_nacl = @client.describe_network_acls({}).network_acls.select { |nacl| nacl.associations.map { |assoc| assoc.subnet_id }.include? @subnet.subnet_id }[0]
+      @default_nacl = @client.describe_network_acls({}).network_acls.select { |nacl| nacl.associations.map(&:subnet_id).include? @subnet.subnet_id }[0]
     end
 
     before :each do
@@ -753,63 +757,65 @@ describe OpenStudioAwsWrapper do
     end
 
     it 'should create and re-associate a private nacl' do
-      expect{@nacl = @client.create_network_acl({vpc_id: @vpc.vpc_id}).network_acl}.to_not raise_error
-      expect{@osaws.os_aws.set_nacl(@subnet, @nacl)}.to_not raise_error
+      expect { @nacl = @client.create_network_acl(vpc_id: @vpc.vpc_id).network_acl }.to_not raise_error
+      expect { @osaws.os_aws.set_nacl(@subnet, @nacl) }.to_not raise_error
     end
 
     it 'should create and retrieve a new (non-default) private nacl' do
-      expect{@nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
+      expect { @nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet) }.to_not raise_error
       expect(@nacl.is_default).to eq false
-      expect{@nacl_2 = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
+      expect { @nacl_2 = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet) }.to_not raise_error
       expect(@nacl_2.network_acl_id).to eq(@nacl.network_acl_id)
     end
 
     it 'should add routes to the private nacl enabling client and docker communications if not existing' do
-      expect{@nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 100})}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 100})}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 200})}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 200})}.to_not raise_error
+      expect { @nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 100) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 100) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 200) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 200) }.to_not raise_error
       # Verify that the SSH and 2377 TCP rules are deleted
       @nacl = @osaws.os_aws.reload_nacl(@nacl)
-      ingress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == false }.map { |rule| rule.rule_number }
-      egress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == true }.map { |rule| rule.rule_number }
-      expect(ingress_rule_numbers.include? 100).to be false
-      expect(ingress_rule_numbers.include? 200).to be false
-      expect(egress_rule_numbers.include? 100).to be false
-      expect(egress_rule_numbers.include? 200).to be false
+      ingress_rule_numbers = @nacl.entries.select { |rule| rule.egress == false }.map(&:rule_number)
+      egress_rule_numbers = @nacl.entries.select { |rule| rule.egress == true }.map(&:rule_number)
+      expect(ingress_rule_numbers.include?(100)).to be false
+      expect(ingress_rule_numbers.include?(200)).to be false
+      expect(egress_rule_numbers.include?(100)).to be false
+      expect(egress_rule_numbers.include?(200)).to be false
       # Verify that rules were recreated with rule numbers indexing from 400 by 10
-      expect{@nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
-      entries = @nacl.entries.select { |entry| entry.protocol != '-1' }
+      expect { @nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet) }.to_not raise_error
+      entries = @nacl.entries.reject { |entry| entry.protocol == '-1' }
       expectations = [
-          {egress: true, ports: [1025, 65535], cidr: '10.0.0.0/24'},
-          {egress: true, ports: [2377, 2377], cidr: '10.0.0.0/23'},
-          {egress: false, ports: [22, 22], cidr: '10.0.0.0/24'},
-          {egress: false, ports: [2377, 2377], cidr: '10.0.0.0/23'}
+        { egress: true, ports: [1025, 65535], cidr: '10.0.0.0/24' },
+        { egress: true, ports: [2377, 2377], cidr: '10.0.0.0/23' },
+        { egress: false, ports: [22, 22], cidr: '10.0.0.0/24' },
+        { egress: false, ports: [2377, 2377], cidr: '10.0.0.0/23' }
       ]
       expectations.each do |expectation|
-        matching_rules = entries.select { |entry| (entry.cidr_block == expectation[:cidr]) &
+        matching_rules = entries.select do |entry|
+          (entry.cidr_block == expectation[:cidr]) &
             (entry.egress == expectation[:egress]) & (entry.port_range.from == expectation[:ports][0]) &
-            (entry.port_range.to == expectation[:ports][1]) & (entry.protocol == '6')}
+            (entry.port_range.to == expectation[:ports][1]) & (entry.protocol == '6')
+        end
         expect(matching_rules.empty?).to be false
       end
     end
 
     it 'should not add routes for IPV6 traffic if they have been altered' do
-      expect{@nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 300})}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 310})}.to_not raise_error
-      expect{@client.delete_network_acl_entry({egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 300})}.to_not raise_error
+      expect { @nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 300) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: true, network_acl_id: @nacl.network_acl_id, rule_number: 310) }.to_not raise_error
+      expect { @client.delete_network_acl_entry(egress: false, network_acl_id: @nacl.network_acl_id, rule_number: 300) }.to_not raise_error
       # Verify that the ::/0 IPV6 rules are deleted
       @nacl = @osaws.os_aws.reload_nacl(@nacl)
-      ingress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == false }.map { |rule| rule.rule_number }
-      egress_rule_numbers = @nacl.entries.select{ |rule| rule.egress == true }.map { |rule| rule.rule_number }
-      expect(ingress_rule_numbers.include? 300).to be false
-      expect(egress_rule_numbers.include? 300).to be false
-      expect(egress_rule_numbers.include? 310).to be false
+      ingress_rule_numbers = @nacl.entries.select { |rule| rule.egress == false }.map(&:rule_number)
+      egress_rule_numbers = @nacl.entries.select { |rule| rule.egress == true }.map(&:rule_number)
+      expect(ingress_rule_numbers.include?(300)).to be false
+      expect(egress_rule_numbers.include?(300)).to be false
+      expect(egress_rule_numbers.include?(310)).to be false
       # Verify that the eigw rules were not re-created by the find_or_create_private_nacl method
-      expect{@nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet)}.to_not raise_error
-      entries = @nacl.entries.select { |entry| entry.protocol != '-1' }
+      expect { @nacl = @osaws.os_aws.find_or_create_private_nacl(@vpc, @subnet) }.to_not raise_error
+      entries = @nacl.entries.reject { |entry| entry.protocol == '-1' }
       matching_rules = entries.select { |entry| (entry.ipv_6_cidr_block == '::/0') }
       expect(matching_rules.empty?).to be true
     end
@@ -821,7 +827,8 @@ describe OpenStudioAwsWrapper do
         unless @nacl.associations.empty?
           raise "nacl #{@nacl.network_acl_id} is still associated with #{@nacl.associations[0].subnet_id}"
         end
-        @client.delete_network_acl({network_acl_id: @nacl.network_acl_id})
+
+        @client.delete_network_acl(network_acl_id: @nacl.network_acl_id)
       end
       if @nacl_2
         if @nacl_2.network_acl_id != @nacl.network_acl_id
@@ -829,16 +836,17 @@ describe OpenStudioAwsWrapper do
           unless @nacl_2.associations.empty?
             raise "nacl #{@nacl_2.network_acl_id} is still associated with #{@nacl_2.associations[0].subnet_id}"
           end
-          @client.delete_network_acl({network_acl_id: @nacl_2.network_acl_id})
+
+          @client.delete_network_acl(network_acl_id: @nacl_2.network_acl_id)
         end
       end
     end
 
     after :all do
-      @client.delete_egress_only_internet_gateway({egress_only_internet_gateway_id: @eigw.egress_only_internet_gateway_id})
-      @client.delete_subnet({subnet_id: @subnet.subnet_id})
+      @client.delete_egress_only_internet_gateway(egress_only_internet_gateway_id: @eigw.egress_only_internet_gateway_id)
+      @client.delete_subnet(subnet_id: @subnet.subnet_id)
       sleep 2
-      @client.delete_vpc({vpc_id: @vpc.vpc_id})
+      @client.delete_vpc(vpc_id: @vpc.vpc_id)
     end
   end
 
@@ -849,15 +857,15 @@ describe OpenStudioAwsWrapper do
     end
 
     it 'should create all infrastructure through find_or_create and remove cleanly with remove_networking' do
-      expect{@vpc = @osaws.os_aws.find_or_create_vpc}.to_not raise_error
-      expect{@public_subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc)}.to_not raise_error
-      expect{@private_subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc)}.to_not raise_error
-      expect{@osaws.os_aws.find_or_create_igw(@vpc)}.to_not raise_error
-      expect{@osaws.os_aws.find_or_create_eigw(@vpc)}.to_not raise_error
-      expect{@osaws.os_aws.find_or_create_public_rtb(@vpc, @public_subnet)}.to_not raise_error
-      expect{@osaws.os_aws.find_or_create_private_rtb(@vpc, @private_subnet)}.to_not raise_error
-      expect{@osaws.os_aws.find_or_create_public_nacl(@vpc, @public_subnet)}.to_not raise_error
-      expect{@osaws.os_aws.find_or_create_private_nacl(@vpc, @private_subnet)}.to_not raise_error
+      expect { @vpc = @osaws.os_aws.find_or_create_vpc }.to_not raise_error
+      expect { @public_subnet = @osaws.os_aws.find_or_create_public_subnet(@vpc) }.to_not raise_error
+      expect { @private_subnet = @osaws.os_aws.find_or_create_private_subnet(@vpc) }.to_not raise_error
+      expect { @osaws.os_aws.find_or_create_igw(@vpc) }.to_not raise_error
+      expect { @osaws.os_aws.find_or_create_eigw(@vpc) }.to_not raise_error
+      expect { @osaws.os_aws.find_or_create_public_rtb(@vpc, @public_subnet) }.to_not raise_error
+      expect { @osaws.os_aws.find_or_create_private_rtb(@vpc, @private_subnet) }.to_not raise_error
+      expect { @osaws.os_aws.find_or_create_public_nacl(@vpc, @public_subnet) }.to_not raise_error
+      expect { @osaws.os_aws.find_or_create_private_nacl(@vpc, @private_subnet) }.to_not raise_error
       expect(@osaws.os_aws.remove_networking(@vpc)).to be true
     end
   end
@@ -868,10 +876,10 @@ describe OpenStudioAwsWrapper do
     end
 
     it 'should create and re-instantiate a single network configuration' do
-      expect{@vpc_id = @osaws.os_aws.find_or_create_networking}.to_not raise_error
-      expect{@vpc_id_2 = @osaws.os_aws.find_or_create_networking(@vpc_id)}.to_not raise_error
+      expect { @vpc_id = @osaws.os_aws.find_or_create_networking }.to_not raise_error
+      expect { @vpc_id_2 = @osaws.os_aws.find_or_create_networking(@vpc_id) }.to_not raise_error
       expect(@vpc_id).to eq(@vpc_id_2)
-      expect{@vpc_id_3 = @osaws.os_aws.find_or_create_networking}.to_not raise_error
+      expect { @vpc_id_3 = @osaws.os_aws.find_or_create_networking }.to_not raise_error
       expect(@vpc_id).to eq(@vpc_id_3)
     end
 

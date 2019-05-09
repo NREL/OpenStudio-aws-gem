@@ -432,16 +432,16 @@ describe OpenStudio::Aws::Aws do
     end
 
     it 'should only allow vpc enabled instances when the vpc_enabled flag is used' do
-      aws_init_options = {ami_lookup_version: 3, openstudio_server_version: '2.2.1-ls2', save_directory: '.', vpc_enabled: true }
+      aws_init_options = { ami_lookup_version: 3, openstudio_server_version: '2.2.1-ls2', save_directory: '.', vpc_enabled: true }
       @aws = OpenStudio::Aws::Aws.new(aws_init_options)
-      server_options_fail = {instance_type: 'm3.xlarge', tags: []}
-      worker_options_fail = {instance_type: 'c3.xlarge', tags: []}
-      server_options_pass = {instance_type: 'm4.xlarge', tags: []}
-      worker_options_pass = {instance_type: 'c4.xlarge', tags: []}
-      expect{@aws.create_server(server_options_fail)}.to raise_error(RuntimeError)
-      expect{@aws.create_server(server_options_pass)}.to_not raise_error
-      expect{@aws.create_workers(1, worker_options_fail)}.to raise_error(RuntimeError)
-      expect{@aws.create_workers(1, worker_options_pass)}.to_not raise_error
+      server_options_fail = { instance_type: 'm3.xlarge', tags: [] }
+      worker_options_fail = { instance_type: 'c3.xlarge', tags: [] }
+      server_options_pass = { instance_type: 'm4.xlarge', tags: [] }
+      worker_options_pass = { instance_type: 'c4.xlarge', tags: [] }
+      expect { @aws.create_server(server_options_fail) }.to raise_error(RuntimeError)
+      expect { @aws.create_server(server_options_pass) }.to_not raise_error
+      expect { @aws.create_workers(1, worker_options_fail) }.to raise_error(RuntimeError)
+      expect { @aws.create_workers(1, worker_options_pass) }.to_not raise_error
     end
 
     after :each do

@@ -94,17 +94,17 @@ class OpenStudioAwsWrapper
     private_rtb = find_or_create_private_rtb(vpc, private_subnet)
   end
 
-  def retrieve_visible_ip()
+  def retrieve_visible_ip
     Net::HTTP.get(URI('http://checkip.amazonaws.com')).strip
   end
 
   def retrieve_vpc(vpc_name)
     vpcs = @aws.describe_vpcs(filters: [
-        {name: 'tag:Name', values: [vpc_name]}
-    ])
+                                { name: 'tag:Name', values: [vpc_name] }
+                              ])
     if vpcs.vpcs.length == 1
       vpcs.vpcs.first
-    elsif vpcs.vpcs.length == 0
+    elsif vpcs.vpcs.empty?
       false
     else
       raise "Did not find 1 VPC instance with name #{vpc_name}, instead found #{vpcs.vpcs.length}. Please delete these vpcs to allow for reconstruction."
@@ -112,7 +112,7 @@ class OpenStudioAwsWrapper
   end
 
   def reload_vpc(vpc)
-    vpcs = @aws.describe_vpcs({vpc_ids: [vpc.vpc_id]}).vpcs
+    vpcs = @aws.describe_vpcs(vpc_ids: [vpc.vpc_id]).vpcs
     if vpcs.length == 1
       vpcs.first
     else
@@ -122,12 +122,12 @@ class OpenStudioAwsWrapper
 
   def retrieve_subnet(subnet_name, vpc)
     subnets = @aws.describe_subnets(filters: [
-        {name: 'tag:Name', values: [subnet_name]},
-        {name: 'vpc-id', values: [vpc.vpc_id]}
-    ])
+                                      { name: 'tag:Name', values: [subnet_name] },
+                                      { name: 'vpc-id', values: [vpc.vpc_id] }
+                                    ])
     if subnets.subnets.length == 1
       subnets.subnets.first
-    elsif subnets.subnets.length == 0
+    elsif subnets.subnets.empty?
       false
     else
       raise "Did not find 1 subnet instance with name #{subnet_name}, instead found #{subnets.subnets.length}. Please delete #{vpc.vpc_id} to allow the vpc to be reconstructed."
@@ -135,7 +135,7 @@ class OpenStudioAwsWrapper
   end
 
   def reload_subnet(subnet)
-    subnets = @aws.describe_subnets({subnet_ids: [subnet.subnet_id]}).subnets
+    subnets = @aws.describe_subnets(subnet_ids: [subnet.subnet_id]).subnets
     if subnets.length == 1
       subnets.first
     else
@@ -149,18 +149,18 @@ class OpenStudioAwsWrapper
   end
 
   def retrieve_igw(vpc)
-    igws = @aws.describe_internet_gateways({filters: [
-        {name: "attachment.vpc-id", values: [vpc.vpc_id]}
-    ]}).internet_gateways
+    igws = @aws.describe_internet_gateways(filters: [
+                                             { name: 'attachment.vpc-id', values: [vpc.vpc_id] }
+                                           ]).internet_gateways
     if igws.length == 1
       igws.first
-    else igws.length == 0
-      false
+    else igws.empty?
+         false
     end
   end
 
   def reload_igw(igw)
-    igws = @aws.describe_internet_gateways({internet_gateway_ids: [igw.internet_gateway_id]}).internet_gateways
+    igws = @aws.describe_internet_gateways(internet_gateway_ids: [igw.internet_gateway_id]).internet_gateways
     if igws.length == 1
       igws.first
     else
@@ -169,8 +169,8 @@ class OpenStudioAwsWrapper
   end
 
   def retrieve_eigw(vpc)
-    eigws = @aws.describe_egress_only_internet_gateways({max_results: 254}).egress_only_internet_gateways
-    if eigws.length == 0
+    eigws = @aws.describe_egress_only_internet_gateways(max_results: 254).egress_only_internet_gateways
+    if eigws.empty?
       false
     else
       eigw = eigws.select { |eigw| eigw.attachments[0].vpc_id == vpc.vpc_id }[0]
@@ -179,7 +179,7 @@ class OpenStudioAwsWrapper
   end
 
   def reload_eigw(eigw)
-    eigws = @aws.describe_egress_only_internet_gateways({egress_only_internet_gateway_ids: [eigw.egress_only_internet_gateway_id]})
+    eigws = @aws.describe_egress_only_internet_gateways(egress_only_internet_gateway_ids: [eigw.egress_only_internet_gateway_id])
     if eigws.length == 1
       eigws.first
     else
@@ -189,10 +189,10 @@ class OpenStudioAwsWrapper
 
   def retrieve_rtb(subnet)
     rtbs = @aws.describe_route_tables({}).route_tables
-    rtbs = rtbs.select { |rtb| rtb.associations.map { |association| association.subnet_id }.include? subnet.subnet_id }
+    rtbs = rtbs.select { |rtb| rtb.associations.map(&:subnet_id).include? subnet.subnet_id }
     if rtbs.length == 1
       rtbs.first
-    elsif rtbs.length == 0
+    elsif rtbs.empty?
       false
     else
       # This should be impossible
@@ -201,7 +201,7 @@ class OpenStudioAwsWrapper
   end
 
   def reload_rtb(rtb)
-    rtbs = @aws.describe_route_tables({route_table_ids: [rtb.route_table_id]}).route_tables
+    rtbs = @aws.describe_route_tables(route_table_ids: [rtb.route_table_id]).route_tables
     if rtbs.length == 1
       rtbs.first
     else
@@ -210,8 +210,8 @@ class OpenStudioAwsWrapper
   end
 
   def retrieve_nacl(subnet)
-    nacls = @aws.describe_network_acls({filters: [{name: "vpc-id", values: [subnet.vpc_id]}]}).network_acls
-    nacls = nacls.select { |nacl| nacl.associations.map { |assoc| assoc.subnet_id }.include? subnet.subnet_id }
+    nacls = @aws.describe_network_acls(filters: [{ name: 'vpc-id', values: [subnet.vpc_id] }]).network_acls
+    nacls = nacls.select { |nacl| nacl.associations.map(&:subnet_id).include? subnet.subnet_id }
     if nacls.length == 1
       nacls.first.is_default ? false : nacls.first
     else
@@ -221,7 +221,7 @@ class OpenStudioAwsWrapper
   end
 
   def reload_nacl(nacl)
-    nacls = @aws.describe_network_acls({network_acl_ids: [nacl.network_acl_id]}).network_acls
+    nacls = @aws.describe_network_acls(network_acl_ids: [nacl.network_acl_id]).network_acls
     if nacls.length == 1
       nacls.first
     else
@@ -231,20 +231,22 @@ class OpenStudioAwsWrapper
   end
 
   def set_nacl(subnet, nacl)
-    nacls = @aws.describe_network_acls({filters: [{name: "vpc-id", values: [subnet.vpc_id]}]}).network_acls
-    current_nacls = nacls.select { |nacl| nacl.associations.map { |assoc| assoc.subnet_id }.include? subnet.subnet_id }
+    nacls = @aws.describe_network_acls(filters: [{ name: 'vpc-id', values: [subnet.vpc_id] }]).network_acls
+    current_nacls = nacls.select { |nacl| nacl.associations.map(&:subnet_id).include? subnet.subnet_id }
     unless current_nacls.length == 1
       # This should be impossible
       raise "Did not find 1 nacl for #{subnet.subnet_id}, instead found #{nacls.length}"
     end
+
     current_nacl = current_nacls.first
     assoc_ids = current_nacl.associations.select { |assoc| assoc.subnet_id == subnet.subnet_id }
     unless assoc_ids.length == 1
       # This should also be impossible
       raise "Did not find 1 nacl for #{subnet.subnet_id}, instead found #{nacls.length}"
     end
+
     assoc_id = assoc_ids[0].network_acl_association_id
-    @aws.replace_network_acl_association({association_id: assoc_id, network_acl_id: nacl.network_acl_id})
+    @aws.replace_network_acl_association(association_id: assoc_id, network_acl_id: nacl.network_acl_id)
   end
 
   def find_or_create_vpc(vpc_version = 'vpc-v0.1')
@@ -260,12 +262,12 @@ class OpenStudioAwsWrapper
         return vpc
       else
         logger.warn "Existing #{vpc.vpc_id} is not available. Deleting and recreating."
-        @aws.delete_vpc({vpc_id: vpc.vpc_id})
+        @aws.delete_vpc(vpc_id: vpc.vpc_id)
       end
     end
 
     # Create and configure a new vpc with an IPV6 allocation
-    vpc = @aws.create_vpc({cidr_block: '10.0.0.0/16', amazon_provided_ipv_6_cidr_block: true}).vpc
+    vpc = @aws.create_vpc(cidr_block: '10.0.0.0/16', amazon_provided_ipv_6_cidr_block: true).vpc
     begin
       @aws.wait_until(:vpc_available, vpc_ids: [vpc.vpc_id]) do |w|
         w.max_attempts = 4
@@ -273,13 +275,13 @@ class OpenStudioAwsWrapper
     rescue Aws::Waiters::Errors::WaiterFailed
       raise "ERROR: VPC #{vpc.vpc_id} did not become available within 60 seconds."
     end
-    @aws.create_tags({
-                         resources: [vpc.vpc_id],
-                         tags: [{
-                                    key: 'Name',
-                                    value: vpc_name
-                                }]
-                     })
+    @aws.create_tags(
+      resources: [vpc.vpc_id],
+      tags: [{
+        key: 'Name',
+        value: vpc_name
+      }]
+    )
     reload_vpc(vpc)
   end
 
@@ -297,15 +299,15 @@ class OpenStudioAwsWrapper
         return public_subnet
       else
         logger.warn "Existing public subnet #{public_subnet.subnet_id} is not available. Deleting and recreating."
-        @aws.delete_subnet({subnet_id: public_subnet.subnet_id})
+        @aws.delete_subnet(subnet_id: public_subnet.subnet_id)
       end
     end
 
     # Create and configure a new subnet with map_public_ip_on_launch enabled
-    public_subnet = @aws.create_subnet({
-                                           cidr_block: '10.0.0.0/24',
-                                           vpc_id: vpc.vpc_id
-                                       }).subnet
+    public_subnet = @aws.create_subnet(
+      cidr_block: '10.0.0.0/24',
+      vpc_id: vpc.vpc_id
+    ).subnet
     begin
       @aws.wait_until(:subnet_available, subnet_ids: [public_subnet.subnet_id]) do |w|
         w.max_attempts = 4
@@ -313,17 +315,17 @@ class OpenStudioAwsWrapper
     rescue Aws::Waiters::Errors::WaiterFailed
       raise "ERROR: Subnet #{public_subnet.subnet_id} did not become available within 60 seconds."
     end
-    @aws.modify_subnet_attribute({
-                                     subnet_id: public_subnet.subnet_id,
-                                     map_public_ip_on_launch: {value: true}
-                                 })
-    @aws.create_tags({
-                         resources: [public_subnet.subnet_id],
-                         tags: [{
-                                    key: 'Name',
-                                    value: public_subnet_name
-                                }]
-                     })
+    @aws.modify_subnet_attribute(
+      subnet_id: public_subnet.subnet_id,
+      map_public_ip_on_launch: { value: true }
+    )
+    @aws.create_tags(
+      resources: [public_subnet.subnet_id],
+      tags: [{
+        key: 'Name',
+        value: public_subnet_name
+      }]
+    )
     reload_subnet(public_subnet)
   end
 
@@ -345,18 +347,18 @@ class OpenStudioAwsWrapper
         return private_subnet
       else
         logger.warn "Existing private subnet #{private_subnet.subnet_id} is not available. Deleting and recreating."
-        @aws.delete_subnet({subnet_id: private_subnet.subnet_id})
+        @aws.delete_subnet(subnet_id: private_subnet.subnet_id)
       end
     end
 
     # Create and configure a new IPV6 enabled subnet with assign_ipv_6_address_on_creation enabled
     vpc_ipv_6_block = vpc.ipv_6_cidr_block_association_set.first.ipv_6_cidr_block
     private_subnet_ipv_6_block = vpc_ipv_6_block.gsub('/56', '/64')
-    private_subnet = @aws.create_subnet({
-                                            cidr_block: '10.0.1.0/24',
-                                            vpc_id: vpc.vpc_id,
-                                            ipv_6_cidr_block: private_subnet_ipv_6_block
-                                        }).subnet
+    private_subnet = @aws.create_subnet(
+      cidr_block: '10.0.1.0/24',
+      vpc_id: vpc.vpc_id,
+      ipv_6_cidr_block: private_subnet_ipv_6_block
+    ).subnet
     begin
       @aws.wait_until(:subnet_available, subnet_ids: [private_subnet.subnet_id]) do |w|
         w.max_attempts = 4
@@ -364,18 +366,18 @@ class OpenStudioAwsWrapper
     rescue Aws::Waiters::Errors::WaiterFailed
       raise "ERROR: Subnet #{private_subnet.subnet_id} did not become available within 60 seconds."
     end
-    @aws.create_tags({
-                         resources: [private_subnet.subnet_id],
-                         tags: [{
-                                    key: 'Name',
-                                    value: private_subnet_name
-                                }]
-                     })
+    @aws.create_tags(
+      resources: [private_subnet.subnet_id],
+      tags: [{
+        key: 'Name',
+        value: private_subnet_name
+      }]
+    )
     private_subnet = reload_subnet(private_subnet)
-    @aws.modify_subnet_attribute({
-                                     subnet_id: private_subnet.subnet_id,
-                                     assign_ipv_6_address_on_creation: {value: true}
-                                 })
+    @aws.modify_subnet_attribute(
+      subnet_id: private_subnet.subnet_id,
+      assign_ipv_6_address_on_creation: { value: true }
+    )
     reload_subnet(private_subnet)
   end
 
@@ -389,35 +391,31 @@ class OpenStudioAwsWrapper
         return igw
       else
         logger.warn "Existing #{igw.internet_gateway_id} attachment is not available. Deleting and recreating."
-        @aws.detach_internet_gateway({internet_gateway_id: igw.internet_gateway_id, vpc_id: igw.attachments.first.vpc_id})
-        @aws.delete_internet_gateway({internet_gateway_id: igw.internet_gateway_id})
+        @aws.detach_internet_gateway(internet_gateway_id: igw.internet_gateway_id, vpc_id: igw.attachments.first.vpc_id)
+        @aws.delete_internet_gateway(internet_gateway_id: igw.internet_gateway_id)
       end
     end
 
     # Create and attach a new igw for the vpc
     igw_name = retrieve_vpc_name(vpc) + '-' + igw_version
     igw = @aws.create_internet_gateway.internet_gateway
-    @aws.attach_internet_gateway({
-                                     internet_gateway_id: igw.internet_gateway_id,
-                                     vpc_id: vpc.vpc_id
-                                 })
-    @aws.create_tags({
-                         resources: [igw.internet_gateway_id],
-                         tags: [{
-                                    key: 'Name',
-                                    value: igw_name
-                                }]
-                     })
+    @aws.attach_internet_gateway(
+      internet_gateway_id: igw.internet_gateway_id,
+      vpc_id: vpc.vpc_id
+    )
+    @aws.create_tags(
+      resources: [igw.internet_gateway_id],
+      tags: [{
+        key: 'Name',
+        value: igw_name
+      }]
+    )
     reload_igw(igw)
   end
 
   def find_or_create_eigw(vpc)
     # This API is pretty simple, so this is quite easy
-    if retrieve_eigw(vpc)
-      retrieve_eigw(vpc)
-    else
-      @aws.create_egress_only_internet_gateway({vpc_id: vpc.vpc_id}).egress_only_internet_gateway
-    end
+    retrieve_eigw(vpc) || @aws.create_egress_only_internet_gateway(vpc_id: vpc.vpc_id).egress_only_internet_gateway
   end
 
   def find_or_create_public_rtb(vpc, public_subnet, public_rtb_extension = 'rtb-public-v0.1')
@@ -426,32 +424,32 @@ class OpenStudioAwsWrapper
     igw = retrieve_igw(vpc)
     if retrieve_rtb(public_subnet)
       public_rtb = retrieve_rtb(public_subnet)
-      if public_rtb.routes.map{ |route| route.gateway_id }.include? igw.internet_gateway_id
+      if public_rtb.routes.map(&:gateway_id).include? igw.internet_gateway_id
         return public_rtb
       else
         # If a route points to 0.0.0.0/0 delete it, then add the igw route
         unless public_rtb.routes.select { |route| route.destination_cidr_block == '0.0.0.0/0' }.empty?
-          @aws.delete_route({
-                                destination_cidr_block: '0.0.0.0/0',
-                                route_table_id: public_rtb.route_table_id,
-                            })
+          @aws.delete_route(
+            destination_cidr_block: '0.0.0.0/0',
+            route_table_id: public_rtb.route_table_id
+          )
         end
-        @aws.create_route({
-                              destination_cidr_block: '0.0.0.0/0',
-                              gateway_id: igw.internet_gateway_id,
-                              route_table_id: public_rtb.route_table_id
-                          })
+        @aws.create_route(
+          destination_cidr_block: '0.0.0.0/0',
+          gateway_id: igw.internet_gateway_id,
+          route_table_id: public_rtb.route_table_id
+        )
         return reload_rtb(public_rtb)
       end
     end
 
     # Create the standard public route table
-    public_rtb = @aws.create_route_table({vpc_id: vpc.vpc_id}).route_table
+    public_rtb = @aws.create_route_table(vpc_id: vpc.vpc_id).route_table
 
     # Poor mans wait_for method - thanks aws-sdk-core for not addressing a known race condition nicely!!!
     waiting = true
     for _ in 0..11
-      waiting = @aws.describe_route_tables({route_table_ids: [public_rtb.route_table_id]}).route_tables.empty?
+      waiting = @aws.describe_route_tables(route_table_ids: [public_rtb.route_table_id]).route_tables.empty?
       if waiting
         sleep(5)
       else
@@ -461,22 +459,22 @@ class OpenStudioAwsWrapper
     raise "rtb #{public_rtb.route_table_id} was not successfully created within 60 seconds" if waiting
 
     # Tag, associate, config, and return the new rtb
-    @aws.create_tags({
-                         resources: [public_rtb.route_table_id],
-                         tags: [{
-                                    key: 'Name',
-                                    value: public_rtb_name
-                                }]
-                     })
-    @aws.associate_route_table({
-                                   route_table_id: public_rtb.route_table_id,
-                                   subnet_id: public_subnet.subnet_id
-                               })
-    @aws.create_route({
-                          destination_cidr_block: '0.0.0.0/0',
-                          gateway_id: igw.internet_gateway_id,
-                          route_table_id: public_rtb.route_table_id
-                      })
+    @aws.create_tags(
+      resources: [public_rtb.route_table_id],
+      tags: [{
+        key: 'Name',
+        value: public_rtb_name
+      }]
+    )
+    @aws.associate_route_table(
+      route_table_id: public_rtb.route_table_id,
+      subnet_id: public_subnet.subnet_id
+    )
+    @aws.create_route(
+      destination_cidr_block: '0.0.0.0/0',
+      gateway_id: igw.internet_gateway_id,
+      route_table_id: public_rtb.route_table_id
+    )
     reload_rtb(public_rtb)
   end
 
@@ -486,32 +484,32 @@ class OpenStudioAwsWrapper
     eigw = retrieve_eigw(vpc)
     if retrieve_rtb(private_subnet)
       private_rtb = retrieve_rtb(private_subnet)
-      if private_rtb.routes.map{ |route| route.egress_only_internet_gateway_id }.include? eigw.egress_only_internet_gateway_id
+      if private_rtb.routes.map(&:egress_only_internet_gateway_id).include? eigw.egress_only_internet_gateway_id
         return private_rtb
       else
         # If a route points to 0.0.0.0/0 delete it, then add the igw route
         unless private_rtb.routes.select { |route| route.destination_ipv_6_cidr_block == '::/0' }.empty?
-          @aws.delete_route({
-                                destination_ipv_6_cidr_block: '::/0',
-                                route_table_id: private_rtb.route_table_id,
-                            })
+          @aws.delete_route(
+            destination_ipv_6_cidr_block: '::/0',
+            route_table_id: private_rtb.route_table_id
+          )
         end
-        @aws.create_route({
-                              destination_ipv_6_cidr_block: '::/0',
-                              egress_only_internet_gateway_id: eigw.egress_only_internet_gateway_id,
-                              route_table_id: private_rtb.route_table_id
-                          })
+        @aws.create_route(
+          destination_ipv_6_cidr_block: '::/0',
+          egress_only_internet_gateway_id: eigw.egress_only_internet_gateway_id,
+          route_table_id: private_rtb.route_table_id
+        )
         return reload_rtb(private_rtb)
       end
     end
 
     # Create the standard private route table
-    private_rtb = @aws.create_route_table({vpc_id: vpc.vpc_id}).route_table
+    private_rtb = @aws.create_route_table(vpc_id: vpc.vpc_id).route_table
 
     # Poor mans wait_for method - thanks aws-sdk-core for not addressing a known race condition nicely!!!
     waiting = true
     for _ in 0..11
-      waiting = @aws.describe_route_tables({route_table_ids: [private_rtb.route_table_id]}).route_tables.empty?
+      waiting = @aws.describe_route_tables(route_table_ids: [private_rtb.route_table_id]).route_tables.empty?
       if waiting
         sleep(5)
       else
@@ -521,22 +519,22 @@ class OpenStudioAwsWrapper
     raise "rtb #{private_rtb.route_table_id} was not successfully created within 60 seconds" if waiting
 
     # Tag, associate, config, and return the new rtb
-    @aws.create_tags({
-                         resources: [private_rtb.route_table_id],
-                         tags: [{
-                                    key: 'Name',
-                                    value: private_rtb_name
-                                }]
-                     })
-    @aws.associate_route_table({
-                                   route_table_id: private_rtb.route_table_id,
-                                   subnet_id: private_subnet.subnet_id
-                               })
-    @aws.create_route({
-                          destination_ipv_6_cidr_block: '::/0',
-                          egress_only_internet_gateway_id: eigw.egress_only_internet_gateway_id,
-                          route_table_id: private_rtb.route_table_id
-                      })
+    @aws.create_tags(
+      resources: [private_rtb.route_table_id],
+      tags: [{
+        key: 'Name',
+        value: private_rtb_name
+      }]
+    )
+    @aws.associate_route_table(
+      route_table_id: private_rtb.route_table_id,
+      subnet_id: private_subnet.subnet_id
+    )
+    @aws.create_route(
+      destination_ipv_6_cidr_block: '::/0',
+      egress_only_internet_gateway_id: eigw.egress_only_internet_gateway_id,
+      route_table_id: private_rtb.route_table_id
+    )
     reload_rtb(private_rtb)
   end
 
@@ -546,72 +544,74 @@ class OpenStudioAwsWrapper
     client_ip = retrieve_visible_ip
     # Client communication / access rules - TCP is protocol 6, UDP protocol 17
     client_rules = [
-        {cidr: client_ip + '/32', egress: false, ports: [22, 22], protocol: '6', rule: 100},
-        {cidr: client_ip + '/32', egress: false, ports: [27017, 27017], protocol: '6', rule: 110},
-        {cidr: client_ip + '/32', egress: true, ports: [1025, 65535], protocol: '6', rule: 100},
-        {cidr: '10.0.0.0/23', egress: true, ports: [22, 22], protocol: '6', rule: 110}
+      { cidr: client_ip + '/32', egress: false, ports: [22, 22], protocol: '6', rule: 100 },
+      { cidr: client_ip + '/32', egress: false, ports: [27017, 27017], protocol: '6', rule: 110 },
+      { cidr: client_ip + '/32', egress: true, ports: [1025, 65535], protocol: '6', rule: 100 },
+      { cidr: '10.0.0.0/23', egress: true, ports: [22, 22], protocol: '6', rule: 110 }
     ]
     # Docker swarm networking rules
     swarm_rules = [
-        {cidr: '10.0.0.0/23', egress: false, ports: [2377, 2377], protocol: '6', rule: 200},
-        {cidr: '10.0.0.0/23', egress: true, ports: [2377, 2377], protocol: '6', rule: 200},
-        {cidr: '10.0.0.0/23', egress: false, ports: [4789, 4789], protocol: '17', rule: 210},
-        {cidr: '10.0.0.0/23', egress: true, ports: [4789, 4789], protocol: '17', rule: 210},
-        {cidr: '10.0.0.0/23', egress: false, ports: [7946, 7946], protocol: '6', rule: 220},
-        {cidr: '10.0.0.0/23', egress: true, ports: [7946, 7946], protocol: '6', rule: 220},
-        {cidr: '10.0.0.0/23', egress: false, ports: [7946, 7946], protocol: '17', rule: 230},
-        {cidr: '10.0.0.0/23', egress: true, ports: [7946, 7946], protocol: '17', rule: 230}
+      { cidr: '10.0.0.0/23', egress: false, ports: [2377, 2377], protocol: '6', rule: 200 },
+      { cidr: '10.0.0.0/23', egress: true, ports: [2377, 2377], protocol: '6', rule: 200 },
+      { cidr: '10.0.0.0/23', egress: false, ports: [4789, 4789], protocol: '17', rule: 210 },
+      { cidr: '10.0.0.0/23', egress: true, ports: [4789, 4789], protocol: '17', rule: 210 },
+      { cidr: '10.0.0.0/23', egress: false, ports: [7946, 7946], protocol: '6', rule: 220 },
+      { cidr: '10.0.0.0/23', egress: true, ports: [7946, 7946], protocol: '6', rule: 220 },
+      { cidr: '10.0.0.0/23', egress: false, ports: [7946, 7946], protocol: '17', rule: 230 },
+      { cidr: '10.0.0.0/23', egress: true, ports: [7946, 7946], protocol: '17', rule: 230 }
     ]
     # Application resolution rules
     application_rules = [
-        {cidr: '0.0.0.0/0', egress: false, ports: [80, 80], protocol: '6', rule: 300},
-        {cidr: '0.0.0.0/0', egress: false, ports: [443, 443], protocol: '6', rule: 310},
-        {cidr: '0.0.0.0/0', egress: false, ports: [32768, 60999], protocol: '6', rule: 320},
-        {cidr: '0.0.0.0/0', egress: true, ports: [80, 80], protocol: '6', rule: 300},
-        {cidr: '0.0.0.0/0', egress: true, ports: [443, 443], protocol: '6', rule: 310},
-        {cidr: '0.0.0.0/0', egress: true, ports: [32768, 60999], protocol: '6', rule: 320}
+      { cidr: '0.0.0.0/0', egress: false, ports: [80, 80], protocol: '6', rule: 300 },
+      { cidr: '0.0.0.0/0', egress: false, ports: [443, 443], protocol: '6', rule: 310 },
+      { cidr: '0.0.0.0/0', egress: false, ports: [32768, 60999], protocol: '6', rule: 320 },
+      { cidr: '0.0.0.0/0', egress: true, ports: [80, 80], protocol: '6', rule: 300 },
+      { cidr: '0.0.0.0/0', egress: true, ports: [443, 443], protocol: '6', rule: 310 },
+      { cidr: '0.0.0.0/0', egress: true, ports: [32768, 60999], protocol: '6', rule: 320 }
     ]
     if retrieve_nacl(public_subnet)
       public_nacl = retrieve_nacl(public_subnet)
       rules_to_verify = client_rules + swarm_rules
       rules_to_apply = []
-      entries = public_nacl.entries.select { |entry| entry.protocol != '-1' }
-      ingress_rule_numbers = entries.select{ |rule| rule.egress == false }.map { |rule| rule.rule_number }
+      entries = public_nacl.entries.reject { |entry| entry.protocol == '-1' }
+      ingress_rule_numbers = entries.select { |rule| rule.egress == false }.map(&:rule_number)
       ingress_rule_numbers.push(390) if ingress_rule_numbers.max < 390
-      egress_rule_numbers = entries.select{ |rule| rule.egress == true }.map { |rule| rule.rule_number }
+      egress_rule_numbers = entries.select { |rule| rule.egress == true }.map(&:rule_number)
       egress_rule_numbers.push(390) if egress_rule_numbers.max < 390
       rules_to_verify.each do |rule|
-        matching_rules = entries.select { |entry| (entry.cidr_block == rule[:cidr]) & (entry.egress == rule[:egress]) &
+        matching_rules = entries.select do |entry|
+          (entry.cidr_block == rule[:cidr]) & (entry.egress == rule[:egress]) &
             (entry.port_range.from == rule[:ports][0]) & (entry.port_range.to == rule[:ports][1]) &
-            (entry.protocol == rule[:protocol])}
+            (entry.protocol == rule[:protocol])
+        end
         rules_to_apply.push(rule) if matching_rules.empty?
       end
       rules_to_apply.each do |rule|
         rule_number = (rule[:egress] ? egress_rule_numbers.max : egress_rule_numbers.max) + 10
         rule[:egress] ? egress_rule_numbers.push(rule_number) : ingress_rule_numbers.push(rule_number)
-        @aws.create_network_acl_entry({
-                                          cidr_block: rule[:cidr],
-                                          egress: rule[:egress],
-                                          network_acl_id: public_nacl.network_acl_id,
-                                          port_range:{
-                                              from: rule[:ports][0],
-                                              to: rule[:ports][1]
-                                          },
-                                          protocol: rule[:protocol],
-                                          rule_action: 'allow',
-                                          rule_number: rule_number
-                                      })
+        @aws.create_network_acl_entry(
+          cidr_block: rule[:cidr],
+          egress: rule[:egress],
+          network_acl_id: public_nacl.network_acl_id,
+          port_range: {
+            from: rule[:ports][0],
+            to: rule[:ports][1]
+          },
+          protocol: rule[:protocol],
+          rule_action: 'allow',
+          rule_number: rule_number
+        )
       end
       return reload_nacl(public_nacl)
     end
 
     # Create the public nacl within the VPC
-    public_nacl = @aws.create_network_acl({vpc_id: vpc.vpc_id}).network_acl
+    public_nacl = @aws.create_network_acl(vpc_id: vpc.vpc_id).network_acl
 
     # Poor mans wait_for method - thanks aws-sdk-core for not addressing a known race condition nicely!!!
     waiting = true
     for _ in 0..11
-      waiting = @aws.describe_network_acls({network_acl_ids: [public_nacl.network_acl_id]}).network_acls.empty?
+      waiting = @aws.describe_network_acls(network_acl_ids: [public_nacl.network_acl_id]).network_acls.empty?
       if waiting
         sleep(5)
       else
@@ -621,29 +621,29 @@ class OpenStudioAwsWrapper
     raise "nacl #{public_nacl.network_acl_id} was not successfully created within 60 seconds" if waiting
 
     # Tag and attach the public nacl
-    @aws.create_tags({
-                         resources: [public_nacl.network_acl_id],
-                         tags: [{
-                                    key: 'Name',
-                                    value: public_nacl_name
-                                }]
-                     })
+    @aws.create_tags(
+      resources: [public_nacl.network_acl_id],
+      tags: [{
+        key: 'Name',
+        value: public_nacl_name
+      }]
+    )
     set_nacl(public_subnet, public_nacl)
     # Set all rules
     rules_to_apply = client_rules + application_rules + swarm_rules
     rules_to_apply.each do |rule|
-      @aws.create_network_acl_entry({
-                                        cidr_block: rule[:cidr],
-                                        egress: rule[:egress],
-                                        network_acl_id: public_nacl.network_acl_id,
-                                        port_range:{
-                                            from: rule[:ports][0],
-                                            to: rule[:ports][1]
-                                        },
-                                        protocol: rule[:protocol],
-                                        rule_action: 'allow',
-                                        rule_number: rule[:rule]
-                                    })
+      @aws.create_network_acl_entry(
+        cidr_block: rule[:cidr],
+        egress: rule[:egress],
+        network_acl_id: public_nacl.network_acl_id,
+        port_range: {
+          from: rule[:ports][0],
+          to: rule[:ports][1]
+        },
+        protocol: rule[:protocol],
+        rule_action: 'allow',
+        rule_number: rule[:rule]
+      )
     end
     reload_nacl(public_nacl)
   end
@@ -654,67 +654,69 @@ class OpenStudioAwsWrapper
     client_ip = retrieve_visible_ip
     # Client communication / access rules - TCP is protocol 6, UDP protocol 17
     client_rules = [
-        {cidr: '10.0.0.0/24', egress: false, ports: [22, 22], protocol: '6', rule: 100},
-        {cidr: '10.0.0.0/24', egress: true, ports: [1025, 60999], protocol: '6', rule: 100}
+      { cidr: '10.0.0.0/24', egress: false, ports: [22, 22], protocol: '6', rule: 100 },
+      { cidr: '10.0.0.0/24', egress: true, ports: [1025, 60999], protocol: '6', rule: 100 }
     ]
     # Docker swarm networking rules
     swarm_rules = [
-        {cidr: '10.0.0.0/23', egress: false, ports: [2377, 2377], protocol: '6', rule: 200},
-        {cidr: '10.0.0.0/23', egress: true, ports: [2377, 2377], protocol: '6', rule: 200},
-        {cidr: '10.0.0.0/23', egress: false, ports: [4789, 4789], protocol: '17', rule: 210},
-        {cidr: '10.0.0.0/23', egress: true, ports: [4789, 4789], protocol: '17', rule: 210},
-        {cidr: '10.0.0.0/23', egress: false, ports: [7946, 7946], protocol: '6', rule: 220},
-        {cidr: '10.0.0.0/23', egress: true, ports: [7946, 7946], protocol: '6', rule: 220},
-        {cidr: '10.0.0.0/23', egress: false, ports: [7946, 7946], protocol: '17', rule: 230},
-        {cidr: '10.0.0.0/23', egress: true, ports: [7946, 7946], protocol: '17', rule: 230}
+      { cidr: '10.0.0.0/23', egress: false, ports: [2377, 2377], protocol: '6', rule: 200 },
+      { cidr: '10.0.0.0/23', egress: true, ports: [2377, 2377], protocol: '6', rule: 200 },
+      { cidr: '10.0.0.0/23', egress: false, ports: [4789, 4789], protocol: '17', rule: 210 },
+      { cidr: '10.0.0.0/23', egress: true, ports: [4789, 4789], protocol: '17', rule: 210 },
+      { cidr: '10.0.0.0/23', egress: false, ports: [7946, 7946], protocol: '6', rule: 220 },
+      { cidr: '10.0.0.0/23', egress: true, ports: [7946, 7946], protocol: '6', rule: 220 },
+      { cidr: '10.0.0.0/23', egress: false, ports: [7946, 7946], protocol: '17', rule: 230 },
+      { cidr: '10.0.0.0/23', egress: true, ports: [7946, 7946], protocol: '17', rule: 230 }
     ]
     # External IGW connection rules
     ipv6_rules = [
-        {cidr: '::/0', egress: true, ports: [80, 80], protocol: '6', rule: 300},
-        {cidr: '::/0', egress: true, ports: [443, 443], protocol: '6', rule: 310},
-        {cidr: '::/0', egress: false, ports: [32768, 60999], protocol: '6', rule: 300}
+      { cidr: '::/0', egress: true, ports: [80, 80], protocol: '6', rule: 300 },
+      { cidr: '::/0', egress: true, ports: [443, 443], protocol: '6', rule: 310 },
+      { cidr: '::/0', egress: false, ports: [32768, 60999], protocol: '6', rule: 300 }
     ]
     if retrieve_nacl(private_subnet)
       private_nacl = retrieve_nacl(private_subnet)
       rules_to_verify = client_rules + swarm_rules
       rules_to_apply = []
-      entries = private_nacl.entries.select { |entry| entry.protocol != '-1' }
-      ingress_rule_numbers = entries.select{ |rule| rule.egress == false }.map { |rule| rule.rule_number }
+      entries = private_nacl.entries.reject { |entry| entry.protocol == '-1' }
+      ingress_rule_numbers = entries.select { |rule| rule.egress == false }.map(&:rule_number)
       ingress_rule_numbers.push(390) if ingress_rule_numbers.max < 390
-      egress_rule_numbers = entries.select{ |rule| rule.egress == true }.map { |rule| rule.rule_number }
+      egress_rule_numbers = entries.select { |rule| rule.egress == true }.map(&:rule_number)
       egress_rule_numbers.push(390) if egress_rule_numbers.max < 390
       rules_to_verify.each do |rule|
-        matching_rules = entries.select { |entry| (entry.cidr_block == rule[:cidr]) & (entry.egress == rule[:egress]) &
+        matching_rules = entries.select do |entry|
+          (entry.cidr_block == rule[:cidr]) & (entry.egress == rule[:egress]) &
             (entry.port_range.from == rule[:ports][0]) & (entry.port_range.to == rule[:ports][1]) &
-            (entry.protocol == rule[:protocol])}
+            (entry.protocol == rule[:protocol])
+        end
         rules_to_apply.push(rule) if matching_rules.empty?
       end
       rules_to_apply.each do |rule|
         rule_number = (rule[:egress] ? egress_rule_numbers.max : egress_rule_numbers.max) + 10
         rule[:egress] ? egress_rule_numbers.push(rule_number) : ingress_rule_numbers.push(rule_number)
-        @aws.create_network_acl_entry({
-                                          cidr_block: rule[:cidr],
-                                          egress: rule[:egress],
-                                          network_acl_id: private_nacl.network_acl_id,
-                                          port_range:{
-                                              from: rule[:ports][0],
-                                              to: rule[:ports][1]
-                                          },
-                                          protocol: rule[:protocol],
-                                          rule_action: 'allow',
-                                          rule_number: rule_number
-                                      })
+        @aws.create_network_acl_entry(
+          cidr_block: rule[:cidr],
+          egress: rule[:egress],
+          network_acl_id: private_nacl.network_acl_id,
+          port_range: {
+            from: rule[:ports][0],
+            to: rule[:ports][1]
+          },
+          protocol: rule[:protocol],
+          rule_action: 'allow',
+          rule_number: rule_number
+        )
       end
       return reload_nacl(private_nacl)
     end
 
     # Create the private nacl within the VPC
-    private_nacl = @aws.create_network_acl({vpc_id: vpc.vpc_id}).network_acl
+    private_nacl = @aws.create_network_acl(vpc_id: vpc.vpc_id).network_acl
 
     # Poor mans wait_for method - thanks aws-sdk-core for not addressing a known race condition nicely!!!
     waiting = true
     for _ in 0..11
-      waiting = @aws.describe_network_acls({network_acl_ids: [private_nacl.network_acl_id]}).network_acls.empty?
+      waiting = @aws.describe_network_acls(network_acl_ids: [private_nacl.network_acl_id]).network_acls.empty?
       if waiting
         sleep(5)
       else
@@ -724,44 +726,44 @@ class OpenStudioAwsWrapper
     raise "nacl #{private_nacl.network_acl_id} was not successfully created within 60 seconds" if waiting
 
     # Tag and attach the private nacl
-    @aws.create_tags({
-                         resources: [private_nacl.network_acl_id],
-                         tags: [{
-                                    key: 'Name',
-                                    value: private_nacl_name
-                                }]
-                     })
+    @aws.create_tags(
+      resources: [private_nacl.network_acl_id],
+      tags: [{
+        key: 'Name',
+        value: private_nacl_name
+      }]
+    )
     set_nacl(private_subnet, private_nacl)
     # Set all IPV4 rules
     rules_to_apply = client_rules + swarm_rules
     rules_to_apply.each do |rule|
-      @aws.create_network_acl_entry({
-                                        cidr_block: rule[:cidr],
-                                        egress: rule[:egress],
-                                        network_acl_id: private_nacl.network_acl_id,
-                                        port_range:{
-                                            from: rule[:ports][0],
-                                            to: rule[:ports][1]
-                                        },
-                                        protocol: rule[:protocol],
-                                        rule_action: 'allow',
-                                        rule_number: rule[:rule]
-                                    })
+      @aws.create_network_acl_entry(
+        cidr_block: rule[:cidr],
+        egress: rule[:egress],
+        network_acl_id: private_nacl.network_acl_id,
+        port_range: {
+          from: rule[:ports][0],
+          to: rule[:ports][1]
+        },
+        protocol: rule[:protocol],
+        rule_action: 'allow',
+        rule_number: rule[:rule]
+      )
     end
     # Set all IPV6 rules
     ipv6_rules.each do |rule|
-      @aws.create_network_acl_entry({
-                                        ipv_6_cidr_block: rule[:cidr],
-                                        egress: rule[:egress],
-                                        network_acl_id: private_nacl.network_acl_id,
-                                        port_range:{
-                                            from: rule[:ports][0],
-                                            to: rule[:ports][1]
-                                        },
-                                        protocol: rule[:protocol],
-                                        rule_action: 'allow',
-                                        rule_number: rule[:rule]
-                                    })
+      @aws.create_network_acl_entry(
+        ipv_6_cidr_block: rule[:cidr],
+        egress: rule[:egress],
+        network_acl_id: private_nacl.network_acl_id,
+        port_range: {
+          from: rule[:ports][0],
+          to: rule[:ports][1]
+        },
+        protocol: rule[:protocol],
+        rule_action: 'allow',
+        rule_number: rule[:rule]
+      )
     end
     reload_nacl(private_nacl)
   end
@@ -776,16 +778,15 @@ class OpenStudioAwsWrapper
     private_rtb = retrieve_rtb(private_subnet)
     public_nacl = retrieve_nacl(public_subnet)
     private_nacl = retrieve_nacl(private_subnet)
-    default_nacl = @aws.describe_network_acls({filters:
+    default_nacl = @aws.describe_network_acls(filters:
                                                    [
-                                                       {name: 'default', values: ['true']},
-                                                       {name: 'vpc-id', values: [vpc.vpc_id]}
-                                                   ]
-                                              }).network_acls[0]
+                                                     { name: 'default', values: ['true'] },
+                                                     { name: 'vpc-id', values: [vpc.vpc_id] }
+                                                   ]).network_acls[0]
     default_sg = create_or_retrieve_default_security_group(vpc_id: vpc.vpc_id)
 
     # First off delete the security group - this is sketchy and should be refactored as possible
-    @aws.delete_security_group({group_id: default_sg.group_id})
+    @aws.delete_security_group(group_id: default_sg.group_id)
 
     # Start by tearing down the private nacl
     if private_nacl
@@ -794,7 +795,8 @@ class OpenStudioAwsWrapper
       unless private_nacl.associations.empty?
         raise "nacl #{private_nacl.network_acl_id} is still associated with #{private_nacl.associations[0].subnet_id}"
       end
-      @aws.delete_network_acl({network_acl_id: private_nacl.network_acl_id})
+
+      @aws.delete_network_acl(network_acl_id: private_nacl.network_acl_id)
     end
 
     # Next tear down the public nacl
@@ -804,56 +806,57 @@ class OpenStudioAwsWrapper
       unless public_nacl.associations.empty?
         raise "nacl #{public_nacl.network_acl_id} is still associated with #{public_nacl.associations[0].subnet_id}"
       end
-      @aws.delete_network_acl({network_acl_id: public_nacl.network_acl_id})
+
+      @aws.delete_network_acl(network_acl_id: public_nacl.network_acl_id)
     end
 
     # Now goes the private rtb
     if private_rtb
       private_rtb = reload_rtb(private_rtb)
       unless private_rtb.associations.empty?
-        private_rtb.associations.each { |assoc| @aws.disassociate_route_table({association_id: assoc.route_table_association_id})}
+        private_rtb.associations.each { |assoc| @aws.disassociate_route_table(association_id: assoc.route_table_association_id) }
       end
-      @aws.delete_route_table({route_table_id: private_rtb.route_table_id})
+      @aws.delete_route_table(route_table_id: private_rtb.route_table_id)
     end
 
     # And now the public rtb
     if public_rtb
       public_rtb = reload_rtb(public_rtb)
       unless public_rtb.associations.empty?
-        public_rtb.associations.each { |assoc| @aws.disassociate_route_table({association_id: assoc.route_table_association_id})}
+        public_rtb.associations.each { |assoc| @aws.disassociate_route_table(association_id: assoc.route_table_association_id) }
       end
-      @aws.delete_route_table({route_table_id: public_rtb.route_table_id})
+      @aws.delete_route_table(route_table_id: public_rtb.route_table_id)
     end
 
     # Next remove the eigw
     if eigw
-      @aws.delete_egress_only_internet_gateway({egress_only_internet_gateway_id: eigw.egress_only_internet_gateway_id})
+      @aws.delete_egress_only_internet_gateway(egress_only_internet_gateway_id: eigw.egress_only_internet_gateway_id)
     end
 
     # Followed by the igw
     if igw
       igw = reload_igw(igw)
-      @aws.detach_internet_gateway({internet_gateway_id: igw.internet_gateway_id, vpc_id: vpc.vpc_id})
-      @aws.delete_internet_gateway({internet_gateway_id: igw.internet_gateway_id})
+      @aws.detach_internet_gateway(internet_gateway_id: igw.internet_gateway_id, vpc_id: vpc.vpc_id)
+      @aws.delete_internet_gateway(internet_gateway_id: igw.internet_gateway_id)
     end
 
     # And now we finally reach the private subnet
-    @aws.delete_subnet({subnet_id: private_subnet.subnet_id}) if private_subnet
+    @aws.delete_subnet(subnet_id: private_subnet.subnet_id) if private_subnet
 
     # Next the public subnet
-    @aws.delete_subnet({subnet_id: public_subnet.subnet_id}) if public_subnet
+    @aws.delete_subnet(subnet_id: public_subnet.subnet_id) if public_subnet
 
     # And last but not least, the vpc itself
     sleep 5
-    @aws.delete_vpc({vpc_id: vpc.vpc_id})
+    @aws.delete_vpc(vpc_id: vpc.vpc_id)
     true
   end
 
-  def create_or_retrieve_default_security_group(tmp_name='openstudio-server-sg-v2.3', vpc_id=nil)
+  def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.3', vpc_id = nil)
     if vpc_id
-      group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}, {name: 'vpc-id', values: [vpc_id]}])
+      group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }, { name: 'vpc-id', values: [vpc_id] }])
     else
-      group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
+      group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     end
   end
 
@@ -872,7 +875,7 @@ class OpenStudioAwsWrapper
     [total_procs, max_requests, mongo_cores, web_cores, max_pool, rez_mem]
   end
 
-  def create_or_retrieve_default_security_group(tmp_name='openstudio-server-sg-v2.2', vpc_id=nil)
+  def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.2', vpc_id = nil)
     group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
     if group.data.security_groups.empty?
@@ -885,20 +888,20 @@ class OpenStudioAwsWrapper
       end
       group_id = r[:group_id]
       @aws.authorize_security_group_ingress(
-          group_id: group_id,
-          ip_permissions: [
-              {ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0']}, # Eventually make this only the user's IP address seen by the internet
-              {ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0']},
-              {ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0']},
-              {ip_protocol: 'tcp', from_port: 27017, to_port: 27017, ip_ranges: [cidr_ip: '0.0.0.0/0']},
-              {ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{group_id: group_id}]}, # allow all machines in the security group talk to each other openly
-              {ip_protocol: 'udp', from_port: 0, to_port: 65535, user_id_group_pairs: [{group_id: group_id}]}, # allow all machines in the security group talk to each other openly
-              {ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0']}
-          ]
+        group_id: group_id,
+        ip_permissions: [
+          { ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0'] }, # Eventually make this only the user's IP address seen by the internet
+          { ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
+          { ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
+          { ip_protocol: 'tcp', from_port: 27017, to_port: 27017, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
+          { ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{ group_id: group_id }] }, # allow all machines in the security group talk to each other openly
+          { ip_protocol: 'udp', from_port: 0, to_port: 65535, user_id_group_pairs: [{ group_id: group_id }] }, # allow all machines in the security group talk to each other openly
+          { ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
+        ]
       )
 
       # reload group information
-      group = @aws.describe_security_groups(filters: [{name: 'group-name', values: [tmp_name]}])
+      group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     else
       logger.info 'Found existing security group'
     end
@@ -910,13 +913,14 @@ class OpenStudioAwsWrapper
   end
 
   def find_or_create_networking(vpc_id = false)
-    logger.info "Creating networking infrastructure for OpenStudio Server"
+    logger.info 'Creating networking infrastructure for OpenStudio Server'
     if vpc_id
       logger.info "Attempting to find existing vpc '#{vpc_id}'"
-      vpcs = @aws.describe_vpcs({vpc_ids: [vpc_id]}).vpcs
+      vpcs = @aws.describe_vpcs(vpc_ids: [vpc_id]).vpcs
       if vpcs.length != 1
         raise "Unable to retrieve vpc #{vpc_id}"
       end
+
       vpc = vpcs.first
       logger.info "Found vpc '#{vpc_id}'"
     else
@@ -966,7 +970,7 @@ class OpenStudioAwsWrapper
       map << zn.to_hash
     end
 
-    {availability_zone_info: map}
+    { availability_zone_info: map }
   end
 
   def describe_availability_zones_json
@@ -978,7 +982,7 @@ class OpenStudioAwsWrapper
 
     availability_zone = !resp.instance_statuses.empty? ? resp.instance_statuses.first.availability_zone : 'no_instances'
 
-    {total_instances: resp.instance_statuses.length, region: @region, availability_zone: availability_zone}
+    { total_instances: resp.instance_statuses.length, region: @region, availability_zone: availability_zone }
   end
 
   def describe_all_instances
@@ -992,11 +996,11 @@ class OpenStudioAwsWrapper
     resp = nil
     if group_uuid
       resp = @aws.describe_instances(
-          filters: [
-              # {name: 'instance-state-code', values: [0.to_s, 16.to_s]}, # running or pending -- any state
-              {name: 'tag-key', values: ['GroupUUID']},
-              {name: 'tag-value', values: [group_uuid.to_s]}
-          ]
+        filters: [
+          # {name: 'instance-state-code', values: [0.to_s, 16.to_s]}, # running or pending -- any state
+          { name: 'tag-key', values: ['GroupUUID'] },
+          { name: 'tag-value', values: [group_uuid.to_s] }
+        ]
       )
     else
       resp = @aws.describe_instances
@@ -1024,11 +1028,11 @@ class OpenStudioAwsWrapper
     resp = nil
     if group_uuid
       resp = @aws.describe_instances(
-          filters: [
-              {name: 'instance-state-code', values: [0.to_s, 16.to_s]}, # running or pending
-              {name: 'tag-key', values: ['GroupUUID']},
-              {name: 'tag-value', values: [group_uuid.to_s]}
-          ]
+        filters: [
+          { name: 'instance-state-code', values: [0.to_s, 16.to_s] }, # running or pending
+          { name: 'tag-key', values: ['GroupUUID'] },
+          { name: 'tag-value', values: [group_uuid.to_s] }
+        ]
       )
     else
       resp = @aws.describe_instances
@@ -1043,7 +1047,7 @@ class OpenStudioAwsWrapper
           if group_uuid && openstudio_instance_type
             # {:key=>"Purpose", :value=>"OpenStudioWorker"}
             if i_h[:tags].any? { |h| (h[:key] == 'Purpose') && (h[:value] == "OpenStudio#{openstudio_instance_type.capitalize}") } &&
-                i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+               i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
               instance_data << i_h
             end
           elsif group_uuid
@@ -1103,8 +1107,8 @@ class OpenStudioAwsWrapper
   # @param [Array] ids: Array of ids to stop
   def stop_instances(ids)
     resp = @aws.stop_instances(
-        instance_ids: ids,
-        force: true
+      instance_ids: ids,
+      force: true
     )
 
     resp
@@ -1114,11 +1118,11 @@ class OpenStudioAwsWrapper
     resp = nil
     begin
       resp = @aws.terminate_instances(
-          instance_ids: ids
+        instance_ids: ids
       )
     rescue Aws::EC2::Errors::InvalidInstanceIDNotFound
       # Log that the instances couldn't be found?
-      resp = {error: 'instances could not be found'}
+      resp = { error: 'instances could not be found' }
     end
 
     resp
@@ -1223,11 +1227,11 @@ class OpenStudioAwsWrapper
 
   def launch_server(image_id, instance_type, launch_options = {})
     defaults = {
-        user_id: 'unknown_user',
-        tags: [],
-        ebs_volume_size: nil,
-        user_data_file: 'server_script.sh.template',
-        vpc_enabled: false
+      user_id: 'unknown_user',
+      tags: [],
+      ebs_volume_size: nil,
+      user_data_file: 'server_script.sh.template',
+      vpc_enabled: false
     }
     launch_options = defaults.merge(launch_options)
 
@@ -1237,6 +1241,7 @@ class OpenStudioAwsWrapper
       if @public_subnet_id.nil?
         raise 'The method find_or_create_networking did not instantiate the @public_subnet_id variable. Please file redundant issues in the OpenStudio-Aws-Gem and OpenStudio-Server github repositories'
       end
+
       if launch_options[:subnet_id]
         if launch_options[:subnet_id] != @public_subnet_id
           raise "The subnet_id provided in launch options, #{launch_options[:subnet_id]}, differs from the retrieved VPC configuration, #{@public_subnet_id}"
@@ -1265,12 +1270,12 @@ class OpenStudioAwsWrapper
 
   def launch_workers(image_id, instance_type, num, launch_options = {})
     defaults = {
-        user_id: 'unknown_user',
-        tags: [],
-        ebs_volume_size: nil,
-        availability_zone: @server.data.availability_zone,
-        user_data_file: 'worker_script.sh.template',
-        vpc_enabled: false
+      user_id: 'unknown_user',
+      tags: [],
+      ebs_volume_size: nil,
+      availability_zone: @server.data.availability_zone,
+      user_data_file: 'worker_script.sh.template',
+      vpc_enabled: false
     }
     launch_options = defaults.merge(launch_options)
 
@@ -1291,6 +1296,7 @@ class OpenStudioAwsWrapper
       if @private_subnet_id.nil?
         raise 'The method find_or_create_networking did not instantiate the @private_subnet_id variable. Please file redundant issues in the OpenStudio-Aws-Gem and OpenStudio-Server github repositories'
       end
+
       if launch_options[:subnet_id]
         if launch_options[:subnet_id] != @private_subnet_id
           raise "The subnet_id provided in launch options, #{launch_options[:subnet_id]}, differs from the retrieved VPC configuration, #{@private_subnet_id}"
@@ -1537,12 +1543,12 @@ class OpenStudioAwsWrapper
     h[:server][:worker_private_key_file_name] = @worker_keys_filename
     h[:workers] = @workers.map do |worker|
       {
-          id: worker.data.id,
-          ip: "http://#{worker.data.ip}",
-          dns: worker.data.dns,
-          procs: worker.data.procs,
-          private_key_file_name: worker.private_key_file_name,
-          private_ip_address: worker.private_ip_address
+        id: worker.data.id,
+        ip: "http://#{worker.data.ip}",
+        dns: worker.data.dns,
+        procs: worker.data.procs,
+        private_key_file_name: worker.private_key_file_name,
+        private_ip_address: worker.private_ip_address
       }
     end
 
@@ -1571,7 +1577,7 @@ class OpenStudioAwsWrapper
   # transform the available amis into an easier to read format
   def transform_ami_lists(existing, available)
     # initialize ami hash
-    amis = {openstudio_server: {}, openstudio: {}}
+    amis = { openstudio_server: {}, openstudio: {} }
     list_of_svs = []
 
     available[:images].each do |ami|
