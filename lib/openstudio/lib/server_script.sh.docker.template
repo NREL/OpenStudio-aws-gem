@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# AWS Server Bootstrap File
+# This script is used to configure the AWS boxes for OpenStudio-server
+
+ENTRY="127.0.0.1 SERVER_HOSTNAME"
+FILE=/etc/hosts
+if grep -q "$ENTRY" $FILE; then
+  echo "Hosts '$SERVER_HOSTNAME' entry already exists"
+else
+  sudo sh -c "echo $ENTRY >> /etc/hosts"
+fi
+
+WORKER_PRIVATE_KEY="WORKER_PRIVATE_KEY_TEMPLATE"
+WORKER_PUBLIC_KEY="WORKER_PUBLIC_KEY_TEMPLATE"
+
+USER=ubuntu
+
+mkdir -p /home/$USER/.ssh && chmod 700 /home/$USER/.ssh
+echo -e $WORKER_PRIVATE_KEY > /home/$USER/.ssh/id_rsa
+echo -e $WORKER_PUBLIC_KEY > /home/$USER/.ssh/id_rsa.pub
+chmod 600 /home/$USER/.ssh/id_rsa
+chmod 644 /home/$USER/.ssh/id_rsa.pub
+chown ubuntu.ubuntu /home/$USER/.ssh/id_rsa
+chown ubuntu.ubuntu /home/$USER/.ssh/id_rsa.pub
+
+# Only allow localhost (and localhosts IP) to connect ot itself with this key. The IP is used for R cluster
+ENTRY="from=\"localhost,127.0.0.1\" $WORKER_PUBLIC_KEY"
+FILE=/home/$USER/.ssh/authorized_keys
+if grep -q "$ENTRY" $FILE; then
+  echo "Key already exists in file"
+else
+  echo $ENTRY >> $FILE
+fi
+chmod 644 /home/$USER/.ssh/authorized_keys
+
+# SSH config
+echo -e "Host *\n\tStrictHostKeyChecking no" > /home/$USER/.ssh/config
+chmod 644 /home/$USER/.ssh/config && chown ubuntu.ubuntu /home/$USER/.ssh/config
+
+# ec2 instance information
+curl -o /usr/local/bin/ec2-metadata http://s3.amazonaws.com/ec2metadata/ec2-metadata
+chmod 775 /usr/local/bin/ec2-metadata
+mkdir -p /etc/openstudio-server
+ec2-metadata -a -i -t -h -o -z -p -v > /etc/openstudio-server/instance.yml
+
+#file flag the user_data has completed
+cat /dev/null > /home/ubuntu/user_data_done

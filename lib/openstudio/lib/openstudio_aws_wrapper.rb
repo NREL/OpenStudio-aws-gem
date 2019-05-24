@@ -1,40 +1,37 @@
-# NOTE: Do not modify this file as it is copied over. Modify the source file and rerun rake import_files
-######################################################################
-#  Copyright (c) 2008-2014, Alliance for Sustainable Energy.
-#  All rights reserved.
+# *******************************************************************************
+# OpenStudio(R), Copyright (c) 2008-2019, Alliance for Sustainable Energy, LLC.
+# All rights reserved.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
 #
-#  This library is free software; you can redistribute it and/or
-#  modify it under the terms of the GNU Lesser General Public
-#  License as published by the Free Software Foundation; either
-#  version 2.1 of the License, or (at your option) any later version.
+# (1) Redistributions of source code must retain the above copyright notice,
+# this list of conditions and the following disclaimer.
 #
-#  This library is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-#  Lesser General Public License for more details.
+# (2) Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
 #
-#  You should have received a copy of the GNU Lesser General Public
-#  License along with this library; if not, write to the Free Software
-#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-######################################################################
-
-######################################################################
-# == Synopsis
+# (3) Neither the name of the copyright holder nor the names of any contributors
+# may be used to endorse or promote products derived from this software without
+# specific prior written permission from the respective party.
 #
-#   Uses the aws-sdk gem to communicate with AWS
+# (4) Other than as required in clauses (1) and (2), distributions in any form
+# of modifications or other derivative works may not use the "OpenStudio"
+# trademark, "OS", "os", or any other confusingly similar designation without
+# specific prior written permission from Alliance for Sustainable Energy, LLC.
 #
-# == Usage
-#
-#  ruby aws.rb access_key secret_key us-east-1 EC2 launch_server "{\"instance_type\":\"t1.micro\"}"
-#
-#  ARGV[0] - Access Key
-#  ARGV[1] - Secret Key
-#  ARGV[2] - Region
-#  ARGV[3] - Service (e.g. "EC2" or "CloudWatch")
-#  ARGV[4] - Command (e.g. "launch_server")
-#  ARGV[5] - Optional json with parameters associated with command
-#
-######################################################################
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER, THE UNITED STATES
+# GOVERNMENT, OR ANY CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+# EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# *******************************************************************************
 
 require_relative 'openstudio_aws_logger'
 
@@ -42,22 +39,34 @@ class OpenStudioAwsWrapper
   include Logging
 
   attr_reader :group_uuid
-  attr_reader :security_group_name
   attr_reader :key_pair_name
   attr_reader :server
   attr_reader :workers
   attr_reader :proxy
+  attr_reader :worker_keys
 
   attr_accessor :private_key_file_name
+  attr_accessor :security_groups
 
-  VALID_OPTIONS = [:proxy, :credentials]
+  VALID_OPTIONS = [:proxy, :credentials].freeze
 
   def initialize(options = {}, group_uuid = nil)
-    @group_uuid = group_uuid || (SecureRandom.uuid).gsub('-', '')
+    @group_uuid = group_uuid || SecureRandom.uuid.delete('-')
 
-    @security_group_name = nil
+    @security_groups = []
     @key_pair_name = nil
     @private_key_file_name = nil
+    @region = options[:region] || 'unknown-region'
+
+    # If the keys exist in the directory then load those, otherwise create new ones.
+    @work_dir = File.expand_path options[:save_directory]
+    if File.exist?(File.join(@work_dir, 'ec2_worker_key.pem')) && File.exist?(File.join(@work_dir, 'ec2_worker_key.pub'))
+      logger.info "Worker keys already exist, loading from #{@work_dir}"
+      load_worker_key(File.join(@work_dir, 'ec2_worker_key.pem'))
+    else
+      logger.info 'Generating new worker keys'
+      @worker_keys = SSHKey.generate
+    end
 
     @private_key = nil # Private key data
 
@@ -66,38 +75,62 @@ class OpenStudioAwsWrapper
     @workers = []
 
     # store an instance variable with the proxy for passing to instances for use in scp/ssh
-    @proxy = options[:proxy] ? options[:proxy] : nil
+    @proxy = options[:proxy] || nil
 
     # need to remove the prxoy information here
     @aws = Aws::EC2::Client.new(options[:credentials])
   end
 
-  def create_or_retrieve_security_group(sg_name = nil)
-    tmp_name = sg_name || 'openstudio-server-sg-v1'
+  # Calculate the number of processors for the server and workers. This is used to scale the docker stack
+  # appropriately.
+  # @param total_procs [int] Total number of processors that are available
+  def calculate_processors(total_procs)
+    max_requests = ((total_procs + 10) * 1.2).round
+    mongo_cores = (total_procs / 64.0).ceil
+    web_cores = (total_procs / 32.0).ceil
+    max_pool = 16 * web_cores
+    rez_mem = 512 * max_pool
+    # what is this +2 doing here
+    total_procs = total_procs - mongo_cores - web_cores + 2
+
+    [total_procs, max_requests, mongo_cores, web_cores, max_pool, rez_mem]
+  end
+
+  def create_or_retrieve_default_security_group(tmp_name = 'openstudio-server-sg-v2.2', vpc_id = nil)
     group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
     logger.info "Length of the security group is: #{group.data.security_groups.length}"
-    if group.data.security_groups.length == 0
-      logger.info 'server group not found --- will create a new one'
-      @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
+    if group.data.security_groups.empty?
+      logger.info 'security group not found --- will create a new one'
+      if vpc_id
+        r = @aws.create_security_group(
+          group_name: tmp_name, description: "group dynamically created by #{__FILE__}", vpc_id: vpc_id
+        )
+      else
+        r = @aws.create_security_group(group_name: tmp_name, description: "group dynamically created by #{__FILE__}")
+      end
+      group_id = r[:group_id]
       @aws.authorize_security_group_ingress(
-          group_name: tmp_name,
-          ip_permissions: [
-            { ip_protocol: 'tcp', from_port: 1, to_port: 65_535, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
-          ]
-      )
-      @aws.authorize_security_group_ingress(
-          group_name: tmp_name,
-          ip_permissions: [
-            { ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0']
-            }
-          ]
+        group_id: group_id,
+        ip_permissions: [
+          { ip_protocol: 'tcp', from_port: 22, to_port: 22, ip_ranges: [cidr_ip: '0.0.0.0/0'] }, # Eventually make this only the user's IP address seen by the internet
+          { ip_protocol: 'tcp', from_port: 80, to_port: 80, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
+          { ip_protocol: 'tcp', from_port: 443, to_port: 443, ip_ranges: [cidr_ip: '0.0.0.0/0'] },
+          { ip_protocol: 'tcp', from_port: 0, to_port: 65535, user_id_group_pairs: [{ group_name: tmp_name }] }, # allow all machines in the security group talk to each other openly
+          { ip_protocol: 'udp', from_port: 0, to_port: 65535, user_id_group_pairs: [{ group_name: tmp_name }] }, # allow all machines in the security group talk to each other openly
+          { ip_protocol: 'icmp', from_port: -1, to_port: -1, ip_ranges: [cidr_ip: '0.0.0.0/0'] }
+        ]
       )
 
       # reload group information
       group = @aws.describe_security_groups(filters: [{ name: 'group-name', values: [tmp_name] }])
+    else
+      logger.info 'Found existing security group'
     end
-    @security_group_name = group.data.security_groups.first.group_name
-    logger.info("server_group #{group.data.security_groups.first.group_name}")
+
+    @security_groups = [group.data.security_groups.first.group_id]
+    logger.info("server_group #{group.data.security_groups.first.group_name}:#{group.data.security_groups.first.group_id}")
+
+    group.data.security_groups.first
   end
 
   def describe_availability_zones
@@ -114,15 +147,50 @@ class OpenStudioAwsWrapper
     describe_availability_zones.to_json
   end
 
-  def describe_total_instances
+  def total_instances_count
     resp = @aws.describe_instance_status
 
-    region = resp.instance_statuses.length > 0 ? resp.instance_statuses.first.availability_zone : 'no_instances'
-    { total_instances: resp.instance_statuses.length, region: region }
+    availability_zone = !resp.instance_statuses.empty? ? resp.instance_statuses.first.availability_zone : 'no_instances'
+
+    { total_instances: resp.instance_statuses.length, region: @region, availability_zone: availability_zone }
   end
 
-  def describe_total_instances_json
-    describe_total_instances.to_json
+  def describe_all_instances
+    resp = @aws.describe_instance_status
+
+    resp
+  end
+
+  # describe the instances by group id (this is the default method)
+  def describe_instances
+    resp = nil
+    if group_uuid
+      resp = @aws.describe_instances(
+        filters: [
+          # {name: 'instance-state-code', values: [0.to_s, 16.to_s]}, # running or pending -- any state
+          { name: 'tag-key', values: ['GroupUUID'] },
+          { name: 'tag-value', values: [group_uuid.to_s] }
+        ]
+      )
+    else
+      resp = @aws.describe_instances
+    end
+
+    # Any additional filters
+    instance_data = nil
+    if resp
+      instance_data = []
+      resp.reservations.each do |r|
+        r.instances.each do |i|
+          i_h = i.to_hash
+          if i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+            instance_data << i_h
+          end
+        end
+      end
+    end
+
+    instance_data
   end
 
   # return all of the running instances, or filter by the group_uuid & instance type
@@ -130,11 +198,11 @@ class OpenStudioAwsWrapper
     resp = nil
     if group_uuid
       resp = @aws.describe_instances(
-          filters: [
-            { name: 'instance-state-code', values: [0.to_s, 16.to_s] }, # running or pending
-            { name: 'tag-key', values: ['GroupUUID'] },
-            { name: 'tag-value', values: [group_uuid.to_s] }
-          ]
+        filters: [
+          { name: 'instance-state-code', values: [0.to_s, 16.to_s] }, # running or pending
+          { name: 'tag-key', values: ['GroupUUID'] },
+          { name: 'tag-value', values: [group_uuid.to_s] }
+        ]
       )
     else
       resp = @aws.describe_instances
@@ -149,11 +217,11 @@ class OpenStudioAwsWrapper
           if group_uuid && openstudio_instance_type
             # {:key=>"Purpose", :value=>"OpenStudioWorker"}
             if i_h[:tags].any? { |h| (h[:key] == 'Purpose') && (h[:value] == "OpenStudio#{openstudio_instance_type.capitalize}") } &&
-                      i_h[:tags].any? { |h|(h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+               i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
               instance_data << i_h
             end
           elsif group_uuid
-            if i_h[:tags].any? { |h|(h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
+            if i_h[:tags].any? { |h| (h[:key] == 'GroupUUID') && (h[:value] == group_uuid.to_s) }
               instance_data << i_h
             end
           elsif openstudio_instance_type
@@ -170,22 +238,17 @@ class OpenStudioAwsWrapper
     instance_data
   end
 
-  def describe_amis(filter = nil, image_ids = [], owned_by_me = true)
+  # Describe the list of AMIs adn return the hash.
+  # @param [Array] image_ids: List of image ids to find. If empty, then will find all images.
+  # @param [Boolean] owned_by_me: Find only the images owned by the current user?
+  # @return [Hash]
+  def describe_amis(image_ids = [], owned_by_me = true)
     resp = nil
 
-    # todo: test the filter.  i don't think that it is exposed in the AWS gem?
     if owned_by_me
-      if filter
-        resp = @aws.describe_images(owners: [:self], filter: filter).data
-      else
-        resp = @aws.describe_images(owners: [:self]).data
-      end
+      resp = @aws.describe_images(owners: [:self]).data
     else
-      if filter
-        resp = @aws.describe_images(filter: filter).data
-      else
-        resp = @aws.describe_images(image_ids: image_ids).data
-      end
+      resp = @aws.describe_images(image_ids: image_ids).data
     end
 
     resp = resp.to_hash
@@ -194,11 +257,15 @@ class OpenStudioAwsWrapper
     resp[:images].each do |image|
       image[:tags_hash] = {}
       image[:tags_hash][:tags] = []
-      image[:tags].each do |tag|
-        if tag[:value]
-          image[:tags_hash][tag[:key].to_sym] = tag[:value]
-        else
-          image[:tags_hash][:tags] << tag[:key]
+
+      # If the image is being created then its tags may be empty
+      if image[:tags]
+        image[:tags].each do |tag|
+          if tag[:value]
+            image[:tags_hash][tag[:key].to_sym] = tag[:value]
+          else
+            image[:tags_hash][:tags] << tag[:key]
+          end
         end
       end
     end
@@ -206,25 +273,28 @@ class OpenStudioAwsWrapper
     resp
   end
 
+  # Stop specific instances based on the instance_ids
+  # @param [Array] ids: Array of ids to stop
   def stop_instances(ids)
     resp = @aws.stop_instances(
-        instance_ids: ids,
-        force: true
+      instance_ids: ids,
+      force: true
     )
 
     resp
   end
 
   def terminate_instances(ids)
+    resp = nil
     begin
       resp = @aws.terminate_instances(
-          instance_ids: ids,
+        instance_ids: ids
       )
     rescue Aws::EC2::Errors::InvalidInstanceIDNotFound
       # Log that the instances couldn't be found?
-      return resp = {error: 'instances could not be found'}
+      resp = { error: 'instances could not be found' }
     end
-      
+
     resp
   end
 
@@ -235,12 +305,12 @@ class OpenStudioAwsWrapper
     resp = nil
     begin
       resp = @aws.describe_key_pairs(key_names: [tmp_name]).data
-      fail 'looks like there are 2 key pairs with the same name' if resp.key_pairs.size >= 2
-    rescue
+      raise 'looks like there are 2 key pairs with the same name' if resp.key_pairs.size >= 2
+    rescue StandardError
       logger.info "could not find key pair '#{tmp_name}'"
     end
 
-    if resp.nil? || resp.key_pairs.size == 0
+    if resp.nil? || resp.key_pairs.empty?
       # create the new key_pair
       # check if the key pair name exists
       # create a new key pair everytime
@@ -259,75 +329,146 @@ class OpenStudioAwsWrapper
     logger.info("create key pair: #{@key_pair_name}")
   end
 
+  # Delete the key pair from aws
+  def delete_key_pair(key_pair_name = nil)
+    tmp_name = key_pair_name || "os-key-pair-#{@group_uuid}"
+    resp = nil
+    begin
+      logger.info "Trying to delete key pair #{tmp_name}"
+      resp = @aws.delete_key_pair(key_name: tmp_name)
+    rescue StandardError
+      logger.info "could not delete the key pair '#{tmp_name}'"
+    end
+
+    resp
+  end
+
   def load_private_key(filename)
-    fail "Could not find private key #{filename}" unless File.exist? filename
+    unless File.exist? filename
+      # check if the file basename exists in your user directory
+      filename = File.expand_path("~/.ssh/#{File.basename(filename)}")
+      if File.exist? filename
+        logger.info "Found key of same name in user's home ssh folder #{filename}"
+        # using the key in your home directory
+      else
+        raise "Could not find private key #{filename}" unless File.exist? filename
+      end
+    end
+
     @private_key_file_name = File.expand_path filename
     @private_key = File.read(filename)
   end
 
-  def save_private_key(filename)
+  # Load the worker key for communicating between the server and worker instances on AWS. The public key
+  # will be automatically created when loading the private key
+  #
+  # @param private_key_filename [String] Fully qualified path to the worker private key
+  def load_worker_key(private_key_filename)
+    logger.info "Loading worker keys from #{private_key_filename}"
+    @worker_keys_filename = private_key_filename
+    @worker_keys = SSHKey.new(File.read(@worker_keys_filename))
+  end
+
+  # Save the private key to disk
+  def save_private_key(directory = '.', filename = 'ec2_server_key.pem')
     if @private_key
-      @private_key_file_name = File.expand_path filename
-      File.open(filename, 'w') { |f| f << @private_key }
-      File.chmod(0600, filename)
+      @private_key_file_name = File.expand_path "#{directory}/#{filename}"
+      logger.info "Saving server private key in #{@private_key_file_name}"
+      File.open(@private_key_file_name, 'w') { |f| f << @private_key }
+      logger.info 'Setting permissions of server private key to 0600'
+      File.chmod(0o600, @private_key_file_name)
     else
-      fail "No private key found in which to persist with filename #{filename}"
+      raise "No private key found in which to persist with filename #{filename}"
     end
   end
 
-  def launch_server(image_id, instance_type, options = {})
-    defaults = { user_id: 'unknown_user' }
-    options = defaults.merge(options)
+  # save off the worker public/private keys that were created
+  def save_worker_keys(directory = '.')
+    @worker_keys_filename = "#{directory}/ec2_worker_key.pem"
+    logger.info "Saving worker private key in #{@worker_keys_filename}"
+    File.open(@worker_keys_filename, 'w') { |f| f << @worker_keys.private_key }
+    logger.info 'Setting permissions of worker private key to 0600'
+    File.chmod(0o600, @worker_keys_filename)
 
-    user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/server_script.sh')
-    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_group_name, @group_uuid, @private_key, @private_key_file_name, @proxy)
-
-    # create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
-
-    fail 'image_id is nil' unless image_id
-    fail 'instance type is nil' unless instance_type
-    @server.launch_instance(image_id, instance_type, user_data, options[:user_id], options[:ebs_volume_size])
+    wk = "#{directory}/ec2_worker_key.pub"
+    logger.info "Saving worker public key in #{wk}"
+    File.open(wk, 'w') { |f| f << @worker_keys.public_key }
   end
 
-  def launch_workers(image_id, instance_type, num, options = {})
-    defaults = { user_id: 'unknown_user' }
-    options = defaults.merge(options)
+  def launch_server(image_id, instance_type, launch_options = {})
+    defaults = {
+      user_id: 'unknown_user',
+      tags: [],
+      ebs_volume_size: nil,
+      user_data_file: 'server_script.sh.template'
+    }
+    launch_options = defaults.merge(launch_options)
 
-    user_data = File.read(File.expand_path(File.dirname(__FILE__)) + '/worker_script.sh.template')
-    user_data.gsub!(/SERVER_IP/, @server.data.ip)
-    user_data.gsub!(/SERVER_HOSTNAME/, 'master')
-    user_data.gsub!(/SERVER_ALIAS/, '')
+    # replace the server_script.sh.template with the keys to add
+
+    user_data = File.read(File.join(__dir__, launch_options[:user_data_file]))
+    user_data.gsub!(/SERVER_HOSTNAME/, 'openstudio.server')
+    user_data.gsub!(/WORKER_PRIVATE_KEY_TEMPLATE/, worker_keys.private_key.gsub("\n", '\\n'))
+    user_data.gsub!(/WORKER_PUBLIC_KEY_TEMPLATE/, worker_keys.ssh_public_key)
+
+    @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, @security_groups, @group_uuid, @private_key,
+                                        @private_key_file_name, @proxy)
+
+    # TODO: create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
+
+    raise 'image_id is nil' unless image_id
+    raise 'instance type is nil' unless instance_type
+
+    @server.launch_instance(image_id, instance_type, user_data, launch_options[:user_id], launch_options)
+  end
+
+  def launch_workers(image_id, instance_type, num, launch_options = {})
+    defaults = {
+      user_id: 'unknown_user',
+      tags: [],
+      ebs_volume_size: nil,
+      availability_zone: @server.data.availability_zone,
+      user_data_file: 'worker_script.sh.template'
+    }
+    launch_options = defaults.merge(launch_options)
+
+    user_data = File.read(File.join(__dir__, launch_options[:user_data_file]))
+    user_data.gsub!(/SERVER_IP/, @server.data.private_ip_address)
+    user_data.gsub!(/SERVER_HOSTNAME/, 'openstudio.server')
+    user_data.gsub!(/WORKER_PUBLIC_KEY_TEMPLATE/, worker_keys.ssh_public_key)
     logger.info("worker user_data #{user_data.inspect}")
 
     # thread the launching of the workers
-
     num.times do
-      @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_group_name, @group_uuid, @private_key, @private_key_file_name, @proxy)
+      @workers << OpenStudioAwsInstance.new(@aws, :worker, @key_pair_name, @security_groups, @group_uuid,
+                                            @private_key, @private_key_file_name, @proxy)
     end
 
     threads = []
     @workers.each do |worker|
       threads << Thread.new do
         # create the EBS volumes instead of the ephemeral storage - needed especially for the m3 instances (SSD)
-        worker.launch_instance(image_id, instance_type, user_data, options[:user_id], options[:ebs_volume_size])
+        worker.launch_instance(image_id, instance_type, user_data, launch_options[:user_id], launch_options)
       end
     end
-    threads.each { |t| t.join }
+    threads.each(&:join)
 
-    # todo: do we need to have a flag if the worker node is successful?
-    # todo: do we need to check the current list of running workers?
+    # TODO: do we need to have a flag if the worker node is successful?
+    # TODO: do we need to check the current list of running workers?
   end
 
   # blocking method that waits for servers and workers to be fully configured (i.e. execution of user_data has
-  # occured on all nodes)
+  # occured on all nodes). Ideally none of these methods would ever need to exist.
+  #
+  # @return [Boolean] Will return true unless an exception is raised
   def configure_server_and_workers
     logger.info('waiting for server user_data to complete')
     @server.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"')
     logger.info('waiting for worker user_data to complete')
     @workers.each { |worker| worker.wait_command('[ -e /home/ubuntu/user_data_done ] && echo "true"') }
 
-    ips = "master|#{@server.data.ip}|#{@server.data.dns}|#{@server.data.procs}|ubuntu|ubuntu|true\n"
-    @workers.each { |worker| ips << "worker|#{worker.data.ip}|#{worker.data.dns}|#{worker.data.procs}|ubuntu|ubuntu|true\n" }
+    ips = "master|#{@server.data.private_ip_address}|#{@server.data.dns}|#{@server.data.procs}|ubuntu|ubuntu|true\n"
+    @workers.each { |worker| ips << "worker|#{worker.data.private_ip_address}|#{worker.data.dns}|#{worker.data.procs}|ubuntu|ubuntu|true\n" }
     file = Tempfile.new('ip_addresses')
     file.write(ips)
     file.close
@@ -335,11 +476,9 @@ class OpenStudioAwsWrapper
     file.unlink
     logger.info("ips #{ips}")
     @server.shell_command('chmod 664 /home/ubuntu/ip_addresses')
-    @server.shell_command('~/setup-ssh-keys.sh')
-    @server.shell_command('~/setup-ssh-worker-nodes.sh ip_addresses')
 
-    mongoid = File.read(File.expand_path(File.dirname(__FILE__)) + '/mongoid.yml.template')
-    mongoid.gsub!(/SERVER_IP/, @server.data.ip)
+    mongoid = File.read(__dir__ + '/mongoid.yml.template')
+    mongoid.gsub!(/SERVER_IP/, @server.data.private_ip_address)
     file = Tempfile.new('mongoid.yml')
     file.write(mongoid)
     file.close
@@ -350,34 +489,122 @@ class OpenStudioAwsWrapper
     @server.shell_command('chmod 664 /mnt/openstudio/rails-models/mongoid.yml')
     @workers.each { |worker| worker.shell_command('chmod 664 /mnt/openstudio/rails-models/mongoid.yml') }
 
-    sleep 60 # wait 60 more seconds for everything -- this is cheesy
     true
   end
 
+  # blocking method that executes required commands for creating and provisioning a docker swarm cluster
+  def configure_swarm_cluster(save_directory)
+    logger.info('waiting for server user_data to complete')
+    @server.wait_command('while ! [ -e /home/ubuntu/user_data_done ]; do sleep 5; done && echo "true"')
+    logger.info('Running the configuration script for the server.')
+    @server.wait_command('echo $(env) &> /home/ubuntu/env.log && echo "true"')
+    @server.wait_command('cp /home/ubuntu/server_provision.sh /home/ubuntu/server_provision.sh.bak && echo "true"')
+    @server.wait_command('sudo /home/ubuntu/server_provision.sh &> /home/ubuntu/server_provision.log && echo "true"')
+    logger.info('Downloading the swarm join command.')
+    swarm_file = File.join(save_directory, 'worker_swarm_join.sh')
+    @server.download_file('/home/ubuntu/swarmjoin.sh', swarm_file)
+    logger.info('waiting for worker user_data to complete')
+    @workers.each { |worker| worker.wait_command('while ! [ -e /home/ubuntu/user_data_done ]; do sleep 5; done && echo "true"') }
+    logger.info('Running the configuration script for the worker(s).')
+    @workers.each { |worker| worker.wait_command('sudo /home/ubuntu/worker_provision.sh &> /home/ubuntu/worker_provision.log && echo "true"') }
+    logger.info('Successfully re-sized storage devices for all nodes. Joining server nodes to the swarm.')
+    worker_join_cmd = "#{File.read(swarm_file).strip} && echo \"true\""
+    @workers.each { |worker| worker.wait_command(worker_join_cmd) }
+    logger.info('All worker nodes have been added to the swarm. Setting environment variables and starting the cluster')
+    # e.g. 356 CPUs
+    # mongo cores = 6
+    # web cores = 12
+    # total procs = 340 (but should be 336)
+    total_procs = @server.procs
+    @workers.each { |worker| total_procs += worker.procs }
+    total_procs, max_requests, mongo_cores, web_cores, max_pool, rez_mem = calculate_processors(total_procs)
+    logger.info('Processors allocations are:')
+    logger.info("   total_procs: #{total_procs}")
+    logger.info("   max_requests: #{max_requests}")
+    logger.info("   mongo_cores: #{mongo_cores}")
+    logger.info("   web_cores: #{web_cores}")
+    logger.info("   max_pool: #{max_pool}")
+    logger.info("   rez_mem: #{rez_mem}")
+    @server.shell_command("sed -i -e 's/AWS_MAX_REQUESTS/#{max_requests}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
+    @server.shell_command("sed -i -e 's/AWS_MONGO_CORES/#{mongo_cores}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
+    @server.shell_command("sed -i -e 's/AWS_WEB_CORES/#{web_cores}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
+    @server.shell_command("sed -i -e 's/AWS_MAX_POOL/#{max_pool}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
+    @server.shell_command("sed -i -e 's/AWS_REZ_MEM/#{rez_mem}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
+    @server.shell_command("sed -i -e 's/AWS_OS_SERVER_NUMBER_OF_WORKERS/#{total_procs}/g' /home/ubuntu/docker-compose.yml && echo \"true\"")
+    @server.shell_command("echo '' >> /home/ubuntu/.env && echo \"true\"")
+    @server.shell_command('docker stack deploy --compose-file docker-compose.yml osserver && echo "true"')
+    sleep 10
+    logger.info('The OpenStudio Server stack has been started. Waiting for the server to become available.')
+    @server.wait_command("while ( nc -zv #{@server.ip} 80 3>&1 1>&2- 2>&3- ) | awk -F \":\" '$3 != \" Connection refused\" {exit 1}'; do sleep 5; done && echo \"true\"")
+    logger.info('The OpenStudio Server stack has become available. Scaling the worker nodes.')
+    @server.wait_command("docker service scale osserver_worker=#{total_procs} && echo \"true\"")
+    logger.info('Waiting up to two minutes for the osserver_worker service to scale.')
+    @server.wait_command("timeout 120 bash -c -- 'while [ $( docker service ls -f name=osserver_worker --format=\"{{.Replicas}}\" ) != \"#{total_procs}/#{total_procs}\" ]; do sleep 5; done'; echo \"true\"")
+    logger.info('The OpenStudio Server stack is booted and ready for analysis submissions.')
+  end
+
   # method to query the amazon api to find the server (if it exists), based on the group id
-  # if it is found, then it will set the @server member variable.
+  # if it is found, then it will set the @server instance variable. The security groups are assigned from the
+  # server node information on AWS if the security groups have not been initialized yet.
+  #
   # Note that the information around keys and security groups is pulled from the instance information.
+  # @param server_data_hash [Hash] Server data
+  # @option server_data_hash [String] :group_id Group ID of the analysis
+  # @option server_data_hash [String] :server.private_key_file_name Name of the private key to communicate to the server
   def find_server(server_data_hash)
-    group_uuid = server_data_hash[:group_id] || @group_uuid
+    @group_uuid = server_data_hash[:group_id] || @group_uuid
     load_private_key(server_data_hash[:server][:private_key_file_name])
 
-    logger.info "finding the server for groupid of #{group_uuid}"
-    fail 'no group uuid defined either in member variable or method argument' if group_uuid.nil?
+    logger.info "Finding the server for GroupUUID of #{group_uuid}"
+    raise 'no GroupUUID defined either in member variable or method argument' if @group_uuid.nil?
 
+    # This should really just be a single call to describe running instances
+    @server = nil
     resp = describe_running_instances(group_uuid, :server)
     if resp
-      fail "more than one server running with group uuid of #{group_uuid} found, expecting only one" if resp.size > 1
+      raise "more than one server running with group uuid of #{group_uuid} found, expecting only one" if resp.size > 1
+
       resp = resp.first
       if !@server
-        logger.info "Server found and loading data into object [instance id is #{resp[:instance_id]}]"
-        @server = OpenStudioAwsInstance.new(@aws, :server, resp[:key_name], resp[:security_groups].first[:group_name], group_uuid, @private_key, @private_key_file_name)
-        @server.load_instance_data(resp)
+        if resp
+          logger.info "Server found and loading data into object [instance id is #{resp[:instance_id]}]"
+
+          sg = resp[:security_groups].map { |s| s[:group_id] }
+          # Set the security groups of the object if these groups haven't been assigned yet.
+          @security_groups = sg if @security_groups.empty?
+          logger.info "The security groups in aws wrapper are #{@security_groups}"
+
+          # set the key name from AWS if it isn't yet assigned
+          logger.info 'Setting the keyname in the aws wrapper'
+          @key_pair_name ||= resp[:key_name]
+
+          @server = OpenStudioAwsInstance.new(@aws, :server, @key_pair_name, sg, @group_uuid, @private_key, @private_key_file_name, @proxy)
+
+          @server.load_instance_data(resp)
+        end
       else
         logger.info "Server instance is already defined with instance #{resp[:instance_id]}"
       end
     else
-      fail 'could not find a running server instance'
+      logger.info 'could not find a running server instance'
     end
+
+    # Find the worker instances.
+    if @workers.empty?
+      resp = describe_running_instances(group_uuid, :worker)
+      if resp
+        resp.each do |r|
+          @workers << OpenStudioAwsInstance.new(@aws, :worker, r[:key_name], r[:security_groups].map { |s| s[:group_id] }, @group_uuid, @private_key, @private_key_file_name, @proxy)
+          @workers.last.load_instance_data(r)
+        end
+      end
+    else
+      logger.info 'Worker nodes are already defined'
+    end
+
+    # set the private key from the hash
+    load_private_key server_data_hash[:server][:private_key_file_name]
+    load_worker_key server_data_hash[:server][:worker_private_key_file_name]
 
     # Really don't need to return anything because this sets the class instance variable
     @server
@@ -395,56 +622,80 @@ class OpenStudioAwsWrapper
     amis = transform_ami_lists(existing_amis, available_amis)
 
     if version == 1
-      puts 'Creating version 1 of the AMI file'
       version1 = {}
 
       # now grab the good keys - they should be sorted newest to older... so go backwards
-      amis[:openstudio_server].keys.reverse.each do |key|
-        next if amis[:openstudio_server][key][:deprecate]
-
+      amis[:openstudio_server].keys.reverse_each do |key|
         a = amis[:openstudio_server][key]
         # this will override any of the old ami/os version
         version1[a[:openstudio_version].to_sym] = a[:amis]
       end
 
       # create the default version. First sort, then grab the first hash's values
-
       version1.sort_by
       default_v = nil
       version1 = Hash[version1.sort_by { |k, _| k.to_s.to_version }.reverse]
       default_v = version1.keys[0]
 
       version1[:default] = version1[default_v]
-      puts "Pretty version 1: #{JSON.pretty_generate(version1)}"
-
       amis = version1
     elsif version == 2
-      # don't need to transform anything right now
-      puts "Pretty version 2: #{JSON.pretty_generate(amis)}"
+      # don't need to transform anything right now, only flag which ones are stable version so that the uploaded ami JSON has the
+      # stable server for OpenStudio PAT to use.
+      stable = JSON.parse File.read(File.join(File.dirname(__FILE__), 'ami_stable_version.json')), symbolize_names: true
+
+      # go through and tag the versions of the openstudio instances that are stable,
+      stable[:openstudio].each do |k, v|
+        if amis[:openstudio][k.to_s] && amis[:openstudio][k.to_s][v.to_sym]
+          amis[:openstudio][k.to_s][:stable] = v
+        end
+      end
+
+      # I'm not sure what the below code is trying to accomplish. Are we even using the default?
+      k, v = stable[:openstudio].first
+      if k && v
+        if amis[:openstudio][k.to_s]
+          amis[:openstudio][:default] = v
+        end
+      end
+
+      # now go through and if the OpenStudio version does not have a stable key, then assign it the most recent
+      # stable AMI. This allows for easy testing so a new version of OpenStudio can use an existing AMI.
+      stable[:openstudio].each do |stable_openstudio, stable_server|
+        amis[:openstudio].each do |k, v|
+          next if k == :default
+
+          if k.to_s.to_version > stable_openstudio.to_s.to_version && v[:stable].nil?
+            amis[:openstudio][k.to_s][:stable] = stable_server.to_s
+          end
+        end
+      end
     end
 
     amis
   end
 
-  def to_os_worker_hash
-    worker_hash = []
-    @workers.each do |worker|
-      worker_hash.push(
-          id: worker.data.id,
-          ip: "http://#{worker.data.ip}",
-          dns: worker.data.dns,
-          procs: worker.data.procs,
-          private_key_file_name: worker.private_key_file_name
-      )
+  # save off the instance configuration and instance information into a JSON file for later use
+  def to_os_hash
+    h = @server.to_os_hash
+
+    h[:server][:worker_private_key_file_name] = @worker_keys_filename
+    h[:workers] = @workers.map do |worker|
+      {
+        id: worker.data.id,
+        ip: "http://#{worker.data.ip}",
+        dns: worker.data.dns,
+        procs: worker.data.procs,
+        private_key_file_name: worker.private_key_file_name,
+        private_ip_address: worker.private_ip_address
+      }
     end
 
-    out = { workers: worker_hash }
-    logger.info out
-
-    out
+    h
   end
 
-  # take the base version and increment the patch until
+  # take the base version and increment the patch until.
+  # TODO: DEPRECATE
   def get_next_version(base, list_of_svs)
     b = base.to_version
 
@@ -454,9 +705,7 @@ class OpenStudioAwsWrapper
     end
 
     # get the max version in the list_of_svs
-    while list_of_svs.include?(b.to_s)
-      b.patch += 1
-    end
+    b.patch += 1 while list_of_svs.include?(b.to_s)
 
     # return the value back as a string
     b.to_s
@@ -474,8 +723,8 @@ class OpenStudioAwsWrapper
       sv = ami[:tags_hash][:openstudio_server_version]
 
       if sv.nil? || sv == ''
-        puts 'found nil version, incrementing from 0.0.1'
-        sv = get_next_version('0.0.1', list_of_svs)
+        logger.info 'found nil Server Version, ignoring'
+        next
       end
       list_of_svs << sv
 
@@ -486,11 +735,9 @@ class OpenStudioAwsWrapper
       a[:amis] = {} unless a[:amis]
 
       # fill in data (this will override data currently)
-      a[:deprecate] = true if sv.to_version.satisfies('0.0.*')
       a[:openstudio_version] = ami[:tags_hash][:openstudio_version] if ami[:tags_hash][:openstudio_version]
       a[:openstudio_version_sha] = ami[:tags_hash][:openstudio_version_sha] if ami[:tags_hash][:openstudio_version_sha]
       a[:user_uuid] = ami[:tags_hash][:user_uuid] if ami[:tags_hash][:user_uuid]
-      a[:deprecate] = ami[:tags_hash][:deprecate] if ami[:tags_hash][:deprecate]
       a[:created_on] = ami[:tags_hash][:created_on] if ami[:tags_hash][:created_on]
       a[:openstudio_server_version] = sv.to_s
       if ami[:tags_hash][:tested]
@@ -499,52 +746,43 @@ class OpenStudioAwsWrapper
         a[:tested] = false
       end
 
-      if ami[:name] =~ /Worker|Cluster/
-        if ami[:virtualization_type] == 'paravirtual'
+      if ami[:tags_hash][:openstudio_version].to_version >= '1.6.0'
+        if ami[:name] =~ /Server/
+          a[:amis][:server] = ami[:image_id]
+        elsif ami[:name] =~ /Worker/
           a[:amis][:worker] = ami[:image_id]
-        elsif ami[:virtualization_type] == 'hvm'
-          a[:amis][:cc2worker] = ami[:image_id]
-        else
-          fail "unknown virtualization_type in #{ami[:name]}"
         end
-      elsif ami[:name] =~ /Server/
-        a[:amis][:server] = ami[:image_id]
+      elsif ami[:tags_hash][:openstudio_version].to_version >= '1.5.0'
+        if ami[:name] =~ /Server/
+          a[:amis][:server] = ami[:image_id]
+        elsif ami[:name] =~ /Worker/
+          a[:amis][:worker] = ami[:image_id]
+          a[:amis][:cc2worker] = ami[:image_id]
+        end
+      else
+        if ami[:name] =~ /Worker|Cluster/
+          if ami[:virtualization_type] == 'paravirtual'
+            a[:amis][:worker] = ami[:image_id]
+          elsif ami[:virtualization_type] == 'hvm'
+            a[:amis][:cc2worker] = ami[:image_id]
+          else
+            raise "unknown virtualization_type in #{ami[:name]}"
+          end
+        elsif ami[:name] =~ /Server/
+          a[:amis][:server] = ami[:image_id]
+        end
       end
     end
-    # puts "Current AMIs: #{JSON.pretty_generate(amis)}"
 
-    # merge in the existing AMIs the existing amis into the 'unknown category, but don't flag them as 'deprecate'
-    # puts "Existing AMIs: #{JSON.pretty_generate(existing)}"
-    existing.keys.each do |ami_key|
-      next if ami_key == 'default'.to_sym # ignore default
-
-      # get next version
-      next_version = get_next_version('0.0.1', list_of_svs)
-      list_of_svs << next_version
-
-      amis[:openstudio_server][next_version.to_sym] = {} unless amis[:openstudio_server][next_version.to_sym]
-      a = amis[:openstudio_server][next_version.to_sym]
-      a[:amis] = {} unless a[:amis]
-
-      a[:openstudio_version] = ami_key
-      a[:amis][:server] = existing[ami_key][:server]
-      a[:amis][:worker] = existing[ami_key][:worker]
-      a[:amis][:cc2worker] = existing[ami_key][:cc2worker]
-      a[:openstudio_server_version] = next_version.to_s
-    end
-
-    # puts "After merge: #{JSON.pretty_generate(amis)}"
     # flip these around for openstudio server section
     amis[:openstudio_server].keys.each do |key|
-      next if key.to_s.to_version.satisfies('0.0.*')
-
       a = amis[:openstudio_server][key]
       ov = a[:openstudio_version]
 
-      amis[:openstudio][ov] = {} unless amis[:openstudio][ov]
+      amis[:openstudio][ov] ||= {}
       osv = key
-      amis[:openstudio][ov][osv] = {} unless amis[:openstudio][ov][osv]
-      amis[:openstudio][ov][osv][:amis] = {} unless amis[:openstudio][ov][osv][:amis]
+      amis[:openstudio][ov][osv] ||= {}
+      amis[:openstudio][ov][osv][:amis] ||= {}
       amis[:openstudio][ov][osv][:amis][:server] = a[:amis][:server]
       amis[:openstudio][ov][osv][:amis][:worker] = a[:amis][:worker]
       amis[:openstudio][ov][osv][:amis][:cc2worker] = a[:amis][:cc2worker]
@@ -559,8 +797,6 @@ class OpenStudioAwsWrapper
       amis[:openstudio][key][:default] = amis[:openstudio][key].keys[0]
     end
     amis[:openstudio] = Hash[amis[:openstudio].sort_by { |k, _| k.to_s.to_version }.reverse]
-
-    # puts "After sort: #{JSON.pretty_generate(amis)}"
 
     amis
   end

@@ -33,51 +33,40 @@
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # *******************************************************************************
 
-require 'spec_helper'
+require_relative 'openstudio_aws_logger'
 
-describe OpenStudioAmis do
-  context 'version 1' do
-    it 'should default to an ami if nothing passed' do
-      a = OpenStudioAmis.new
-      amis = a.get_amis
+class OpenStudioCloudWatch
+  include Logging
 
-      expect(amis[:server]).not_to be_nil
-      expect(amis[:worker]).not_to be_nil
+  attr_accessor :private_key_file_name
+  attr_accessor :security_groups
 
-      # From OpenStudio Version 1.5.0 expect cc2workers to be null
-      expect(amis[:cc2worker]).to be_nil
-    end
+  VALID_OPTIONS = [:proxy, :credentials].freeze
 
-    it 'should return specific amis if passed a version' do
-      a = OpenStudioAmis.new(1, openstudio_version: '1.13.2')
-      amis = a.get_amis
+  def initialize(options = {})
+    # store an instance variable with the proxy for passing to instances for use in scp/ssh
+    @proxy = options[:proxy] || nil
 
-      expect(amis[:server]).to eq('ami-e7a1bbf0')
-      expect(amis[:worker]).to eq('ami-e0a1bbf7')
-    end
-
-    it 'should list all amis' do
-      a = OpenStudioAmis.new(1).list
-
-      expect(a).not_to be_nil
-    end
+    # need to remove the prxoy information here
+    @aws = Aws::CloudWatch::Client.new(options[:credentials])
   end
 
-  context 'version 2' do
-    it 'should fail when trying to find a stable version for older releases' do
-      a = OpenStudioAmis.new(2, openstudio_version: '1.5.0', stable: true)
+  def estimated_charges
+    end_time = Time.now.utc
+    start_time = end_time - 86400
+    resp = @aws.get_metric_statistics(
+      dimensions: [
+        { name: 'ServiceName', value: 'AmazonEC2' },
+        { name: 'Currency', value: 'USD' }
+      ],
+      metric_name: 'EstimatedCharges',
+      namespace: 'AWS/Billing',
+      start_time: start_time.iso8601,
+      end_time: end_time.iso8601,
+      period: 300,
+      statistics: ['Maximum']
+    )
 
-      expect { a.get_amis }.to raise_error(/Could not find a stable version for openstudio version 1.5.0/)
-    end
-  end
-
-  context 'version 3' do
-    it 'should fail when trying to find a stable version for older releases' do
-      a = OpenStudioAmis.new(3, openstudio_version: '2.8.0', stable: true)
-
-      puts a.inspect
-
-      expect { a.get_amis }.to raise_error(/Currently the openstudio_version lookup is not supported in v3/)
-    end
+    resp.data || []
   end
 end

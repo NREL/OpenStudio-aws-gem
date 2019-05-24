@@ -3,6 +3,7 @@
 .idea
 .ruby-version
 *.swp
+build
 Gemfile.lock
 *.pem
 *.gem
@@ -13,3 +14,10 @@ aws.log
 spec/reports
 ~$*
 *.receipt
+rubocop-results.xml
+spec/output
+*.pem
+*.pub
+*.config
+.rubocop-http*
+gems
