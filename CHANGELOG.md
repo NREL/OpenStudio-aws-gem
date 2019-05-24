@@ -1,6 +1,16 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+
+Version 0.7.0
+-------------
+* Fix worker off by one bug
+* Update Net SSH and Net SCP
+
+Version 0.5 - 0.6
+-----------------
+* These releases did not include change logs
+
 Version 0.4.2
 -------------
 * Fix net-ssh to 3.0.2 because newer version caused infinite loop
