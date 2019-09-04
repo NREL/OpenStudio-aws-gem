@@ -76,7 +76,7 @@ class OpenStudioAwsInstance
     # get the instance information
     test_result = @aws.describe_volumes(volume_ids: [resp[:volume_id]])
     begin
-      Timeout.timeout(600) do # 10 minutes
+      Timeout.timeout(1200) do # 20 minutes
         while test_result.nil? || test_result.instance_state.name != 'available'
           # refresh the server instance information
 
@@ -184,7 +184,7 @@ class OpenStudioAwsInstance
     # get the instance information
     test_result = @aws.describe_instance_status(instance_ids: [aws_instance.instance_id]).data.instance_statuses.first
     begin
-      Timeout.timeout(600) do # 10 minutes
+      Timeout.timeout(1200) do # 20 minutes
         while test_result.nil? || test_result.instance_state.name != 'running'
           # refresh the server instance information
 
