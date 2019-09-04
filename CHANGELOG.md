@@ -1,6 +1,9 @@
 OpenStudio AWS Gem Change Log
 ==================================
 
+Version 0.7.1
+-------------
+Double timeout threshold for EC2 instances from 10 to 20 minutes.  Start_remote calls have been timing out increasingly, depending on instance time.  This may be related to AWS deprecating compatible instances.
 
 Version 0.7.0
 -------------
