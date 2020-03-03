@@ -17,13 +17,13 @@ Gem::Specification.new do |s|
   s.required_ruby_version = '>= 2.0.0'
   s.required_rubygems_version = '>= 1.3.6'
 
-  s.add_dependency 'aws-sdk-core', '= 2.2.37'
-  s.add_dependency 'net-scp', '= 2.0.0'
-  s.add_dependency 'net-ssh', '= 4.2.0'
+  s.add_dependency 'aws-sdk-core', '~> 2.2.37'
+  s.add_dependency 'net-scp', '~> 2.0.0'
+  s.add_dependency 'net-ssh', '~> 4.2.0'
   s.add_dependency 'semantic', '~> 1.4'
   s.add_dependency 'sshkey', '~> 2.0'
 
-  s.add_development_dependency 'rake', '~> 12.3'
+  s.add_development_dependency 'rake', '~> 13.0'
 
   s.files         = `git ls-files -z`.split("\x0")
   s.executables   = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
